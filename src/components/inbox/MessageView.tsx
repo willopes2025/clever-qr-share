@@ -40,6 +40,7 @@ import { AIAssistantButton } from "./AIAssistantButton";
 import { TransferConversationDialog } from "./TransferConversationDialog";
 import { NotesTab } from "./NotesTab";
 import { TasksTab } from "./TasksTab";
+import { PinnedItemsBar } from "./PinnedItemsBar";
 import { InternalChatTab } from "./InternalChatTab";
 import { PresenceAvatars } from "./PresenceAvatars";
 import { UserTypingIndicator } from "./UserTypingIndicator";
@@ -1513,6 +1514,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         onScroll={handleScroll}
         ref={scrollAreaRef}
       >
+        <PinnedItemsBar conversationId={conversation.id} contactId={conversation.contact_id} />
         <div className="space-y-1 max-w-3xl mx-auto">
           {isLoading ? (
             <div className="space-y-4">
