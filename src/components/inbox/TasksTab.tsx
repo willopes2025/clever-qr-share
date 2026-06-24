@@ -9,7 +9,7 @@ import { useUnifiedTasks, UnifiedTask } from "@/hooks/useUnifiedTasks";
 import { useTaskTypes } from "@/hooks/useTaskTypes";
 import { useScheduledMessages } from "@/hooks/useScheduledMessages";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Calendar, Clock, Trash2, Pencil, CheckSquare, X, Check, ChevronDown, ChevronUp, Tag, Briefcase, MessageSquare } from "lucide-react";
+import { Plus, Calendar, Clock, Trash2, Pencil, CheckSquare, X, Check, ChevronDown, ChevronUp, Tag, Briefcase, MessageSquare, Pin, PinOff } from "lucide-react";
 import { format, isPast, isToday, isTomorrow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -73,6 +73,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
   const [newTaskTypeId, setNewTaskTypeId] = useState<string | null>(null);
   const [newAssignedTo, setNewAssignedTo] = useState<string | null>(null);
   const [newScheduledMessage, setNewScheduledMessage] = useState<ScheduledMessageData | null>(null);
+  const [newPinned, setNewPinned] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTask, setEditTask] = useState<Partial<UnifiedTask> & { task_type_id?: string | null; assigned_to?: string | null }>({});
   const [deleteTarget, setDeleteTarget] = useState<UnifiedTask | null>(null);
@@ -89,6 +90,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
       priority: newPriority,
       task_type_id: newTaskTypeId,
       assigned_to: newAssignedTo,
+      is_pinned: newPinned,
       source: 'conversation',
     });
 
@@ -123,6 +125,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
     setNewTaskTypeId(null);
     setNewAssignedTo(null);
     setNewScheduledMessage(null);
+    setNewPinned(false);
     setIsCreating(false);
   };
 
