@@ -14,6 +14,7 @@ export interface UnifiedTask {
   completed_at: string | null;
   task_type_id: string | null;
   assigned_to: string | null;
+  is_pinned: boolean;
   created_at: string;
   updated_at: string;
   // Source info
@@ -221,6 +222,7 @@ export const useUnifiedTasks = ({ conversationId, contactId, dealId }: UseUnifie
       priority?: string;
       task_type_id?: string | null;
       assigned_to?: string | null;
+      is_pinned?: boolean;
       source: 'conversation' | 'deal';
     }) => {
       if (!user) throw new Error('Usuário não autenticado');

@@ -9,7 +9,7 @@ import { useUnifiedTasks, UnifiedTask } from "@/hooks/useUnifiedTasks";
 import { useTaskTypes } from "@/hooks/useTaskTypes";
 import { useScheduledMessages } from "@/hooks/useScheduledMessages";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Calendar, Clock, Trash2, Pencil, CheckSquare, X, Check, ChevronDown, ChevronUp, Tag, Briefcase, MessageSquare } from "lucide-react";
+import { Plus, Calendar, Clock, Trash2, Pencil, CheckSquare, X, Check, ChevronDown, ChevronUp, Tag, Briefcase, MessageSquare, Pin, PinOff } from "lucide-react";
 import { format, isPast, isToday, isTomorrow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -73,6 +73,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
   const [newTaskTypeId, setNewTaskTypeId] = useState<string | null>(null);
   const [newAssignedTo, setNewAssignedTo] = useState<string | null>(null);
   const [newScheduledMessage, setNewScheduledMessage] = useState<ScheduledMessageData | null>(null);
+  const [newPinned, setNewPinned] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTask, setEditTask] = useState<Partial<UnifiedTask> & { task_type_id?: string | null; assigned_to?: string | null }>({});
   const [deleteTarget, setDeleteTarget] = useState<UnifiedTask | null>(null);
@@ -89,6 +90,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
       priority: newPriority,
       task_type_id: newTaskTypeId,
       assigned_to: newAssignedTo,
+      is_pinned: newPinned,
       source: 'conversation',
     });
 
@@ -123,6 +125,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
     setNewTaskTypeId(null);
     setNewAssignedTo(null);
     setNewScheduledMessage(null);
+    setNewPinned(false);
     setIsCreating(false);
   };
 
@@ -244,6 +247,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
         key={task.id}
         className={cn(
           "p-3 rounded-lg border bg-card",
+          task.is_pinned && !task.completed_at && "border-primary/50 bg-primary/5",
           task.completed_at && "opacity-60"
         )}
       >
@@ -307,9 +311,20 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
           </div>
           <div className="flex items-center gap-1">
             {!task.completed_at && (
-              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditing(task)}>
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
+              <>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => updateTask.mutate({ id: task.id, source: task.source, is_pinned: !task.is_pinned })}
+                  title={task.is_pinned ? "Desafixar" : "Fixar no topo"}
+                >
+                  {task.is_pinned ? <PinOff className="h-3.5 w-3.5 text-primary" /> : <Pin className="h-3.5 w-3.5" />}
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditing(task)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </>
             )}
             <Button
               size="icon"
@@ -399,15 +414,27 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
                 </div>
               </div>
             </ScrollArea>
-            <div className="shrink-0 flex gap-2 justify-end px-4 py-3 border-t bg-card">
-              <Button size="sm" variant="ghost" onClick={resetForm}>
-                <X className="h-4 w-4 mr-1" />
-                Cancelar
-              </Button>
-              <Button size="sm" onClick={handleCreate} disabled={!newTitle.trim() || createTask.isPending}>
-                <Check className="h-4 w-4 mr-1" />
-                Criar
-              </Button>
+            <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t bg-card">
+              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={newPinned}
+                  onChange={(e) => setNewPinned(e.target.checked)}
+                  className="h-4 w-4 rounded border-input accent-primary"
+                />
+                <Pin className="h-3.5 w-3.5" />
+                Fixar no topo
+              </label>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={resetForm}>
+                  <X className="h-4 w-4 mr-1" />
+                  Cancelar
+                </Button>
+                <Button size="sm" onClick={handleCreate} disabled={!newTitle.trim() || createTask.isPending}>
+                  <Check className="h-4 w-4 mr-1" />
+                  Criar
+                </Button>
+              </div>
             </div>
           </>
         ) : (

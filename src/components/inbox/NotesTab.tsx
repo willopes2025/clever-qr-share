@@ -28,14 +28,16 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
   const { notes, isLoading, createNote, updateNote, deleteNote } = useConversationNotes(conversationId, contactId);
   const [isCreating, setIsCreating] = useState(false);
   const [newContent, setNewContent] = useState("");
+  const [newPinned, setNewPinned] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const handleCreate = async () => {
     if (!newContent.trim()) return;
-    await createNote.mutateAsync({ content: newContent.trim() });
+    await createNote.mutateAsync({ content: newContent.trim(), isPinned: newPinned });
     setNewContent("");
+    setNewPinned(false);
     setIsCreating(false);
   };
 
@@ -81,26 +83,39 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
               className="min-h-[100px]"
               autoFocus
             />
-            <div className="flex gap-2 justify-end">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setIsCreating(false);
-                  setNewContent("");
-                }}
-              >
-                <X className="h-4 w-4 mr-1" />
-                Cancelar
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleCreate}
-                disabled={!newContent.trim() || createNote.isPending}
-              >
-                <Check className="h-4 w-4 mr-1" />
-                Salvar
-              </Button>
+            <div className="flex items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={newPinned}
+                  onChange={(e) => setNewPinned(e.target.checked)}
+                  className="h-4 w-4 rounded border-input accent-primary"
+                />
+                <Pin className="h-3.5 w-3.5" />
+                Fixar no topo da conversa
+              </label>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setIsCreating(false);
+                    setNewContent("");
+                    setNewPinned(false);
+                  }}
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleCreate}
+                  disabled={!newContent.trim() || createNote.isPending}
+                >
+                  <Check className="h-4 w-4 mr-1" />
+                  Salvar
+                </Button>
+              </div>
             </div>
           </div>
         ) : (
