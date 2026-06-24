@@ -310,9 +310,20 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
           </div>
           <div className="flex items-center gap-1">
             {!task.completed_at && (
-              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditing(task)}>
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
+              <>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => updateTask.mutate({ id: task.id, source: task.source, is_pinned: !task.is_pinned })}
+                  title={task.is_pinned ? "Desafixar" : "Fixar no topo"}
+                >
+                  {task.is_pinned ? <PinOff className="h-3.5 w-3.5 text-primary" /> : <Pin className="h-3.5 w-3.5" />}
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditing(task)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </>
             )}
             <Button
               size="icon"
