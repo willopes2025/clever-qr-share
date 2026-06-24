@@ -2452,6 +2452,7 @@ export type Database = {
           due_time: string | null
           google_event_id: string | null
           id: string
+          is_pinned: boolean
           priority: string | null
           reminder_at: string | null
           sync_with_google: boolean | null
@@ -2471,6 +2472,7 @@ export type Database = {
           due_time?: string | null
           google_event_id?: string | null
           id?: string
+          is_pinned?: boolean
           priority?: string | null
           reminder_at?: string | null
           sync_with_google?: boolean | null
@@ -2490,6 +2492,7 @@ export type Database = {
           due_time?: string | null
           google_event_id?: string | null
           id?: string
+          is_pinned?: boolean
           priority?: string | null
           reminder_at?: string | null
           sync_with_google?: boolean | null
@@ -2790,6 +2793,7 @@ export type Database = {
           due_time: string | null
           google_event_id: string | null
           id: string
+          is_pinned: boolean
           priority: string | null
           sync_with_google: boolean | null
           task_type_id: string | null
@@ -2807,6 +2811,7 @@ export type Database = {
           due_time?: string | null
           google_event_id?: string | null
           id?: string
+          is_pinned?: boolean
           priority?: string | null
           sync_with_google?: boolean | null
           task_type_id?: string | null
@@ -2824,6 +2829,7 @@ export type Database = {
           due_time?: string | null
           google_event_id?: string | null
           id?: string
+          is_pinned?: boolean
           priority?: string | null
           sync_with_google?: boolean | null
           task_type_id?: string | null
