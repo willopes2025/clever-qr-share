@@ -402,15 +402,27 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
                 </div>
               </div>
             </ScrollArea>
-            <div className="shrink-0 flex gap-2 justify-end px-4 py-3 border-t bg-card">
-              <Button size="sm" variant="ghost" onClick={resetForm}>
-                <X className="h-4 w-4 mr-1" />
-                Cancelar
-              </Button>
-              <Button size="sm" onClick={handleCreate} disabled={!newTitle.trim() || createTask.isPending}>
-                <Check className="h-4 w-4 mr-1" />
-                Criar
-              </Button>
+            <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t bg-card">
+              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={newPinned}
+                  onChange={(e) => setNewPinned(e.target.checked)}
+                  className="h-4 w-4 rounded border-input accent-primary"
+                />
+                <Pin className="h-3.5 w-3.5" />
+                Fixar no topo
+              </label>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={resetForm}>
+                  <X className="h-4 w-4 mr-1" />
+                  Cancelar
+                </Button>
+                <Button size="sm" onClick={handleCreate} disabled={!newTitle.trim() || createTask.isPending}>
+                  <Check className="h-4 w-4 mr-1" />
+                  Criar
+                </Button>
+              </div>
             </div>
           </>
         ) : (
