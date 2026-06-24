@@ -1508,13 +1508,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         </TabsList>
 
         <TabsContent value="chat" className="flex flex-col flex-1 min-h-0 overflow-hidden mt-0 relative">
+      <PinnedItemsBar conversationId={conversation.id} contactId={conversation.contact_id} />
       {/* Messages - WhatsApp style background */}
       <div 
         className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4 whatsapp-chat-bg" 
         onScroll={handleScroll}
         ref={scrollAreaRef}
       >
-        <PinnedItemsBar conversationId={conversation.id} contactId={conversation.contact_id} />
         <div className="space-y-1 max-w-3xl mx-auto">
           {isLoading ? (
             <div className="space-y-4">
