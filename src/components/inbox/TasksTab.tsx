@@ -247,6 +247,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
         key={task.id}
         className={cn(
           "p-3 rounded-lg border bg-card",
+          task.is_pinned && !task.completed_at && "border-primary/50 bg-primary/5",
           task.completed_at && "opacity-60"
         )}
       >
