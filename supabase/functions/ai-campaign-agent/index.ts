@@ -1274,18 +1274,24 @@ Deno.serve(async (req: Request) => {
       }
 
       // Check if within active hours (only for automatic trigger) — use org timezone
+      // Skip this check if AI was manually activated by an operator (persists until a human writes)
       const orgTz = await resolveOrgTimezone(supabase, { userId: conversation.user_id });
-      if (!isWithinAnyActiveWindow(config.active_hours_windows, config.active_hours_start, config.active_hours_end, orgTz)) {
+      const manualOverride = !!(conversation as any).ai_manual_override;
+      if (!manualOverride && !isWithinAnyActiveWindow(config.active_hours_windows, config.active_hours_start, config.active_hours_end, orgTz)) {
         console.log('[AI-AGENT] Outside active hours/days for tz', orgTz);
         return new Response(
           JSON.stringify({ success: false, reason: 'Outside active hours' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      if (manualOverride) {
+        console.log('[AI-AGENT] Manual override active - bypassing active hours check');
+      }
     } else {
       console.log('[AI-AGENT] Manual trigger - skipping pause/handoff/hours checks');
       
-      // For manual trigger, reset handoff and pause status
+      // For manual trigger, reset handoff/pause and enable manual-override so AI keeps replying
+      // even outside active hours until a human operator writes.
       await supabase
         .from('conversations')
         .update({
@@ -1293,6 +1299,7 @@ Deno.serve(async (req: Request) => {
           ai_handoff_requested: false,
           ai_handoff_reason: null,
           ai_handled: true,
+          ai_manual_override: true,
         })
         .eq('id', conversationId);
     }
