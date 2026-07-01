@@ -2531,6 +2531,7 @@ export type Database = {
           ai_handoff_reason: string | null
           ai_handoff_requested: boolean | null
           ai_interactions_count: number | null
+          ai_manual_override: boolean
           ai_paused: boolean | null
           assigned_to: string | null
           campaign_id: string | null
@@ -2556,6 +2557,7 @@ export type Database = {
           ai_handoff_reason?: string | null
           ai_handoff_requested?: boolean | null
           ai_interactions_count?: number | null
+          ai_manual_override?: boolean
           ai_paused?: boolean | null
           assigned_to?: string | null
           campaign_id?: string | null
@@ -2581,6 +2583,7 @@ export type Database = {
           ai_handoff_reason?: string | null
           ai_handoff_requested?: boolean | null
           ai_interactions_count?: number | null
+          ai_manual_override?: boolean
           ai_paused?: boolean | null
           assigned_to?: string | null
           campaign_id?: string | null
@@ -7443,6 +7446,7 @@ export type Database = {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
+      email_queue_dispatch: { Args: never; Returns: undefined }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
