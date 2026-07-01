@@ -1102,7 +1102,7 @@ Deno.serve(async (req: Request) => {
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
       .select(`
-        id, user_id, contact_id, campaign_id, ai_handled, ai_interactions_count, ai_paused, ai_handoff_requested, instance_id, preferred_response_format,
+        id, user_id, contact_id, campaign_id, ai_handled, ai_interactions_count, ai_paused, ai_handoff_requested, ai_manual_override, instance_id, preferred_response_format,
         contacts!inner(id, phone, name),
         campaigns(id, name, ai_enabled)
       `)
