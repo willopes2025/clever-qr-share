@@ -1082,6 +1082,11 @@ Deno.serve(async (req: Request) => {
 
         if (sentByHuman && ageSeconds < HUMAN_PAUSE_SECONDS) {
           console.log(`[AI-AGENT] HUMAN-TAKEOVER: Operador respondeu há ${ageSeconds.toFixed(1)}s - IA pausada nesta conversa`);
+          // Clear any manual-override so the AI won't auto-resume outside hours
+          await supabase
+            .from('conversations')
+            .update({ ai_manual_override: false })
+            .eq('id', conversationId);
           return new Response(
             JSON.stringify({ success: false, reason: 'Human operator recently active', ageSeconds }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
