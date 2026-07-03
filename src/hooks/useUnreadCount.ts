@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useInboxHiddenInstances } from "@/hooks/useInboxHiddenInstances";
+import { useChannelAccessScope } from "@/hooks/useChannelAccessScope";
 
 /**
  * Counts unread conversations exactly the same way the Inbox "Não lidas"
@@ -23,25 +24,28 @@ const INBOX_PAGE_SIZE = 200;
 export const useUnreadCount = () => {
   const { user } = useAuth();
   const { hiddenIds } = useInboxHiddenInstances();
+  const {
+    orgUserIds,
+    hasInstanceRestriction,
+    allowedInstanceIds,
+    hasMetaRestriction,
+    allowedMetaNumberIds,
+    isScopeReady,
+  } = useChannelAccessScope();
 
   return useQuery({
-    queryKey: ['unread-count', user?.id, hiddenIds.join(',')],
+    queryKey: [
+      'unread-count',
+      user?.id,
+      orgUserIds?.join(',') || '',
+      allowedInstanceIds?.join(',') || '',
+      hasInstanceRestriction,
+      allowedMetaNumberIds?.join(',') || '',
+      hasMetaRestriction,
+      hiddenIds.join(','),
+    ],
     queryFn: async () => {
       if (!user?.id) return 0;
-
-      // Per-member instance restriction (same as useConversations)
-      const { data: hasRestrictionData } = await supabase.rpc(
-        'member_has_instance_restriction',
-        { _user_id: user.id },
-      );
-      const hasInstanceRestriction = !!hasRestrictionData;
-      let allowedInstanceIds: string[] | null = null;
-      if (hasInstanceRestriction) {
-        const { data: allowed } = await supabase.rpc('get_member_instance_ids', {
-          _user_id: user.id,
-        });
-        allowedInstanceIds = (allowed as string[] | null) ?? [];
-      }
 
       // Parallel: notification-only instances + warming phones set
       const [notifRes, wcRes, wpRes] = await Promise.all([
@@ -70,14 +74,32 @@ export const useUnreadCount = () => {
         .order('last_message_at', { ascending: false })
         .limit(INBOX_PAGE_SIZE);
 
-      if (hasInstanceRestriction && allowedInstanceIds !== null) {
-        if (allowedInstanceIds.length > 0) {
-          query = query.or(
-            `instance_id.in.(${allowedInstanceIds.join(',')}),instance_id.is.null`,
-          );
-        } else {
-          query = query.is('instance_id', null);
+      const accessibleUserIds = orgUserIds?.length ? orgUserIds : [user.id];
+      query = query.in('user_id', accessibleUserIds);
+
+      const channelPredicates: string[] = [];
+      if (hasInstanceRestriction === true) {
+        if (allowedInstanceIds && allowedInstanceIds.length > 0) {
+          channelPredicates.push(`instance_id.in.(${allowedInstanceIds.join(',')})`);
         }
+      } else {
+        channelPredicates.push('instance_id.not.is.null');
+      }
+
+      if (hasMetaRestriction === true) {
+        if (allowedMetaNumberIds && allowedMetaNumberIds.length > 0) {
+          channelPredicates.push(`meta_phone_number_id.in.(${allowedMetaNumberIds.join(',')})`);
+        }
+      } else {
+        channelPredicates.push('meta_phone_number_id.not.is.null');
+      }
+
+      if (hasInstanceRestriction !== true && hasMetaRestriction !== true) {
+        channelPredicates.push('and(instance_id.is.null,meta_phone_number_id.is.null)');
+      }
+
+      if (channelPredicates.length > 0) {
+        query = query.or(channelPredicates.join(','));
       }
 
       const { data, error } = await query;
@@ -129,7 +151,7 @@ export const useUnreadCount = () => {
 
       return unread.length;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && isScopeReady,
     staleTime: 30_000,
   });
 };
