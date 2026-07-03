@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useInboxHiddenInstances } from "@/hooks/useInboxHiddenInstances";
+import { useChannelAccessScope } from "@/hooks/useChannelAccessScope";
 import { toast } from "sonner";
 
 export interface ConversationDeal {
@@ -125,32 +126,14 @@ export const useConversations = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { hiddenSet: hiddenInstanceSet, hiddenIds: hiddenInstanceIds } = useInboxHiddenInstances();
-
-  // Check if current user has instance restrictions
-  const { data: hasInstanceRestriction } = useQuery({
-    queryKey: ['has-instance-restriction', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc('member_has_instance_restriction', { _user_id: user!.id });
-      
-      if (error) throw error;
-      return data as boolean;
-    },
-    enabled: !!user,
-  });
-
-  // Get member's allowed instance IDs directly
-  const { data: allowedInstanceIds } = useQuery({
-    queryKey: ['my-instance-ids', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc('get_member_instance_ids', { _user_id: user!.id });
-      
-      if (error) throw error;
-      return data as string[];
-    },
-    enabled: !!user && hasInstanceRestriction === true,
-  });
+  const {
+    orgUserIds,
+    hasInstanceRestriction,
+    allowedInstanceIds,
+    hasMetaRestriction,
+    allowedMetaNumberIds,
+    isScopeReady,
+  } = useChannelAccessScope();
 
   // Get notification-only instance IDs to exclude from inbox
   const { data: notificationInstanceIds } = useQuery({
@@ -200,7 +183,18 @@ export const useConversations = () => {
   const INBOX_PAGE_SIZE = 200;
 
   const { data: conversations, isLoading, refetch } = useQuery({
-    queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction, notificationInstanceIds, warmingPhones?.size ?? 0, hiddenInstanceIds.join(',')],
+    queryKey: [
+      'conversations',
+      user?.id,
+      orgUserIds?.join(',') || '',
+      allowedInstanceIds?.join(',') || '',
+      hasInstanceRestriction,
+      allowedMetaNumberIds?.join(',') || '',
+      hasMetaRestriction,
+      notificationInstanceIds,
+      warmingPhones?.size ?? 0,
+      hiddenInstanceIds.join(','),
+    ],
     queryFn: async () => {
       // STEP 1 — Light query: only fields needed by the list itself.
       let query = supabase
@@ -219,12 +213,37 @@ export const useConversations = () => {
         .order('last_message_at', { ascending: false })
         .limit(INBOX_PAGE_SIZE);
 
-      if (hasInstanceRestriction && allowedInstanceIds !== undefined) {
-        if (allowedInstanceIds.length > 0) {
-          query = query.or(`instance_id.in.(${allowedInstanceIds.join(',')}),instance_id.is.null`);
-        } else {
-          query = query.is('instance_id', null);
+      // Performance-critical: never ask PostgREST/RLS to evaluate the whole
+      // conversations table. Limit first to the active owner/org users, then
+      // let RLS enforce the same access rules at row level.
+      const accessibleUserIds = orgUserIds?.length ? orgUserIds : [user!.id];
+      query = query.in('user_id', accessibleUserIds);
+
+      const channelPredicates: string[] = [];
+      if (hasInstanceRestriction === true) {
+        if (allowedInstanceIds && allowedInstanceIds.length > 0) {
+          channelPredicates.push(`instance_id.in.(${allowedInstanceIds.join(',')})`);
         }
+      } else {
+        channelPredicates.push('instance_id.not.is.null');
+      }
+
+      if (hasMetaRestriction === true) {
+        if (allowedMetaNumberIds && allowedMetaNumberIds.length > 0) {
+          channelPredicates.push(`meta_phone_number_id.in.(${allowedMetaNumberIds.join(',')})`);
+        }
+      } else {
+        channelPredicates.push('meta_phone_number_id.not.is.null');
+      }
+
+      // Keep conversations without a linked channel visible for unrestricted
+      // owners/admins; restricted members should only see explicitly allowed channels.
+      if (hasInstanceRestriction !== true && hasMetaRestriction !== true) {
+        channelPredicates.push('and(instance_id.is.null,meta_phone_number_id.is.null)');
+      }
+
+      if (channelPredicates.length > 0) {
+        query = query.or(channelPredicates.join(','));
       }
 
       const { data, error } = await query;
@@ -341,7 +360,7 @@ export const useConversations = () => {
     // `hasInstanceRestriction` chegar depois, o queryKey muda e o React Query
     // refaz automaticamente — mas a primeira tela já pinta sem esperar a
     // round-trip de gating.
-    enabled: !!user,
+    enabled: !!user && isScopeReady,
     staleTime: 15_000,
   });
 
