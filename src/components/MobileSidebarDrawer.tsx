@@ -139,8 +139,15 @@ export const MobileSidebarDrawer = () => {
   const filterItems = (items: NavItem[]) => {
     // Se ainda está carregando organização, não mostrar nenhum item
     if (isLoadingOrg) return [];
-    
+
+    const email = user?.email?.toLowerCase();
+
     return items.filter(item => {
+      // Restrição por e-mail (paridade com desktop)
+      if (item.restrictedToEmails && item.restrictedToEmails.length > 0) {
+        if (!email) return false;
+        if (!item.restrictedToEmails.map(e => e.toLowerCase()).includes(email)) return false;
+      }
       // Se não tem organização, permite tudo (usuário individual/legado)
       if (!organization) return true;
       // Se não tem permissão definida, mostra o item
