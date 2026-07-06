@@ -1,7 +1,7 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useInternalChatUnread } from "@/hooks/useInternalChatUnread";
 import { usePendingTasksCount } from "@/hooks/usePendingTasksCount";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, Target, Building2, CalendarDays, X, Bot, User, Wallet, Glasses, Instagram, MessagesSquare, CheckSquare } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, FileBarChart, Target, Building2, CalendarDays, X, Bot, User, Wallet, Glasses, Instagram, MessagesSquare, CheckSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -58,6 +58,7 @@ const navGroups: NavGroup[] = [
       { icon: Target, label: "Funis", path: "/funnels", permission: "view_funnels" },
       { icon: CalendarDays, label: "Calendário", path: "/calendar", permission: "view_calendar" },
       { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
+      { icon: FileBarChart, label: "Relatórios", path: "/relatorios-dinamicos", permission: "view_dynamic_reports" },
       { icon: MessagesSquare, label: "Chat Interno", path: "/internal-chat", permission: "view_inbox", showBadge: true, badgeKey: "internal-chat" },
       { icon: CheckSquare, label: "Tarefas", path: "/tasks", permission: "view_inbox", showBadge: true, badgeKey: "tasks" },
     ],

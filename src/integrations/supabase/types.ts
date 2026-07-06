@@ -2857,6 +2857,133 @@ export type Database = {
           },
         ]
       }
+      dynamic_report_recipients: {
+        Row: {
+          channels: string[]
+          created_at: string
+          id: string
+          report_id: string
+          user_id: string
+        }
+        Insert: {
+          channels?: string[]
+          created_at?: string
+          id?: string
+          report_id: string
+          user_id: string
+        }
+        Update: {
+          channels?: string[]
+          created_at?: string
+          id?: string
+          report_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dynamic_report_recipients_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "dynamic_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dynamic_report_runs: {
+        Row: {
+          delivery_log: Json
+          error: string | null
+          executed_at: string
+          id: string
+          pdf_storage_path: string | null
+          period_end: string | null
+          period_start: string | null
+          report_id: string
+          row_count: number
+          status: string
+          triggered_by: string | null
+        }
+        Insert: {
+          delivery_log?: Json
+          error?: string | null
+          executed_at?: string
+          id?: string
+          pdf_storage_path?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          report_id: string
+          row_count?: number
+          status?: string
+          triggered_by?: string | null
+        }
+        Update: {
+          delivery_log?: Json
+          error?: string | null
+          executed_at?: string
+          id?: string
+          pdf_storage_path?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          report_id?: string
+          row_count?: number
+          status?: string
+          triggered_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dynamic_report_runs_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "dynamic_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dynamic_reports: {
+        Row: {
+          columns: string[]
+          created_at: string
+          description: string | null
+          filter_config: Json
+          id: string
+          name: string
+          organization_id: string | null
+          period_config: Json
+          schedule_config: Json
+          source: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          columns?: string[]
+          created_at?: string
+          description?: string | null
+          filter_config?: Json
+          id?: string
+          name: string
+          organization_id?: string | null
+          period_config?: Json
+          schedule_config?: Json
+          source: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          columns?: string[]
+          created_at?: string
+          description?: string | null
+          filter_config?: Json
+          id?: string
+          name?: string
+          organization_id?: string | null
+          period_config?: Json
+          schedule_config?: Json
+          source?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       elevenlabs_sip_config: {
         Row: {
           created_at: string | null
