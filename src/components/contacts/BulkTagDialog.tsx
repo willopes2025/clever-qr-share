@@ -55,6 +55,9 @@ export const BulkTagDialog = ({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Adicionar Tags em Massa</DialogTitle>
+          <DialogDescription className="sr-only">
+            Selecione tags para aplicar aos contatos escolhidos.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="py-4">
