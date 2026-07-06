@@ -1,98 +1,115 @@
 ## Objetivo
 
-Todo dia, no horário definido (padrão 8h no fuso da organização), o sistema analisa as conversas/negócios dos últimos N dias e gera um PDF com:
+Criar um módulo "Relatórios Dinâmicos" onde o usuário monta um relatório escolhendo:
+1. **Fonte + variável** (campo personalizado de contato, de deal, resposta de formulário, tag ou etapa do funil)
+2. **Período** (hoje, amanhã, últimos 3/7/30 dias, próximos 7 dias, este mês, mês passado, intervalo customizado)
+3. **Destinatários** (membros da organização)
+4. **Canal de entrega** (sino no sistema com PDF anexo, WhatsApp com PDF anexo, ou ambos)
+5. **Execução** (rodar agora ou agendar recorrente — diária/semanal/mensal)
 
-- **Lista de leads quentes por etapa do funil**, agrupados por "Objetivo" (configurável).
-- **Resumo da última conversa de cada lead** (bullet points + sinais de compra detectados pela IA).
+O relatório é gerado como PDF no servidor e entregue por notificação interna (com link de download do PDF salvo em Storage) e/ou WhatsApp (documento anexo pelo chip do destinatário).
 
-O **gestor** recebe o consolidado por **e-mail** (PDF anexado/link). Cada **vendedor** recebe via **WhatsApp** apenas seus próprios leads (PDF como documento na instância conectada).
+## Onde vive na UI
 
----
+Nova página `/relatorios-dinamicos` (menu lateral, ao lado de "Análises"). Estrutura:
 
-## Conceito: "Objetivo de Compra"
+```text
+┌─ Relatórios Dinâmicos ──────────────────────────┐
+│ [Novo relatório]                                │
+│                                                 │
+│ Meus relatórios salvos                          │
+│  • Vencimentos da semana   diário 08:00  ▶ ⚙   │
+│  • Inscritos exame vista   semanal seg   ▶ ⚙   │
+│                                                 │
+│ Últimas execuções                               │
+│  • 06/07 08:00 · 12 leads · [PDF] · enviado    │
+└─────────────────────────────────────────────────┘
+```
 
-Nova entidade configurável por funil. Cada objetivo = um agrupamento de etapas + um prompt próprio que define o que é "comprador potencial" para aquele contexto.
+Diálogo "Novo relatório" em passos:
+1. **Nome + descrição**
+2. **Fonte**: Contatos · Deals · Formulários · Tags/Etapa
+3. **Variável/filtro** (depende da fonte):
+   - Contatos → dropdown com `custom_field_definitions` do usuário (tipo `date`, `datetime`, `select`, `text`…); condição (é igual a, contém, está entre datas, vence em)
+   - Deals → mesma coisa em `funnel_deals.custom_fields` + funil/etapa opcional
+   - Formulários → escolhe o formulário; opcionalmente filtra por resposta de um campo
+   - Tags/Etapa → seleciona uma ou mais tags OU etapa de um funil
+4. **Período**: chips (Hoje, Amanhã, Últimos 3/7/30, Próximos 7, Este mês, Mês passado) + opção "Intervalo customizado" com dois date pickers. Todo cálculo usa `America/Sao_Paulo` (regra do projeto).
+5. **Colunas do PDF**: checkboxes com campos disponíveis da fonte (nome, telefone, e-mail, valor do deal, data do campo escolhido, tag, responsável…).
+6. **Destinatários**: multi-select de membros da organização (usa `get_organization_member_ids`); para cada um marca canal (sino, WhatsApp, ou ambos). WhatsApp usa o telefone do `profiles` do destinatário e é disparado pelo chip padrão do owner.
+7. **Execução**: "Enviar agora" ou "Agendar" (frequência: diária/semanal/mensal + hora + dias da semana quando semanal). O agendamento cria linha em `pg_cron` chamando a edge function (mesmo padrão de `scheduled_analysis_reports`).
 
-Exemplos:
-- **Comprador VIP** → etapas: Proposta, Negociação → prompt: "Identifique leads com ticket alto, urgência e sinais de decisão..."
-- **Recompra** → etapas: Pós-venda → prompt: "Identifique clientes satisfeitos prontos para nova compra..."
-- **Upsell** → etapas: Ativos → prompt: "Identifique clientes que demonstraram interesse em produtos premium..."
+Após salvar, botão "Rodar agora" gera na hora e mostra preview do resultado antes de enviar.
 
-Cada objetivo tem: nome, descrição, funil, etapas incluídas, prompt da IA, score mínimo (0-100), nº máx de leads no relatório, ativo/inativo.
+## Entrega ao destinatário
 
----
+- **Sino (notificação interna)**: insere linha em `notification_queue` / `notification_log` com título "Relatório: {nome} — {período}", corpo com resumo (X leads encontrados), e link para o PDF em Storage. O ícone de notificações existente já renderiza isso.
+- **WhatsApp**: envia documento PDF via edge function `send-inbox-media` (já existente) usando o chip do owner da organização e o telefone do destinatário como `to`. Se o destinatário não tiver telefone no `profiles`, cai só para o sino e mostra aviso.
 
-## Telas (Frontend)
+## Modelo de dados (migração)
 
-### 1. Configuração — em `Analysis` (nova aba "Relatórios Diários")
-- Lista de objetivos cadastrados (cards) + botão "Novo Objetivo".
-- Form: nome, funil, multiselect de etapas, textarea do prompt (com chips de variáveis: `{contato}`, `{ultimas_mensagens}`, `{tempo_etapa}`, `{valor_negocio}`, `{custom_fields}`), slider de score mínimo, limite de leads.
-- Seção "Destinatários":
-  - **Gestores (e-mail)**: multiselect de membros da org → consolidado.
-  - **Vendedores (WhatsApp)**: toggle "enviar para cada responsável" + escolha da instância de envio.
-- Seção "Agendamento": hora local (default 08:00), dias da semana, janela de análise (últimos X dias, default 7).
-- Botão "Gerar prévia agora" (roda on-demand e mostra/baixa o PDF).
+```text
+public.dynamic_reports
+  id, user_id, organization_id, name, description
+  source ('contacts' | 'deals' | 'form_submissions' | 'tags_stage')
+  filter_config jsonb   -- { field_id, operator, value, form_id, funnel_id, stage_id, tag_ids }
+  period_config jsonb   -- { preset: 'today'|'last_7d'|..., custom_start, custom_end }
+  columns text[]
+  schedule_config jsonb -- { enabled, frequency, hour, weekdays, monthday }
+  created_at, updated_at
 
-### 2. Histórico
-- Tabela com cada execução: data, objetivo, nº de leads encontrados, status email/WhatsApp, link p/ baixar PDF.
+public.dynamic_report_recipients
+  id, report_id, user_id, channels text[]  -- ['bell','whatsapp']
 
----
+public.dynamic_report_runs
+  id, report_id, triggered_by, executed_at,
+  period_start, period_end, row_count,
+  pdf_storage_path, status ('success'|'failed'), error
+```
 
-## Backend
+- Enable RLS + GRANTs padrão em todas.
+- Policies escopadas por `organization_id` via `get_organization_member_ids(auth.uid())`.
+- Bucket privado no Storage `dynamic-reports` para os PDFs; políticas escopadas por org.
 
-### Novas tabelas
-- `buyer_report_objectives` — id, organization_id, funnel_id, name, description, prompt, stage_ids (uuid[]), min_score, max_leads, lookback_days, schedule_time, schedule_days (int[]), enabled, manager_user_ids (uuid[]), send_to_assignee_whatsapp (bool), whatsapp_instance_id, created_at, updated_at.
-- `buyer_report_runs` — id, objective_id, organization_id, executed_at, leads_count, pdf_storage_path, email_status, whatsapp_status, payload (jsonb com resultado da IA), error.
-- Bucket de storage **`buyer-reports`** (privado) para arquivar PDFs com URL assinada.
+## Backend (edge functions)
 
-RLS: ambos por `organization_id` via `get_organization_member_ids`. GRANT padrão para `authenticated` + `service_role`.
+1. **`preview-dynamic-report`** (síncrona, chamada pelo botão "Prévia"): recebe `filter_config` + `period_config`, resolve o período respeitando `organizations.timezone` (usa `_shared/timezone.ts`), monta o SELECT correto por fonte e retorna as linhas + colunas.
+2. **`run-dynamic-report`**: mesma consulta da preview + geração de PDF (usa `jspdf`, já instalado no projeto) com header (logo, nome do relatório, período, contagem), tabela paginada e rodapé. Salva PDF no bucket, cria linha em `dynamic_report_runs`, dispara entrega para cada destinatário nos canais escolhidos. Usa `EdgeRuntime.waitUntil` para envios paralelos.
+3. **`schedule-dynamic-reports-tick`**: chamada por `pg_cron` a cada 5 min; lê relatórios com `schedule_config.enabled=true` cuja próxima execução caiu no minuto atual (calculada em `America/Sao_Paulo`) e enfileira chamadas para `run-dynamic-report`.
 
-### Edge functions
-1. **`generate-buyer-report`** (core)
-   - Recebe `objective_id`.
-   - Busca negócios das etapas do objetivo nos últimos `lookback_days`.
-   - Para cada deal: pega últimas ~30 mensagens da conversa vinculada, dados do contato, valor, tempo na etapa, custom_fields.
-   - Chama IA (`google/gemini-2.5-flash` via Lovable AI Gateway) **em lotes de 10 leads** com tool calling estruturado retornando `{ score, why_hot, last_conversation_summary[], buying_signals[], suggested_next_step }`.
-   - Filtra por `min_score` e ordena desc; corta em `max_leads`.
-   - Agrupa por etapa.
-   - Gera PDF (jsPDF, mesmo padrão do `pdf-analysis.ts` existente) com: capa (objetivo, período, total), índice por etapa, card por lead (nome, telefone, valor, score com barra colorida, "Por que é quente", "Resumo da última conversa", "Sinais de compra", "Próxima ação sugerida").
-   - Salva PDF no bucket, registra `buyer_report_runs`.
-   - Retorna URL assinada.
+Todas com auth via `supabaseClient.auth.getUser()`, CORS padrão, e organização resolvida com `resolve_user_organization_id`.
 
-2. **`dispatch-buyer-reports`** (scheduler)
-   - Chamada por `pg_cron` a cada hora.
-   - Para cada `buyer_report_objectives` enabled cuja hora local (convertida pelo `resolveOrgTimezone`) bate com agora e o dia está incluído: chama `generate-buyer-report`.
-   - Para cada gestor em `manager_user_ids`: dispara `send-transactional-email` com template `buyer-report-daily` (PDF como link de download assinado válido por 7 dias).
-   - Se `send_to_assignee_whatsapp`: agrupa leads por `assigned_to`/`owner`, gera **um PDF filtrado por vendedor** (reaproveita o motor), e envia via instância WhatsApp escolhida como documento.
+## Frontend (arquivos novos)
 
-3. Botão "Gerar prévia agora" chama `generate-buyer-report` direto e baixa o PDF.
+- `src/pages/DynamicReports.tsx` — lista + gatilho para criar
+- `src/components/dynamic-reports/DynamicReportDialog.tsx` — wizard de 6 passos
+- `src/components/dynamic-reports/DynamicReportPreview.tsx` — tabela + botão "Enviar"
+- `src/components/dynamic-reports/DynamicReportRunsList.tsx` — histórico de execuções
+- `src/hooks/useDynamicReports.ts` — CRUD + `runNow` + `preview`
+- Rota adicionada em `src/App.tsx` protegida por `PermissionGate` com nova permissão `view_dynamic_reports` (adicionada em `src/config/permissions.ts`)
+- Item no menu lateral (usar ícone `FileBarChart` da lucide)
 
-### Template de email
-- `supabase/functions/_shared/transactional-email-templates/buyer-report-daily.tsx` — assunto "Leads quentes de hoje — {objetivo}", corpo com nº de leads, top 3 destaques e botão "Baixar PDF completo".
+## Reuso do que já existe
 
-### Cron
-- `pg_cron` rodando `dispatch-buyer-reports` a cada hora (a função decide quais objetivos disparar pelo timezone da org).
+- Cálculo de período/timezone: `supabase/functions/_shared/timezone.ts`
+- Definições de campos: `custom_field_definitions` (já lidas por `useCustomFields`)
+- Formulários e submissões: `forms`, `form_submissions`, `form_fields`
+- Escopo de organização: `get_organization_member_ids`
+- WhatsApp com anexo: `send-inbox-media` (já suporta documento)
+- Notificações internas: `notification_queue` + provider existente
 
----
+## Fora do escopo desta entrega
 
-## Detalhes técnicos
+- E-mail com PDF (usuário não marcou).
+- Edição de PDF por template — o layout do PDF é fixo com identidade do sistema; ajustes visuais depois.
+- Compartilhar relatório com destinatários externos (não-membros).
 
-- **IA**: `google/gemini-2.5-flash`, `tool_choice` forçado, schema validado, retry 1x quando vier vazio (padrão já usado em `analyze-conversations`).
-- **Prompt do objetivo** é injetado como `system`; o `user` recebe os dados estruturados de cada batch.
-- **Timezone**: sempre via `resolveOrgTimezone()` no edge e `getActiveTimezone()` no frontend.
-- **WhatsApp**: usa a instância selecionada; envio como documento `.pdf` respeitando a configuração de batch/delay já existente.
-- **Permissões**: só admin/owner da org cria/edita objetivos; vendedor comum vê apenas o histórico de relatórios em que aparece.
-- **Custo**: limite duro `max_leads` (default 50) + janela `lookback_days` (default 7) evitam estouro de tokens.
+## Ordem de implementação
 
----
-
-## Entregáveis
-
-1. Migration: tabelas + RLS + GRANTs + bucket privado.
-2. Edge functions: `generate-buyer-report`, `dispatch-buyer-reports`.
-3. Template de e-mail `buyer-report-daily`.
-4. Cron horário em `pg_cron`.
-5. UI: nova aba "Relatórios Diários" em `Analysis` com CRUD de objetivos, prévia e histórico.
-6. Hook `useBuyerReports.ts` para CRUD + trigger de prévia.
-
-Pré-requisitos: infra de e-mail Lovable Cloud ativa (vou configurar domínio se ainda não estiver pronto antes de scaffoldar o template).
+1. Migração das 3 tabelas + bucket + policies + permissão.
+2. Edge function `preview-dynamic-report` + hook `useDynamicReports.preview`.
+3. Página + wizard + preview funcionando (sem envio).
+4. Edge function `run-dynamic-report` com geração de PDF e entrega pelo sino.
+5. Entrega por WhatsApp.
+6. Agendamento (`schedule_config` + cron + `schedule-dynamic-reports-tick`).
+7. Histórico de execuções na UI.

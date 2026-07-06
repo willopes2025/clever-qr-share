@@ -26,6 +26,7 @@ export type PermissionKey =
   | 'manage_calendar'
   // Analysis
   | 'view_analysis'
+  | 'view_dynamic_reports'
   // Contacts
   | 'view_contacts'
   | 'create_contacts'
@@ -182,6 +183,7 @@ export const PERMISSIONS: Permission[] = [
   
   // Analysis
   { key: 'view_analysis', label: 'Ver Análises', description: 'Visualizar análises de conversas', defaultForAdmin: true, defaultForMember: false, category: 'analysis' },
+  { key: 'view_dynamic_reports', label: 'Ver Relatórios Dinâmicos', description: 'Acessar e gerar relatórios dinâmicos', defaultForAdmin: true, defaultForMember: false, category: 'analysis' },
   
   // Contacts
   { key: 'view_contacts', label: 'Ver Contatos', description: 'Visualizar lista de contatos', defaultForAdmin: true, defaultForMember: true, category: 'contacts' },
@@ -276,6 +278,7 @@ export const SIDEBAR_PERMISSIONS: SidebarItem[] = [
   { path: '/funnels', permission: 'view_funnels' },
   { path: '/calendar', permission: 'view_calendar' },
   { path: '/analysis', permission: 'view_analysis' },
+  { path: '/relatorios-dinamicos', permission: 'view_dynamic_reports' },
   { path: '/contacts', permission: 'view_contacts' },
   { path: '/lead-search', permission: 'search_leads' },
   { path: '/broadcast-lists', permission: 'view_lists' },

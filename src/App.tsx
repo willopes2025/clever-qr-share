@@ -30,6 +30,7 @@ const Admin = lazy(() => import("./pages/Admin"));
 const Inbox = lazy(() => import("./pages/Inbox"));
 const Warming = lazy(() => import("./pages/Warming"));
 const Analysis = lazy(() => import("./pages/Analysis"));
+const DynamicReports = lazy(() => import("./pages/DynamicReports"));
 const Funnels = lazy(() => import("./pages/Funnels"));
 const LeadSearch = lazy(() => import("./pages/LeadSearch"));
 const InstagramScraper = lazy(() => import("./pages/InstagramScraper"));
@@ -184,6 +185,15 @@ const App = () => (
                       <NotificationProvider>
                         <PermissionGate permission="view_analysis">
                           <Analysis />
+                        </PermissionGate>
+                      </NotificationProvider>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/relatorios-dinamicos" element={
+                    <ProtectedRoute>
+                      <NotificationProvider>
+                        <PermissionGate permission="view_dynamic_reports">
+                          <DynamicReports />
                         </PermissionGate>
                       </NotificationProvider>
                     </ProtectedRoute>
