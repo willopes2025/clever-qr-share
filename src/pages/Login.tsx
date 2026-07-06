@@ -37,11 +37,15 @@ const Login = () => {
     }
   }, [searchParams]);
 
+  const nextParam = searchParams.get('next');
+  const safeNext = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : null;
+  const postAuthTarget = safeNext ?? '/instances';
+
   useEffect(() => {
     if (user) {
-      navigate('/instances');
+      navigate(postAuthTarget);
     }
-  }, [user, navigate]);
+  }, [user, navigate, postAuthTarget]);
 
   if (user) {
     return null;
@@ -70,7 +74,7 @@ const Login = () => {
     }
 
     toast.success('Login realizado com sucesso!');
-    navigate('/instances');
+    navigate(postAuthTarget);
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -96,7 +100,7 @@ const Login = () => {
     }
 
     toast.success('Conta criada com sucesso! Você já pode fazer login.');
-    navigate('/instances');
+    navigate(postAuthTarget);
   };
 
   return (
@@ -138,7 +142,7 @@ const Login = () => {
                   className="w-full rounded-xl"
                   onClick={async () => {
                     setGoogleLoading(true);
-                    const { error } = await signInWithGoogle();
+                    const { error } = await signInWithGoogle(postAuthTarget);
                     if (error) {
                       toast.error('Erro ao fazer login com Google');
                       setGoogleLoading(false);
