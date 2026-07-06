@@ -67,6 +67,9 @@ export function WebhookLogsTable({ logs }: Props) {
                   <DialogContent className="max-w-2xl">
                     <DialogHeader>
                       <DialogTitle>Detalhes do Log</DialogTitle>
+                      <DialogDescription className="sr-only">
+                        Payload completo e resposta do webhook.
+                      </DialogDescription>
                     </DialogHeader>
                     <ScrollArea className="max-h-[60vh]">
                       <div className="space-y-4">
