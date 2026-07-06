@@ -352,6 +352,9 @@ const Tasks = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Concluir tarefa</DialogTitle>
+            <DialogDescription className="sr-only">
+              Confirme a conclusão da tarefa e adicione observações se necessário.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
