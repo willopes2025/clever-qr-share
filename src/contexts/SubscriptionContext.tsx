@@ -83,7 +83,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
           if (!hasLoadedRef.current && retryCountRef.current < 5) {
             retryCountRef.current++;
             const delay = Math.min(2000 * Math.pow(2, retryCountRef.current - 1), 30000);
-            console.log(`[SubscriptionContext] Scheduling retry #${retryCountRef.current} in ${delay}ms`);
+            if (import.meta.env.DEV) console.log(`[SubscriptionContext] Scheduling retry #${retryCountRef.current} in ${delay}ms`);
             checkInFlightRef.current = false;
             setTimeout(() => checkSubscription(true), delay);
           }
