@@ -407,6 +407,7 @@ Deno.serve(async (req: Request) => {
                 .select('id')
                 .eq('user_id', deal.user_id)
                 .eq('status', 'connected')
+                .or('is_notification_only.is.null,is_notification_only.eq.false')
                 .limit(1)
                 .maybeSingle();
               
@@ -577,6 +578,7 @@ Deno.serve(async (req: Request) => {
                 .select('id')
                 .eq('user_id', deal.user_id)
                 .eq('status', 'connected')
+                .or('is_notification_only.is.null,is_notification_only.eq.false')
                 .limit(1)
                 .maybeSingle();
               tplInstanceId = defaultInst?.id || null;
@@ -773,6 +775,7 @@ Deno.serve(async (req: Request) => {
                 .select('id')
                 .eq('user_id', deal.user_id)
                 .eq('status', 'connected')
+                .or('is_notification_only.is.null,is_notification_only.eq.false')
                 .limit(1)
                 .maybeSingle();
               
