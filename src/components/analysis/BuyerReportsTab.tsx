@@ -195,6 +195,9 @@ export function BuyerReportsTab() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing?.id ? 'Editar objetivo' : 'Novo objetivo'}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Defina o objetivo de análise e os critérios de avaliação.
+            </DialogDescription>
           </DialogHeader>
           {editing && (
             <div className="space-y-4">
