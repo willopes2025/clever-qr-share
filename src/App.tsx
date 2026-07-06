@@ -56,6 +56,7 @@ const Webhooks = lazy(() => import("./pages/Webhooks"));
 const InternalChat = lazy(() => import("./pages/InternalChat"));
 const Tasks = lazy(() => import("./pages/Tasks"));
 const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
+const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -295,6 +296,7 @@ const App = () => (
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/auth/meta/callback" element={<MetaAuthCallback />} />
                   <Route path="/auth/meta-social/callback" element={<MetaMessengerCallback />} />
+                  <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
                   <Route path="/f/:slug/*" element={<PublicFormPage />} />
                   <Route path="/form/:slug/*" element={<PublicFormPage />} />
                   <Route path="/ajuda" element={<Ajuda />} />
