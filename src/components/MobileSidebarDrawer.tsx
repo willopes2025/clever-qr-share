@@ -1,7 +1,7 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useInternalChatUnread } from "@/hooks/useInternalChatUnread";
 import { usePendingTasksCount } from "@/hooks/usePendingTasksCount";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, FileBarChart, Target, Building2, CalendarDays, X, Bot, User, Wallet, Glasses, Instagram, MessagesSquare, CheckSquare } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, FileBarChart, Target, Building2, CalendarDays, X, Bot, User, Wallet, Glasses, Instagram, MessagesSquare, CheckSquare, FileEdit, Sparkles, Webhook, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -30,12 +30,15 @@ interface NavItem {
   showBadge?: boolean;
   badgeKey?: string;
   premiumOnly?: boolean;
+  restrictedToEmails?: string[];
 }
 
 interface NavGroup {
   label: string;
   items: NavItem[];
 }
+
+const RESTRICTED_EMAILS = ["contato@wideic.com"];
 
 const navGroups: NavGroup[] = [
   {
@@ -77,12 +80,16 @@ const navGroups: NavGroup[] = [
     items: [
       { icon: FileText, label: "Templates", path: "/templates", permission: "view_templates" },
       { icon: Send, label: "Disparos", path: "/campaigns", permission: "view_campaigns" },
+      { icon: FileEdit, label: "Formulários", path: "/forms", permission: "view_forms" },
       { icon: Bot, label: "Chatbots", path: "/chatbots", permission: "view_chatbots" },
+      { icon: Sparkles, label: "Agentes IA", path: "/ai-agents", permission: "view_ai_agents" },
+      { icon: Webhook, label: "Webhooks", path: "/webhooks", permission: "manage_settings" },
     ],
   },
   {
     label: "Sua Conta",
     items: [
+      { icon: GraduationCap, label: "Treinamentos", path: "/treinamentos", restrictedToEmails: RESTRICTED_EMAILS },
       { icon: CreditCard, label: "Assinatura", path: "/subscription", permission: "manage_subscription" },
       { icon: Settings, label: "Configurações", path: "/settings", permission: "manage_settings" },
     ],
@@ -132,8 +139,15 @@ export const MobileSidebarDrawer = () => {
   const filterItems = (items: NavItem[]) => {
     // Se ainda está carregando organização, não mostrar nenhum item
     if (isLoadingOrg) return [];
-    
+
+    const email = user?.email?.toLowerCase();
+
     return items.filter(item => {
+      // Restrição por e-mail (paridade com desktop)
+      if (item.restrictedToEmails && item.restrictedToEmails.length > 0) {
+        if (!email) return false;
+        if (!item.restrictedToEmails.map(e => e.toLowerCase()).includes(email)) return false;
+      }
       // Se não tem organização, permite tudo (usuário individual/legado)
       if (!organization) return true;
       // Se não tem permissão definida, mostra o item

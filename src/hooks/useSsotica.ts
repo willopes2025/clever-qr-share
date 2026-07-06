@@ -116,10 +116,10 @@ export const useSsotica = () => {
       const vendas = vendasResult.data || [];
       const parcelas = parcelasResult.data || [];
 
-      console.log('[useSsotica] Loaded data:', { 
-        os: ordensServico.length, 
-        vendas: vendas.length, 
-        parcelas: parcelas.length 
+      if (import.meta.env.DEV) console.log('[useSsotica] Loaded data:', {
+        os: ordensServico.length,
+        vendas: vendas.length,
+        parcelas: parcelas.length,
       });
 
       // Calculate metrics

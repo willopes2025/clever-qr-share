@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Image as ImageIcon, Video, Mic, FileText, Upload, Trash2, Edit, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -187,6 +187,9 @@ export const AgentMediaLibraryTab = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar mídia</DialogTitle>
+            <DialogDescription className="sr-only">
+              Atualize os dados da mídia da biblioteca do agente.
+            </DialogDescription>
           </DialogHeader>
           {editing && (
             <div className="space-y-3">

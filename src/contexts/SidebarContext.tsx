@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { BREAKPOINTS } from "@/hooks/useBreakpoint";
 
@@ -84,23 +84,28 @@ export const SidebarProvider = ({ children }: { children: ReactNode }) => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isMobile]);
 
-  const toggle = () => setIsCollapsed((prev) => !prev);
-  const setCollapsed = (collapsed: boolean) => setIsCollapsed(collapsed);
-  const openMobile = () => setIsMobileOpen(true);
-  const closeMobile = () => setIsMobileOpen(false);
-  const toggleMobile = () => setIsMobileOpen((prev) => !prev);
+  const toggle = useCallback(() => setIsCollapsed((prev) => !prev), []);
+  const setCollapsed = useCallback((collapsed: boolean) => setIsCollapsed(collapsed), []);
+  const openMobile = useCallback(() => setIsMobileOpen(true), []);
+  const closeMobile = useCallback(() => setIsMobileOpen(false), []);
+  const toggleMobile = useCallback(() => setIsMobileOpen((prev) => !prev), []);
 
-  return (
-    <SidebarContext.Provider value={{ 
-      isCollapsed, 
+  const value = useMemo(
+    () => ({
+      isCollapsed,
       isMobileOpen,
       isMobile,
-      toggle, 
+      toggle,
       setCollapsed,
       openMobile,
       closeMobile,
-      toggleMobile
-    }}>
+      toggleMobile,
+    }),
+    [isCollapsed, isMobileOpen, isMobile, toggle, setCollapsed, openMobile, closeMobile, toggleMobile]
+  );
+
+  return (
+    <SidebarContext.Provider value={value}>
       {children}
     </SidebarContext.Provider>
   );

@@ -418,7 +418,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
         is_active: true
       };
 
-      console.log('Creating automation with data:', JSON.stringify(data));
+      if (import.meta.env.DEV) console.log('Creating automation with data:', JSON.stringify(data));
 
       if (automation) {
         await updateAutomation.mutateAsync({ id: automation.id, ...data });

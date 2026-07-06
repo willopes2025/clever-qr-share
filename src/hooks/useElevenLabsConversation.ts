@@ -46,16 +46,16 @@ export function useElevenLabsConversation({
 
   const conversation = useConversation({
     onConnect: () => {
-      console.log("Connected to ElevenLabs agent");
+      if (import.meta.env.DEV) console.log("Connected to ElevenLabs agent");
       onStatusChange?.("connected");
       toast.success("Conectado ao agente de IA");
     },
     onDisconnect: () => {
-      console.log("Disconnected from ElevenLabs agent");
+      if (import.meta.env.DEV) console.log("Disconnected from ElevenLabs agent");
       onStatusChange?.("disconnected");
     },
     onMessage: (payload) => {
-      console.log("Message from ElevenLabs:", payload);
+      if (import.meta.env.DEV) console.log("Message from ElevenLabs:", payload);
       
       // MessagePayload has: message, source ("user" | "ai"), role ("user" | "agent")
       const role = payload.role === "user" ? "user" : "assistant";
@@ -94,7 +94,7 @@ export function useElevenLabsConversation({
         throw new Error(fnError?.message || "Falha ao obter token de sessão");
       }
 
-      console.log("Starting ElevenLabs conversation with signed URL");
+      if (import.meta.env.DEV) console.log("Starting ElevenLabs conversation with signed URL");
 
       // Start the conversation with WebSocket
       await conversation.startSession({

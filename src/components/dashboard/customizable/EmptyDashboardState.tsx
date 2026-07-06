@@ -22,10 +22,10 @@ export const EmptyDashboardState = ({ onAddKPIs }: EmptyDashboardStateProps) => 
         </p>
       </div>
       
-      <Button 
-        size="lg" 
+      <Button
+        size="lg"
         onClick={onAddKPIs}
-        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-8 py-6 text-lg"
+        className="font-semibold px-8 py-6 text-lg"
       >
         Adicionar KPIs
       </Button>

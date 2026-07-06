@@ -112,7 +112,7 @@ export const InstancesListView = ({
                 <TableCell>
                   <Badge 
                     variant={instance.status === "connected" ? "default" : "secondary"}
-                    className={`gap-1 ${instance.status === "connected" ? "bg-accent text-white" : ""}`}
+                    className={`gap-1 ${instance.status === "connected" ? "bg-accent text-accent-foreground" : ""}`}
                   >
                     <StatusIcon className="h-3 w-3" />
                     {config.text}

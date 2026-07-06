@@ -244,7 +244,7 @@ export const OpportunityBroadcastDialog = ({
           list_id: list.id,
           contact_id: c.contactId,
         }));
-      console.log(`[Broadcast] ${selectedContacts.length} selected → ${uniqueSelectedContacts.length} unique → ${contactEntries.length} entries`);
+      if (import.meta.env.DEV) console.log(`[Broadcast] ${selectedContacts.length} selected → ${uniqueSelectedContacts.length} unique → ${contactEntries.length} entries`);
 
       // Insert in smaller batches to avoid issues
       let contactsError = null;

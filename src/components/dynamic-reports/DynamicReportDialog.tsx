@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -174,6 +174,9 @@ export function DynamicReportDialog({ open, onOpenChange, report }: Props) {
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>{report ? "Editar relatório" : "Novo relatório dinâmico"}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Configure a fonte, o período, os campos e os destinatários do relatório.
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="config" className="flex-1 overflow-hidden flex flex-col">

@@ -79,7 +79,7 @@ export const useFacebookLogin = () => {
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (data.type === 'WA_EMBEDDED_SIGNUP') {
-          console.log('[FB-LOGIN] WA_EMBEDDED_SIGNUP message event:', JSON.stringify(data));
+          if (import.meta.env.DEV) console.log('[FB-LOGIN] WA_EMBEDDED_SIGNUP message event:', JSON.stringify(data));
           
           if (data.event === 'FINISH' || data.event === 'FINISH_ONLY_WABA') {
             sessionDataRef.current = {
@@ -87,9 +87,9 @@ export const useFacebookLogin = () => {
               waba_id: data.data?.waba_id,
               business_id: data.data?.business_id,
             };
-            console.log('[FB-LOGIN] Captured session data:', sessionDataRef.current);
+            if (import.meta.env.DEV) console.log('[FB-LOGIN] Captured session data:', sessionDataRef.current);
           } else if (data.event === 'CANCEL') {
-            console.log('[FB-LOGIN] User cancelled at step:', data.data?.current_step);
+            if (import.meta.env.DEV) console.log('[FB-LOGIN] User cancelled at step:', data.data?.current_step);
           }
         }
       } catch {
@@ -138,12 +138,12 @@ export const useFacebookLogin = () => {
       return new Promise((resolve) => {
         window.FB.login(
           (response: FacebookLoginResponse) => {
-            console.log('[FB-LOGIN] Response:', response);
+            if (import.meta.env.DEV) console.log('[FB-LOGIN] Response:', response);
 
             if (response.status === 'connected' && response.authResponse?.code) {
               // Pass the session data (phone_number_id, waba_id) from message event
               const sessionData = sessionDataRef.current;
-              console.log('[FB-LOGIN] Session data at code exchange:', sessionData);
+              if (import.meta.env.DEV) console.log('[FB-LOGIN] Session data at code exchange:', sessionData);
 
               exchangeCodeForToken(response.authResponse.code, sessionData)
                 .then((result) => {
@@ -162,7 +162,7 @@ export const useFacebookLogin = () => {
                   resolve({ success: false, error: error.message });
                 });
             } else {
-              console.log('[FB-LOGIN] Login cancelled or failed:', response);
+              if (import.meta.env.DEV) console.log('[FB-LOGIN] Login cancelled or failed:', response);
               resolve({ 
                 success: false, 
                 error: 'Login cancelado ou falhou. Status: ' + response.status 

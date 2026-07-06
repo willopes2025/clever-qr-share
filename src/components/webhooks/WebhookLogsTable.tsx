@@ -4,7 +4,7 @@ import { WebhookLog } from "@/hooks/useWebhookConnections";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatDateTimeShort } from "@/lib/date-utils";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Eye, ScrollText } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -67,6 +67,9 @@ export function WebhookLogsTable({ logs }: Props) {
                   <DialogContent className="max-w-2xl">
                     <DialogHeader>
                       <DialogTitle>Detalhes do Log</DialogTitle>
+                      <DialogDescription className="sr-only">
+                        Payload completo e resposta do webhook.
+                      </DialogDescription>
                     </DialogHeader>
                     <ScrollArea className="max-h-[60vh]">
                       <div className="space-y-4">

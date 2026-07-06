@@ -81,267 +81,218 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <Suspense fallback={<PageLoader />}>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/dashboard" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+              {/* NotificationProvider hoisted above Routes: one Realtime channel
+                  for the whole app instead of one per route. It internally
+                  guards on the authenticated user, so public routes stay cheap. */}
+              <NotificationProvider>
+                <Suspense fallback={<PageLoader />}>
+                  <Routes>
+                    <Route path="/" element={<Index />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/dashboard" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_dashboard">
                           <Dashboard />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/instances" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/instances" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_instances">
                           <Instances />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/inbox" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/inbox" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_inbox">
                           <Inbox />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/campaigns" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/campaigns" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_campaigns">
                           <Campaigns />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/contacts" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/contacts" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_contacts">
                           <Contacts />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/broadcast-lists" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/broadcast-lists" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_lists">
                           <BroadcastLists />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/templates" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/templates" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_templates">
                           <Templates />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/settings" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/settings" element={
+                      <ProtectedRoute>
                         <Settings />
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/subscription" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/subscription" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="manage_subscription">
                           <Subscription />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/admin" element={
+                      <ProtectedRoute>
                         <Admin />
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/warming" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/warming" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_warming">
                           <Warming />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/analysis" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/analysis" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_analysis">
                           <Analysis />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/relatorios-dinamicos" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/relatorios-dinamicos" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_dynamic_reports">
                           <DynamicReports />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/funnels" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/funnels" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_funnels">
                           <Funnels />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/calendar" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/calendar" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_calendar">
                           <Calendar />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/lead-search" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/lead-search" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="search_leads">
                           <LeadSearch />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/instagram-scraper" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/instagram-scraper" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="search_leads">
                           <InstagramScraper />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/chatbots" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/chatbots" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_chatbots">
                           <Chatbots />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/forms" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/forms" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_forms">
                           <Forms />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/forms/:id" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/forms/:id" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_forms">
                           <FormBuilder />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/ai-agents" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/ai-agents" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_ai_agents">
                           <AIAgents />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/financeiro" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/financeiro" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_finances">
                           <Financeiro />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/financeiro/devedores" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/financeiro/devedores" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_finances">
                           <DebtorsManagement />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/ssotica" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/ssotica" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="view_ssotica">
                           <Ssotica />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  {/* Public pages for Meta compliance */}
-                  <Route path="/privacy" element={<PrivacyPolicy />} />
-                  <Route path="/terms" element={<TermsOfService />} />
-                  <Route path="/data-deletion" element={<DataDeletion />} />
-                  <Route path="/unsubscribe" element={<Unsubscribe />} />
-                  <Route path="/data-deletion-callback" element={<DataDeletionCallback />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="/auth/meta/callback" element={<MetaAuthCallback />} />
-                  <Route path="/auth/meta-social/callback" element={<MetaMessengerCallback />} />
-                  <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
-                  <Route path="/f/:slug/*" element={<PublicFormPage />} />
-                  <Route path="/form/:slug/*" element={<PublicFormPage />} />
-                  <Route path="/ajuda" element={<Ajuda />} />
-                  <Route path="/treinamentos" element={
-                    <ProtectedRoute>
-                      <Treinamentos />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/webhooks" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    {/* Public pages for Meta compliance */}
+                    <Route path="/privacy" element={<PrivacyPolicy />} />
+                    <Route path="/terms" element={<TermsOfService />} />
+                    <Route path="/data-deletion" element={<DataDeletion />} />
+                    <Route path="/unsubscribe" element={<Unsubscribe />} />
+                    <Route path="/data-deletion-callback" element={<DataDeletionCallback />} />
+                    <Route path="/reset-password" element={<ResetPassword />} />
+                    <Route path="/auth/meta/callback" element={<MetaAuthCallback />} />
+                    <Route path="/auth/meta-social/callback" element={<MetaMessengerCallback />} />
+                    <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+                    <Route path="/f/:slug/*" element={<PublicFormPage />} />
+                    <Route path="/form/:slug/*" element={<PublicFormPage />} />
+                    <Route path="/ajuda" element={<Ajuda />} />
+                    <Route path="/treinamentos" element={
+                      <ProtectedRoute>
+                        <Treinamentos />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/webhooks" element={
+                      <ProtectedRoute>
                         <PermissionGate permission="manage_settings">
                           <Webhooks />
                         </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/internal-chat" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/internal-chat" element={
+                      <ProtectedRoute>
                         <InternalChat />
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/tasks" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/tasks" element={
+                      <ProtectedRoute>
                         <Tasks />
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-            </Suspense>
+                      </ProtectedRoute>
+                    } />
+                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Suspense>
+              </NotificationProvider>
             </BrowserRouter>
           </TooltipProvider>
         </SubscriptionProvider>

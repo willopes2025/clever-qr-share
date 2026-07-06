@@ -32,7 +32,7 @@ const sendTaskNotification = async (
         recipientUserId,
       },
     });
-    console.log(`[DEAL-TASK-NOTIFICATION] Sent ${type} notification for task ${taskId}`);
+    if (import.meta.env.DEV) console.log(`[DEAL-TASK-NOTIFICATION] Sent ${type} notification for task ${taskId}`);
   } catch (error) {
     console.error(`[DEAL-TASK-NOTIFICATION] Failed to send ${type} notification:`, error);
   }
