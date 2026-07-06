@@ -5,6 +5,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Runs a promise after the response is sent, instead of blocking the webhook ack on it.
+const waitUntil = (promise: Promise<unknown>) => {
+  const runtime = (globalThis as typeof globalThis & {
+    EdgeRuntime?: { waitUntil: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(promise);
+  } else {
+    promise.catch((error) => console.error('Background task error:', error));
+  }
+};
+
 // Helper functions for media handling
 function getExtension(messageType: string, mimeType?: string): string {
   // Try to get extension from mimeType first
@@ -1696,8 +1709,10 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         
         await checkAndCountWarmingMessage(supabase, userId, instanceId, phone, effectiveContent);
         
-        // Check if there's an active chatbot flow execution waiting for input
-        await checkAndContinueChatbotFlow(supabase, supabaseUrl, supabaseServiceKey, conversation.id, contact.id, userId, effectiveContent);
+        // Check if there's an active chatbot flow execution waiting for input.
+        // Runs in the background: the flow itself does multi-second sleeps between
+        // messages, and blocking the webhook ack on it causes provider retries / timeouts.
+        waitUntil(checkAndContinueChatbotFlow(supabase, supabaseUrl, supabaseServiceKey, conversation.id, contact.id, userId, effectiveContent));
         
         // Check if conversation has AI agent enabled and trigger response with transcription
         // Pass the message type so AI can mirror the format (text vs audio)
