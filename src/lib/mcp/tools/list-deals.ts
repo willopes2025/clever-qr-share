@@ -25,7 +25,7 @@ export default defineTool({
     const supabase = supabaseForUser(ctx);
     let query = supabase
       .from("funnel_deals")
-      .select("id, name, value, funnel_id, stage_id, contact_id, created_at")
+      .select("id, title, value, funnel_id, stage_id, contact_id, created_at")
       .order("created_at", { ascending: false })
       .limit(limit ?? 25);
     if (funnel_id) query = query.eq("funnel_id", funnel_id);

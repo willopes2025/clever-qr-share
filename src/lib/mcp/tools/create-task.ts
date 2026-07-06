@@ -10,31 +10,29 @@ function supabaseForUser(ctx: ToolContext) {
 }
 
 export default defineTool({
-  name: "create_task",
-  title: "Create task",
-  description: "Create a task assigned to the signed-in user.",
+  name: "create_deal_task",
+  title: "Create deal task",
+  description: "Create a task attached to a CRM deal for the signed-in user.",
   inputSchema: {
+    deal_id: z.string().uuid().describe("The deal (funnel_deal) id to attach the task to."),
     title: z.string().trim().min(1).describe("Short title for the task."),
     description: z.string().trim().optional().describe("Optional details."),
-    due_date: z.string().datetime().optional().describe("Optional ISO 8601 due date."),
-    contact_id: z.string().uuid().optional().describe("Optional related contact id."),
-    deal_id: z.string().uuid().optional().describe("Optional related deal id."),
+    due_date: z.string().optional().describe("Optional YYYY-MM-DD due date."),
   },
   annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-  handler: async ({ title, description, due_date, contact_id, deal_id }, ctx) => {
+  handler: async ({ deal_id, title, description, due_date }, ctx) => {
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
     const supabase = supabaseForUser(ctx);
     const { data, error } = await supabase
-      .from("tasks")
+      .from("deal_tasks")
       .insert({
         user_id: ctx.getUserId(),
+        deal_id,
         title,
         description: description ?? null,
         due_date: due_date ?? null,
-        contact_id: contact_id ?? null,
-        deal_id: deal_id ?? null,
       })
       .select()
       .single();

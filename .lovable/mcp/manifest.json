@@ -74,9 +74,9 @@
         "outputSchema": null
       },
       {
-        "name": "create_task",
-        "title": "Create task",
-        "description": "Create a task assigned to the signed-in user.",
+        "name": "create_deal_task",
+        "title": "Create deal task",
+        "description": "Create a task attached to a CRM deal for the signed-in user.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -85,6 +85,11 @@
         "inputSchema": {
           "type": "object",
           "properties": {
+            "deal_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The deal (funnel_deal) id to attach the task to."
+            },
             "title": {
               "type": "string",
               "minLength": 1,
@@ -96,21 +101,11 @@
             },
             "due_date": {
               "type": "string",
-              "format": "date-time",
-              "description": "Optional ISO 8601 due date."
-            },
-            "contact_id": {
-              "type": "string",
-              "format": "uuid",
-              "description": "Optional related contact id."
-            },
-            "deal_id": {
-              "type": "string",
-              "format": "uuid",
-              "description": "Optional related deal id."
+              "description": "Optional YYYY-MM-DD due date."
             }
           },
           "required": [
+            "deal_id",
             "title"
           ],
           "additionalProperties": false,

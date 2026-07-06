@@ -66,7 +66,7 @@ var list_deals_default = defineTool2({
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
     const supabase = supabaseForUser2(ctx);
-    let query = supabase.from("funnel_deals").select("id, name, value, funnel_id, stage_id, contact_id, created_at").order("created_at", { ascending: false }).limit(limit ?? 25);
+    let query = supabase.from("funnel_deals").select("id, title, value, funnel_id, stage_id, contact_id, created_at").order("created_at", { ascending: false }).limit(limit ?? 25);
     if (funnel_id) query = query.eq("funnel_id", funnel_id);
     const { data, error } = await query;
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
@@ -88,29 +88,27 @@ function supabaseForUser3(ctx) {
   });
 }
 var create_task_default = defineTool3({
-  name: "create_task",
-  title: "Create task",
-  description: "Create a task assigned to the signed-in user.",
+  name: "create_deal_task",
+  title: "Create deal task",
+  description: "Create a task attached to a CRM deal for the signed-in user.",
   inputSchema: {
+    deal_id: z3.string().uuid().describe("The deal (funnel_deal) id to attach the task to."),
     title: z3.string().trim().min(1).describe("Short title for the task."),
     description: z3.string().trim().optional().describe("Optional details."),
-    due_date: z3.string().datetime().optional().describe("Optional ISO 8601 due date."),
-    contact_id: z3.string().uuid().optional().describe("Optional related contact id."),
-    deal_id: z3.string().uuid().optional().describe("Optional related deal id.")
+    due_date: z3.string().optional().describe("Optional YYYY-MM-DD due date.")
   },
   annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-  handler: async ({ title, description, due_date, contact_id, deal_id }, ctx) => {
+  handler: async ({ deal_id, title, description, due_date }, ctx) => {
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     }
     const supabase = supabaseForUser3(ctx);
-    const { data, error } = await supabase.from("tasks").insert({
+    const { data, error } = await supabase.from("deal_tasks").insert({
       user_id: ctx.getUserId(),
+      deal_id,
       title,
       description: description ?? null,
-      due_date: due_date ?? null,
-      contact_id: contact_id ?? null,
-      deal_id: deal_id ?? null
+      due_date: due_date ?? null
     }).select().single();
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {
