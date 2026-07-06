@@ -87,8 +87,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error: error as Error | null };
   }, []);
 
+  const value = useMemo(
+    () => ({ user, session, loading, signIn, signUp, signOut, signInWithGoogle }),
+    [user, session, loading, signIn, signUp, signOut, signInWithGoogle]
+  );
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut, signInWithGoogle }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
