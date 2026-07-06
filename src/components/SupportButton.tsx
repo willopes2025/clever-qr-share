@@ -120,6 +120,9 @@ export const SupportButton = () => {
               <HelpCircle className="h-5 w-5 text-primary" />
               Suporte
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Canais de suporte e contato da equipe.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-2 py-4">
