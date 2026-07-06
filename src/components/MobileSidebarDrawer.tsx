@@ -30,12 +30,15 @@ interface NavItem {
   showBadge?: boolean;
   badgeKey?: string;
   premiumOnly?: boolean;
+  restrictedToEmails?: string[];
 }
 
 interface NavGroup {
   label: string;
   items: NavItem[];
 }
+
+const RESTRICTED_EMAILS = ["contato@wideic.com"];
 
 const navGroups: NavGroup[] = [
   {
@@ -77,12 +80,16 @@ const navGroups: NavGroup[] = [
     items: [
       { icon: FileText, label: "Templates", path: "/templates", permission: "view_templates" },
       { icon: Send, label: "Disparos", path: "/campaigns", permission: "view_campaigns" },
+      { icon: FileEdit, label: "Formulários", path: "/forms", permission: "view_forms" },
       { icon: Bot, label: "Chatbots", path: "/chatbots", permission: "view_chatbots" },
+      { icon: Sparkles, label: "Agentes IA", path: "/ai-agents", permission: "view_ai_agents" },
+      { icon: Webhook, label: "Webhooks", path: "/webhooks", permission: "manage_settings" },
     ],
   },
   {
     label: "Sua Conta",
     items: [
+      { icon: GraduationCap, label: "Treinamentos", path: "/treinamentos", restrictedToEmails: RESTRICTED_EMAILS },
       { icon: CreditCard, label: "Assinatura", path: "/subscription", permission: "manage_subscription" },
       { icon: Settings, label: "Configurações", path: "/settings", permission: "manage_settings" },
     ],
