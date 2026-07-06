@@ -1,0 +1,1 @@
+UPDATE public.funnel_automations SET action_config = jsonb_set(action_config::jsonb, '{instance_id}', '"dac37fcc-9e91-465d-9115-1ae76c1542d7"'::jsonb) WHERE id = '29c9399f-1736-456d-bec5-09f0c13f4e21';
