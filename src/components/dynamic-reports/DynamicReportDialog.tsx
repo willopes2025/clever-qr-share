@@ -174,6 +174,9 @@ export function DynamicReportDialog({ open, onOpenChange, report }: Props) {
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>{report ? "Editar relatório" : "Novo relatório dinâmico"}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Configure a fonte, o período, os campos e os destinatários do relatório.
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="config" className="flex-1 overflow-hidden flex flex-col">
