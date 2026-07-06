@@ -187,6 +187,9 @@ export const AgentMediaLibraryTab = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar mídia</DialogTitle>
+            <DialogDescription className="sr-only">
+              Atualize os dados da mídia da biblioteca do agente.
+            </DialogDescription>
           </DialogHeader>
           {editing && (
             <div className="space-y-3">
