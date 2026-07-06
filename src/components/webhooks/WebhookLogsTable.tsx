@@ -4,7 +4,7 @@ import { WebhookLog } from "@/hooks/useWebhookConnections";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatDateTimeShort } from "@/lib/date-utils";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Eye, ScrollText } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
