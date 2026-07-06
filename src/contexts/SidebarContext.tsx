@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { BREAKPOINTS } from "@/hooks/useBreakpoint";
 
