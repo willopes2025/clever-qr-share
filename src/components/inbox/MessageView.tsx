@@ -668,12 +668,52 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       return;
     }
     
-    // Replace variables with contact data
-    let processedContent = template.content
-      .replace(/\{\{nome\}\}/gi, conversation.contact?.name || "")
-      .replace(/\{\{name\}\}/gi, conversation.contact?.name || "")
-      .replace(/\{\{telefone\}\}/gi, conversation.contact?.phone || "")
-      .replace(/\{\{phone\}\}/gi, conversation.contact?.phone || "");
+    // Fetch active deal (with custom fields, value, stage, funnel) for this contact
+    let dealData: any = null;
+    if (conversation.contact_id) {
+      const { data: d } = await supabase
+        .from('funnel_deals')
+        .select('id, title, value, custom_fields, stage:funnel_stages(name), funnel:funnels(name)')
+        .eq('contact_id', conversation.contact_id)
+        .is('closed_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      dealData = d;
+    }
+
+    // Build variable map: contact custom fields + deal custom fields (deal wins) + native fields
+    const contactCustom = (conversation.contact?.custom_fields as Record<string, unknown>) || {};
+    const dealCustom = (dealData?.custom_fields as Record<string, unknown>) || {};
+    const now = new Date();
+    const formatVal = (v: unknown): string => {
+      if (v === null || v === undefined) return '';
+      if (Array.isArray(v)) return v.join(', ');
+      if (typeof v === 'object') { try { return JSON.stringify(v); } catch { return String(v); } }
+      return String(v);
+    };
+    const vars: Record<string, string> = {
+      nome: conversation.contact?.name || '',
+      name: conversation.contact?.name || '',
+      telefone: conversation.contact?.phone || '',
+      phone: conversation.contact?.phone || '',
+      email: (conversation.contact as any)?.email || '',
+      valor: dealData?.value != null ? String(dealData.value) : '',
+      titulo: dealData?.title || '',
+      funil: (dealData?.funnel as any)?.name || '',
+      etapa: (dealData?.stage as any)?.name || '',
+      data: now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    };
+    for (const [k, v] of Object.entries({ ...contactCustom, ...dealCustom })) {
+      vars[k] = formatVal(v);
+    }
+
+    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let processedContent = template.content;
+    for (const [key, value] of Object.entries(vars)) {
+      const re = new RegExp(`\\{\\{\\s*${escapeRegex(key)}\\s*\\}\\}`, 'gi');
+      processedContent = processedContent.replace(re, value);
+    }
     
     const finalText = textBeforeCursor.substring(0, slashStart) + processedContent + textAfterCursor;
     
