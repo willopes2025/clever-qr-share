@@ -1,7 +1,7 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useInternalChatUnread } from "@/hooks/useInternalChatUnread";
 import { usePendingTasksCount } from "@/hooks/usePendingTasksCount";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, Target, Building2, CalendarDays, X, Bot, User, Wallet, Glasses, Instagram, MessagesSquare, CheckSquare } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, FileBarChart, Target, Building2, CalendarDays, X, Bot, User, Wallet, Glasses, Instagram, MessagesSquare, CheckSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
