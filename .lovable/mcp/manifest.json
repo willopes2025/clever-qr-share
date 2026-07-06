@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://fgbenetdksqnvwkgnips.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "wideic-zap-mcp",
+      "version": "0.1.0",
+      "title": "Wideic Zap MCP"
+    },
+    "tools": [
+      {
+        "name": "list_contacts",
+        "title": "List contacts",
+        "description": "List contacts for the signed-in user. Supports optional search by name or phone.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "search": {
+              "type": "string",
+              "description": "Optional search text matched against name or phone."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Max rows to return (default 25)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_deals",
+        "title": "List deals",
+        "description": "List CRM deals (funnel_deals) visible to the signed-in user, optionally filtered by funnel.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "funnel_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Optional funnel id filter."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Max rows to return (default 25)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "create_task",
+        "title": "Create task",
+        "description": "Create a task assigned to the signed-in user.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Short title for the task."
+            },
+            "description": {
+              "type": "string",
+              "description": "Optional details."
+            },
+            "due_date": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Optional ISO 8601 due date."
+            },
+            "contact_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Optional related contact id."
+            },
+            "deal_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Optional related deal id."
+            }
+          },
+          "required": [
+            "title"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
