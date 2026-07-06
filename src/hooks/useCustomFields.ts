@@ -41,11 +41,12 @@ export const useCustomFields = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('custom_field_definitions')
-        .select('*')
-        .order('display_order', { ascending: true });
+        .select('*');
 
       if (error) throw error;
-      return data as CustomFieldDefinition[];
+      return (data as CustomFieldDefinition[]).sort((a, b) =>
+        a.field_name.localeCompare(b.field_name, 'pt-BR', { sensitivity: 'base' })
+      );
     },
     enabled: !!user,
   });
