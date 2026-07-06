@@ -58,6 +58,7 @@ const navGroups: NavGroup[] = [
       { icon: Target, label: "Funis", path: "/funnels", permission: "view_funnels" },
       { icon: CalendarDays, label: "Calendário", path: "/calendar", permission: "view_calendar" },
       { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
+      { icon: FileBarChart, label: "Relatórios", path: "/relatorios-dinamicos", permission: "view_dynamic_reports" },
       { icon: MessagesSquare, label: "Chat Interno", path: "/internal-chat", permission: "view_inbox", showBadge: true, badgeKey: "internal-chat" },
       { icon: CheckSquare, label: "Tarefas", path: "/tasks", permission: "view_inbox", showBadge: true, badgeKey: "tasks" },
     ],
