@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { jsPDF } from "npm:jspdf@2.5.1";
-import autoTable from "npm:jspdf-autotable@3.8.2";
+import autoTableModule from "npm:jspdf-autotable@3.8.2";
+const autoTable: any = (autoTableModule as any)?.default ?? autoTableModule;
 import { resolveOrgFormatConfig, formatDateSmart } from "../_shared/timezone.ts";
 
 const corsHeaders = {
