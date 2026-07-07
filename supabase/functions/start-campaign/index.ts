@@ -1078,7 +1078,21 @@ ${availableVariables}`;
                     }
                   }
                 }
-                
+
+                // Correção final da saudação: se a mensagem começa com "Oi/Olá/Ei <Nome>"
+                // e <Nome> não bate com o primeiro nome real do contato, substitui.
+                if (finalMessage && cc.contact.name) {
+                  const expectedFirst = cc.contact.name.trim().split(/\s+/)[0];
+                  const greetingMatch = finalMessage.match(/^\s*(Oi|Olá|Ola|Ei|Boa tarde|Bom dia|Boa noite)[,!\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’-]{1,})/);
+                  if (greetingMatch && expectedFirst) {
+                    const usedFirst = greetingMatch[2];
+                    if (usedFirst.toLowerCase() !== expectedFirst.toLowerCase()) {
+                      console.warn(`[AI] Greeting mismatch: message greeted "${usedFirst}" but contact is "${expectedFirst}". Fixing.`);
+                      finalMessage = finalMessage.replace(usedFirst, expectedFirst);
+                    }
+                  }
+                }
+
                 dynamicMessageRecords.push({
                   campaign_id: campaignId,
                   contact_id: cc.contact.id,
