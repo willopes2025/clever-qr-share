@@ -20,6 +20,7 @@ interface PeriodConfig {
     | "last_7d"
     | "last_30d"
     | "next_7d"
+    | "next_30d"
     | "this_month"
     | "last_month"
     | "custom";
