@@ -37,6 +37,7 @@ const PERIOD_PRESETS: { value: PeriodConfig["preset"]; label: string }[] = [
   { value: "last_7d", label: "Últimos 7 dias" },
   { value: "last_30d", label: "Últimos 30 dias" },
   { value: "next_7d", label: "Próximos 7 dias" },
+  { value: "next_30d", label: "Próximos 30 dias" },
   { value: "this_month", label: "Este mês" },
   { value: "last_month", label: "Mês passado" },
   { value: "custom", label: "Intervalo customizado" },

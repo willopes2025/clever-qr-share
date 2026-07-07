@@ -20,6 +20,7 @@ interface PeriodConfig {
     | "last_7d"
     | "last_30d"
     | "next_7d"
+    | "next_30d"
     | "this_month"
     | "last_month"
     | "custom";
@@ -79,6 +80,10 @@ function resolvePeriod(preset: string | undefined, custom_start?: string, custom
     }
     case "next_7d": {
       const e = new Date(now); e.setDate(e.getDate() + 7);
+      return { start: startOfDay(now), end: endOfDay(e) };
+    }
+    case "next_30d": {
+      const e = new Date(now); e.setDate(e.getDate() + 30);
       return { start: startOfDay(now), end: endOfDay(e) };
     }
     case "this_month": {

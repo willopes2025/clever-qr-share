@@ -10,7 +10,7 @@ export interface PeriodConfig {
   preset:
     | "today" | "yesterday" | "tomorrow"
     | "last_3d" | "last_7d" | "last_30d"
-    | "next_7d" | "this_month" | "last_month"
+    | "next_7d" | "next_30d" | "this_month" | "last_month"
     | "custom";
   custom_start?: string;
   custom_end?: string;
