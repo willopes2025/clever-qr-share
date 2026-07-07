@@ -82,6 +82,10 @@ function resolvePeriod(preset: string | undefined, custom_start?: string, custom
       const e = new Date(now); e.setDate(e.getDate() + 7);
       return { start: startOfDay(now), end: endOfDay(e) };
     }
+    case "next_30d": {
+      const e = new Date(now); e.setDate(e.getDate() + 30);
+      return { start: startOfDay(now), end: endOfDay(e) };
+    }
     case "this_month": {
       const s = new Date(now.getFullYear(), now.getMonth(), 1);
       const e = new Date(now.getFullYear(), now.getMonth() + 1, 0);
