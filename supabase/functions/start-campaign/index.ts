@@ -774,7 +774,9 @@ Deno.serve(async (req) => {
           ] : []),
         ].join('\n');
 
-        const BATCH_SIZE = 5;
+        // BATCH_SIZE=1: gerar mensagem por contato evita o modelo trocar nomes
+        // entre os contatos do mesmo lote (bug histórico com Gemini em batch).
+        const BATCH_SIZE = 1;
         const dynamicMessageRecords: Array<{
           campaign_id: string;
           contact_id: string;
