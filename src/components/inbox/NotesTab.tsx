@@ -238,7 +238,27 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
                 ) : (
                   <>
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm whitespace-pre-wrap flex-1">{note.content}</p>
+                      <div className="flex-1 space-y-2">
+                        {note.content && <p className="text-sm whitespace-pre-wrap">{note.content}</p>}
+                        {note.media_url && (
+                          note.media_type?.startsWith('image/') ? (
+                            <a href={note.media_url} target="_blank" rel="noreferrer">
+                              <img src={note.media_url} alt={note.media_name || 'anexo'} className="max-h-48 rounded border" />
+                            </a>
+                          ) : (
+                            <a
+                              href={note.media_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-2 text-xs bg-muted rounded px-2 py-1.5 hover:bg-muted/80 max-w-full"
+                            >
+                              <FileText className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{note.media_name || 'Anexo'}</span>
+                            </a>
+                          )
+                        )}
+                      </div>
+
                       <div className="flex items-center gap-1">
                         <Button
                           size="icon"
