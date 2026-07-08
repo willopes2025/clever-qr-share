@@ -34,13 +34,47 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadAttachment = async (file: File): Promise<{ url: string; type: string; name: string } | null> => {
+    try {
+      const ext = file.name.split('.').pop() || 'bin';
+      const path = `notes/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from('inbox-media').upload(path, file, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from('inbox-media').getPublicUrl(path);
+      return { url: data.publicUrl, type: file.type || 'application/octet-stream', name: file.name };
+    } catch (e: any) {
+      toast.error('Erro ao enviar anexo: ' + (e.message || 'desconhecido'));
+      return null;
+    }
+  };
 
   const handleCreate = async () => {
-    if (!newContent.trim()) return;
-    await createNote.mutateAsync({ content: newContent.trim(), isPinned: newPinned });
+    if (!newContent.trim() && !attachedFile) return;
+    setUploading(true);
+    let media: { url: string; type: string; name: string } | null = null;
+    if (attachedFile) {
+      media = await uploadAttachment(attachedFile);
+      if (!media) { setUploading(false); return; }
+    }
+    await createNote.mutateAsync({
+      content: newContent.trim(),
+      isPinned: newPinned,
+      mediaUrl: media?.url ?? null,
+      mediaType: media?.type ?? null,
+      mediaName: media?.name ?? null,
+    });
     setNewContent("");
     setNewPinned(false);
+    setAttachedFile(null);
     setIsCreating(false);
+    setUploading(false);
   };
 
   const handleUpdate = async (id: string) => {
