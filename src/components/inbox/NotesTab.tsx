@@ -119,17 +119,43 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
               className="min-h-[100px]"
               autoFocus
             />
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => setAttachedFile(e.target.files?.[0] ?? null)}
+            />
+            {attachedFile && (
+              <div className="flex items-center gap-2 text-xs bg-muted rounded px-2 py-1">
+                <Paperclip className="h-3.5 w-3.5" />
+                <span className="flex-1 truncate">{attachedFile.name}</span>
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setAttachedFile(null)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2">
-              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={newPinned}
-                  onChange={(e) => setNewPinned(e.target.checked)}
-                  className="h-4 w-4 rounded border-input accent-primary"
-                />
-                <Pin className="h-3.5 w-3.5" />
-                Fixar no topo da conversa
-              </label>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={newPinned}
+                    onChange={(e) => setNewPinned(e.target.checked)}
+                    className="h-4 w-4 rounded border-input accent-primary"
+                  />
+                  <Pin className="h-3.5 w-3.5" />
+                  Fixar
+                </label>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="h-8"
+                >
+                  <Paperclip className="h-4 w-4 mr-1" />
+                  Anexar
+                </Button>
+              </div>
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -138,6 +164,7 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
                     setIsCreating(false);
                     setNewContent("");
                     setNewPinned(false);
+                    setAttachedFile(null);
                   }}
                 >
                   <X className="h-4 w-4 mr-1" />
@@ -146,13 +173,14 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
                 <Button
                   size="sm"
                   onClick={handleCreate}
-                  disabled={!newContent.trim() || createNote.isPending}
+                  disabled={(!newContent.trim() && !attachedFile) || createNote.isPending || uploading}
                 >
-                  <Check className="h-4 w-4 mr-1" />
+                  {uploading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
                   Salvar
                 </Button>
               </div>
             </div>
+
           </div>
         ) : (
           <Button onClick={() => setIsCreating(true)} className="w-full">
