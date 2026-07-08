@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useConversationNotes, ConversationNote } from "@/hooks/useConversationNotes";
-import { Plus, Pin, PinOff, Pencil, Trash2, Check, X, StickyNote } from "lucide-react";
+import { Plus, Pin, PinOff, Pencil, Trash2, Check, X, StickyNote, Paperclip, FileText, Image as ImageIcon, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toBrazilTime, formatFullDateTimeBR } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
