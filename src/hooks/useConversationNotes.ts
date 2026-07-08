@@ -13,6 +13,9 @@ export interface ConversationNote {
   created_at: string;
   updated_at: string;
   creator_name?: string | null;
+  media_url?: string | null;
+  media_type?: string | null;
+  media_name?: string | null;
 }
 
 export const useConversationNotes = (conversationId: string | null, contactId: string | null) => {
