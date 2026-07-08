@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useConversationNotes, ConversationNote } from "@/hooks/useConversationNotes";
-import { Plus, Pin, PinOff, Pencil, Trash2, Check, X, StickyNote } from "lucide-react";
+import { Plus, Pin, PinOff, Pencil, Trash2, Check, X, StickyNote, Paperclip, FileText, Image as ImageIcon, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toBrazilTime, formatFullDateTimeBR } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,13 +34,47 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadAttachment = async (file: File): Promise<{ url: string; type: string; name: string } | null> => {
+    try {
+      const ext = file.name.split('.').pop() || 'bin';
+      const path = `notes/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from('inbox-media').upload(path, file, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from('inbox-media').getPublicUrl(path);
+      return { url: data.publicUrl, type: file.type || 'application/octet-stream', name: file.name };
+    } catch (e: any) {
+      toast.error('Erro ao enviar anexo: ' + (e.message || 'desconhecido'));
+      return null;
+    }
+  };
 
   const handleCreate = async () => {
-    if (!newContent.trim()) return;
-    await createNote.mutateAsync({ content: newContent.trim(), isPinned: newPinned });
+    if (!newContent.trim() && !attachedFile) return;
+    setUploading(true);
+    let media: { url: string; type: string; name: string } | null = null;
+    if (attachedFile) {
+      media = await uploadAttachment(attachedFile);
+      if (!media) { setUploading(false); return; }
+    }
+    await createNote.mutateAsync({
+      content: newContent.trim(),
+      isPinned: newPinned,
+      mediaUrl: media?.url ?? null,
+      mediaType: media?.type ?? null,
+      mediaName: media?.name ?? null,
+    });
     setNewContent("");
     setNewPinned(false);
+    setAttachedFile(null);
     setIsCreating(false);
+    setUploading(false);
   };
 
   const handleUpdate = async (id: string) => {
@@ -83,17 +119,43 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
               className="min-h-[100px]"
               autoFocus
             />
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => setAttachedFile(e.target.files?.[0] ?? null)}
+            />
+            {attachedFile && (
+              <div className="flex items-center gap-2 text-xs bg-muted rounded px-2 py-1">
+                <Paperclip className="h-3.5 w-3.5" />
+                <span className="flex-1 truncate">{attachedFile.name}</span>
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setAttachedFile(null)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2">
-              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={newPinned}
-                  onChange={(e) => setNewPinned(e.target.checked)}
-                  className="h-4 w-4 rounded border-input accent-primary"
-                />
-                <Pin className="h-3.5 w-3.5" />
-                Fixar no topo da conversa
-              </label>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={newPinned}
+                    onChange={(e) => setNewPinned(e.target.checked)}
+                    className="h-4 w-4 rounded border-input accent-primary"
+                  />
+                  <Pin className="h-3.5 w-3.5" />
+                  Fixar
+                </label>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="h-8"
+                >
+                  <Paperclip className="h-4 w-4 mr-1" />
+                  Anexar
+                </Button>
+              </div>
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -102,6 +164,7 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
                     setIsCreating(false);
                     setNewContent("");
                     setNewPinned(false);
+                    setAttachedFile(null);
                   }}
                 >
                   <X className="h-4 w-4 mr-1" />
@@ -110,13 +173,14 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
                 <Button
                   size="sm"
                   onClick={handleCreate}
-                  disabled={!newContent.trim() || createNote.isPending}
+                  disabled={(!newContent.trim() && !attachedFile) || createNote.isPending || uploading}
                 >
-                  <Check className="h-4 w-4 mr-1" />
+                  {uploading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
                   Salvar
                 </Button>
               </div>
             </div>
+
           </div>
         ) : (
           <Button onClick={() => setIsCreating(true)} className="w-full">
@@ -174,7 +238,27 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
                 ) : (
                   <>
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm whitespace-pre-wrap flex-1">{note.content}</p>
+                      <div className="flex-1 space-y-2">
+                        {note.content && <p className="text-sm whitespace-pre-wrap">{note.content}</p>}
+                        {note.media_url && (
+                          note.media_type?.startsWith('image/') ? (
+                            <a href={note.media_url} target="_blank" rel="noreferrer">
+                              <img src={note.media_url} alt={note.media_name || 'anexo'} className="max-h-48 rounded border" />
+                            </a>
+                          ) : (
+                            <a
+                              href={note.media_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-2 text-xs bg-muted rounded px-2 py-1.5 hover:bg-muted/80 max-w-full"
+                            >
+                              <FileText className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{note.media_name || 'Anexo'}</span>
+                            </a>
+                          )
+                        )}
+                      </div>
+
                       <div className="flex items-center gap-1">
                         <Button
                           size="icon"

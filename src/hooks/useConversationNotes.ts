@@ -13,6 +13,9 @@ export interface ConversationNote {
   created_at: string;
   updated_at: string;
   creator_name?: string | null;
+  media_url?: string | null;
+  media_type?: string | null;
+  media_name?: string | null;
 }
 
 export const useConversationNotes = (conversationId: string | null, contactId: string | null) => {
@@ -58,7 +61,7 @@ export const useConversationNotes = (conversationId: string | null, contactId: s
   });
 
   const createNote = useMutation({
-    mutationFn: async ({ content, isPinned = false }: { content: string; isPinned?: boolean }) => {
+    mutationFn: async ({ content, isPinned = false, mediaUrl, mediaType, mediaName }: { content: string; isPinned?: boolean; mediaUrl?: string | null; mediaType?: string | null; mediaName?: string | null; }) => {
       if (!user) throw new Error('Usuário não autenticado');
       
       const { data, error } = await supabase
@@ -69,7 +72,10 @@ export const useConversationNotes = (conversationId: string | null, contactId: s
           contact_id: contactId,
           content,
           is_pinned: isPinned,
-        })
+          media_url: mediaUrl ?? null,
+          media_type: mediaType ?? null,
+          media_name: mediaName ?? null,
+        } as any)
         .select()
         .single();
 

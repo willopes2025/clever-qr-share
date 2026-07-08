@@ -2295,6 +2295,9 @@ export type Database = {
           created_at: string | null
           id: string
           is_pinned: boolean | null
+          media_name: string | null
+          media_type: string | null
+          media_url: string | null
           updated_at: string | null
           user_id: string
         }
@@ -2305,6 +2308,9 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_pinned?: boolean | null
+          media_name?: string | null
+          media_type?: string | null
+          media_url?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -2315,6 +2321,9 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_pinned?: boolean | null
+          media_name?: string | null
+          media_type?: string | null
+          media_url?: string | null
           updated_at?: string | null
           user_id?: string
         }
