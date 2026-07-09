@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, Copy, Check, ExternalLink } from "lucide-react";
+import { FileText, Copy, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -10,6 +10,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useForms } from "@/hooks/useForms";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface FormLinkButtonProps {
   contactId: string;
@@ -21,26 +22,46 @@ export const FormLinkButton = ({ contactId, conversationId, onInsertMessage }: F
   const { forms, isLoading } = useForms();
   const [open, setOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [workingId, setWorkingId] = useState<string | null>(null);
 
   const publishedForms = forms?.filter(f => f.status === 'published') || [];
 
-  const generateFormLink = (slug: string) => {
-    const origin = window.location.origin;
-    return `${origin}/form/${slug}/contact_id=${encodeURIComponent(contactId)}/conversation_id=${encodeURIComponent(conversationId)}`;
+  const legacyLongLink = (slug: string) =>
+    `${window.location.origin}/form/${slug}/contact_id=${encodeURIComponent(contactId)}/conversation_id=${encodeURIComponent(conversationId)}`;
+
+  const generateShortLink = async (form: { id: string; slug: string }): Promise<string> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('create-form-short-link', {
+        body: {
+          form_id: form.id,
+          static_params: { contact_id: contactId, conversation_id: conversationId },
+        },
+      });
+      if (error) throw error;
+      if (!data?.code) throw new Error('Sem código retornado');
+      return `${window.location.origin}/s/${data.code}`;
+    } catch (e: any) {
+      console.warn('Short link falhou, usando link longo:', e?.message);
+      return legacyLongLink(form.slug);
+    }
   };
 
-  const handleSelectForm = (form: { slug: string; name: string }) => {
-    const link = generateFormLink(form.slug);
+  const handleSelectForm = async (form: { id: string; slug: string; name: string }) => {
+    setWorkingId(form.id);
+    const link = await generateShortLink(form);
     const message = `📋 Preencha este formulário: ${link}`;
     onInsertMessage(message);
+    setWorkingId(null);
     setOpen(false);
     toast.success("Link do formulário inserido na mensagem");
   };
 
-  const handleCopyLink = (e: React.MouseEvent, form: { slug: string; id: string }) => {
+  const handleCopyLink = async (e: React.MouseEvent, form: { id: string; slug: string }) => {
     e.stopPropagation();
-    const link = generateFormLink(form.slug);
-    navigator.clipboard.writeText(link);
+    setWorkingId(form.id);
+    const link = await generateShortLink(form);
+    await navigator.clipboard.writeText(link);
+    setWorkingId(null);
     setCopiedId(form.id);
     toast.success("Link copiado!");
     setTimeout(() => setCopiedId(null), 2000);
