@@ -1,95 +1,66 @@
-## Auditoria + correções em uma leva
+Hoje o link copiado no Inbox é do tipo:
 
-Varredura completa gerou 16 achados. Vou aplicar todos (Alta → Baixa), agrupados por tipo de mudança pra minimizar risco de regressão.
+```text
+https://.../form/<slug>/contact_id=<uuid>/conversation_id=<uuid>
+```
 
----
+Fica gigante porque carrega dois UUIDs. Vamos encurtar e, no mesmo movimento, transformar em link "de afiliado" com rastreio de quem enviou.
 
-## Fase 1 — Performance (impacto imediato)
+## 1. Encurtador nativo (estilo short.io)
 
-### 1.1 Hoist `NotificationProvider` acima das rotas (H1 + M6)
-- `src/App.tsx`: mover `<NotificationProvider>` pra englobar `<Routes>` uma única vez em vez de encapsular cada rota. Elimina ~25 canais Realtime duplicados e observers de `useUnreadCount` que hoje são criados/destruídos a cada navegação.
-- Manter dentro do `<ProtectedRoute>` conceitual: renderizar só quando `user` existe (guard interno no provider).
+Nova tabela `form_short_links` guarda um código curto (8 caracteres, ex.: `k9Xa2P7q`) mapeando para o formulário + parâmetros originais:
 
-### 1.2 Memoizar valores de contextos (H2 + L2)
-- `src/contexts/AuthContext.tsx:91` → envolver o `value` do provider em `useMemo` dependente de `[user, session, loading]`. Funções `signIn/signUp/signOut/signInWithGoogle` viram `useCallback`.
-- `src/contexts/SidebarContext.tsx:94` → mesmo tratamento com deps `[isCollapsed, isMobileOpen, isMobile]`.
+- `code` (unique, 8 chars) — o que aparece na URL
+- `form_id`, `slug`
+- `static_params` (jsonb) — contact_id / conversation_id / quaisquer outros
+- `shared_by_user_id` — quem gerou o link (o "líder")
+- `organization_id`
+- `click_count`, `last_click_at` (para métricas simples)
+- `created_at`
 
-### 1.3 Virtualização das listas grandes (H3 + M1 + L1)
-- Instalar `@tanstack/react-virtual`.
-- `src/components/inbox/ConversationList.tsx`: virtualizar a lista dentro do `ScrollArea` (item height estimado + `overscan: 8`).
-- `src/pages/Contacts.tsx`: virtualizar as linhas da tabela paginada (mantém a paginação client existente, só evita repintar 500+ linhas).
-- `src/components/funnels/FunnelKanbanView.tsx`: virtualização por coluna de deals quando > 40 cards na coluna.
+Rota nova: `/f/:code` (React Router).
+`ShortLinkRedirect.tsx` consulta a tabela, incrementa `click_count` e navega para a URL completa do formulário já com `?shared_by=<user_id>` embutido.
 
-### 1.4 `WhatsNewDialog` fora do shell público (M4)
-- `src/App.tsx:78-79`: mover `<WhatsNewDialog />` pra dentro do layout autenticado (após `<ProtectedRoute>`) pra não consultar Supabase em `/`, `/login`, políticas de privacidade etc.
-- `TimezoneBootstrap` permanece — depende de `user` mas é barato; adicionar early-return se `!user`.
+Link final passa de ~120 caracteres para algo como:
 
-### 1.5 `staleTime` do React Query nas rotas realtime (L3)
-- `src/hooks/useConversations.ts` (e mensagens): setar `staleTime: 0` já que o canal Realtime é fonte de verdade — evita servir dados velhos por até 5 min se o canal cair.
+```text
+https://zap.wideic.com/f/k9Xa2P7q
+```
 
----
+## 2. Rastreio de quem enviou (afiliado)
 
-## Fase 2 — Consistência visual e UI obsoleta
+- Coluna nova em `form_submissions`: `shared_by_user_id uuid` (FK para `auth.users`).
+- Coluna nova em `contacts`: `first_shared_by_user_id uuid` — preenchida só na primeira vez, para não sobrescrever quando o mesmo lead voltar por outro link.
+- A edge function `submit-form` (ou equivalente) lê o `shared_by` vindo da URL/short link e grava nas duas colunas.
+- Cada submissão passa a ter, junto com os dados, o nome do líder que compartilhou o link — visível na listagem de submissões e disponível para relatórios/CRM.
 
-### 2.1 Tokens do design system (M2)
-Trocar cores hardcoded por tokens semânticos:
-- `src/components/dashboard/customizable/EmptyDashboardState.tsx:28` → `bg-primary text-primary-foreground`.
-- `src/components/settings/meta-official/WhatsAppConnectButton.tsx:86` → criar variante local `--whatsapp-gradient` em `index.css` e usar.
-- `src/components/instances/InstancesListView.tsx:115` → `bg-accent text-accent-foreground`.
-- `src/components/settings/MetaSocialSettings.tsx:80` → token `--facebook-gradient`.
+## 3. UI do botão no Inbox
 
-### 2.2 Locale de datas unificado (M5)
-- Criar `src/lib/dateLocale.ts` exportando `ptBR` + helper `formatBR(date, pattern)`.
-- Refatorar chamadas `format(...)` sem locale em `src/lib/date-utils.ts` e demais consumidores pra usar o helper.
+`src/components/inbox/FormLinkButton.tsx`:
 
-### 2.3 Navegação unificada mobile/desktop (H4 + L4)
-- Criar `src/config/navGroups.ts` como fonte única (labels dos grupos, itens, `restrictedToEmails`, `dynamicNavGroups`).
-- `DashboardSidebar.tsx` e `MobileSidebarDrawer.tsx` passam a importar dessa fonte. Mobile ganha os itens ausentes (Formulários, Agentes IA, Webhooks, Treinamentos) e a lógica de `restrictedToEmails`.
+- Ao selecionar o formulário, chama edge function `create-form-short-link` passando `{ form_id, contact_id, conversation_id }`.
+- Edge function reaproveita um short link existente com os mesmos parâmetros (evita duplicar códigos) ou cria um novo.
+- Insere/copia sempre o link curto (`/f/<code>`), não o longo.
+- Fallback: se a criação falhar, cai no formato antigo para não travar o envio.
 
-### 2.4 Limpeza de UI obsoleta
-- Durante o refactor do `navGroups`, identifico entradas mortas/duplicadas e removo.
-- Se aparecerem botões sem handler ou com "TODO" no caminho, sinalizo no relatório final e removo caso claramente inertes.
+## 4. Onde ver o rastreio
 
----
+- Tabela de submissões do formulário passa a mostrar coluna "Compartilhado por" (nome vindo de `profiles`).
+- No card do contato/deal, mostrar "Origem: link enviado por <Nome>" quando `first_shared_by_user_id` estiver preenchido.
 
-## Fase 3 — Acessibilidade (H5)
+## Detalhes técnicos
 
-Adicionar `<DialogDescription className="sr-only">` logo após `<DialogTitle>` em:
-- `src/components/SupportButton.tsx:116`
-- `src/pages/Tasks.tsx:352`
-- `src/components/analysis/BuyerReportsTab.tsx:195`
-- `src/components/dynamic-reports/DynamicReportDialog.tsx:174`
-- `src/components/webhooks/WebhookLogsTable.tsx:67`
-- `src/components/contacts/BulkTagDialog.tsx:54`
-- `src/components/ai-agents/AgentMediaLibraryTab.tsx:187`
+Arquivos:
 
-Elimina os warnings recorrentes do console e cumpre WCAG.
+- `supabase/migrations/*_form_short_links.sql` — cria `form_short_links`, GRANTs, RLS (SELECT público por `code`; INSERT/UPDATE restritos ao dono/organização), adiciona colunas `shared_by_user_id` em `form_submissions` e `first_shared_by_user_id` em `contacts`.
+- `supabase/functions/create-form-short-link/index.ts` — POST autenticado, gera código único (nanoid-like, 8 chars alfanuméricos, retry em colisão), persiste e retorna `{ code, url }`.
+- `supabase/functions/resolve-form-short-link/index.ts` (ou fazer a leitura direto do client via `anon` SELECT por `code`) — retorna `form_slug` + `static_params` + `shared_by_user_id`; incrementa `click_count`.
+- `supabase/functions/public-form/index.ts` e `submit-form` — passar `shared_by` do query string para dentro do HTML do form (hidden field) e gravar na submissão.
+- `src/pages/ShortLinkRedirect.tsx` — nova página em `/f/:code` que resolve e faz `window.location.replace` para `/form/<slug>/...` com parâmetros já embutidos.
+- `src/App.tsx` — registrar rota `/f/:code`.
+- `src/components/inbox/FormLinkButton.tsx` — trocar `generateFormLink` por chamada assíncrona ao endpoint de short link.
+- `src/components/forms/submissions/*` — nova coluna "Compartilhado por" (join com `profiles`).
 
----
+Códigos curtos usam alfabeto `[A-Za-z0-9]` (62^8 ≈ 218 trilhões de combinações) — colisão praticamente nula.
 
-## Fase 4 — Higiene de código (M3 + L5)
-
-Substituir `console.log` de produção por `if (import.meta.env.DEV)` em:
-- `src/contexts/SubscriptionContext.tsx:86`
-- `src/hooks/useFacebookLogin.ts:82,90,92,141,146`
-- `src/hooks/useSsotica.ts:119`
-- `src/hooks/useElevenLabsConversation.ts:49,54,58,97`
-- `src/hooks/useDealTasks.ts:35`, `src/hooks/useConversationTasks.ts:39`
-- `src/components/funnels/OpportunityBroadcastDialog.tsx:247`
-- `src/components/funnels/AutomationFormDialog.tsx:421`
-
-Reduz ruído no console em produção e evita vazamento de dados operacionais.
-
----
-
-## Fora do escopo
-- Não mexo em regras de negócio, RLS, edge functions, nem no schema.
-- Não redesenho páginas — só ajusto tokens e primitivos.
-- Bugs funcionais não relatados nesta auditoria ficam pra ticket separado.
-
-## Riscos e mitigação
-- Virtualização pode quebrar animações do Kanban: valido rolando visualmente após aplicar.
-- Hoist do NotificationProvider muda ordem de mount: valido que badges/toasts continuam funcionando após navegar por 3-4 rotas.
-- Unificação dos navGroups: valido que sidebar desktop e mobile mostram os mesmos itens visíveis pro usuário logado.
-
-Ao final entrego um resumo do que foi aplicado por fase.
+Nenhum serviço externo (short.io etc.) é necessário; tudo roda no Lovable Cloud usando o domínio publicado (`zap.wideic.com`), então o link continua com sua marca.
