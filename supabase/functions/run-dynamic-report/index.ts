@@ -323,13 +323,15 @@ function extract(source: Source, row: any, col: string, fmt: (v: any) => string)
 
 // ----- WhatsApp delivery -----
 async function sendWhatsAppMessage(supabase: any, ownerUserId: string, phone: string, message: string): Promise<{ ok: boolean; error?: string }> {
-  const { data: instance } = await supabase.from("whatsapp_instances")
-    .select("evolution_instance_name, status")
+  // Prefer the dedicated notification instance; fall back to any connected instance.
+  const { data: instances } = await supabase.from("whatsapp_instances")
+    .select("evolution_instance_name, is_notification_only")
     .eq("user_id", ownerUserId)
-    .eq("status", "connected")
-    .neq("is_notification_only", true)
-    .limit(1)
-    .maybeSingle();
+    .eq("status", "connected");
+  const list = (instances || []).filter((i: any) => i.evolution_instance_name);
+  const instance =
+    list.find((i: any) => i.is_notification_only === true) ||
+    list[0];
   if (!instance?.evolution_instance_name) {
     return { ok: false, error: "Nenhuma instância WhatsApp conectada" };
   }
