@@ -58,6 +58,7 @@ const InternalChat = lazy(() => import("./pages/InternalChat"));
 const Tasks = lazy(() => import("./pages/Tasks"));
 const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
 const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
+const ShortLinkRedirect = lazy(() => import("./pages/ShortLinkRedirect"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -263,6 +264,7 @@ const App = () => (
                     <Route path="/auth/meta/callback" element={<MetaAuthCallback />} />
                     <Route path="/auth/meta-social/callback" element={<MetaMessengerCallback />} />
                     <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+                    <Route path="/s/:code" element={<ShortLinkRedirect />} />
                     <Route path="/f/:slug/*" element={<PublicFormPage />} />
                     <Route path="/form/:slug/*" element={<PublicFormPage />} />
                     <Route path="/ajuda" element={<Ajuda />} />
