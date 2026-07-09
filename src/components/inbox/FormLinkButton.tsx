@@ -117,9 +117,12 @@ export const FormLinkButton = ({ contactId, conversationId, onInsertMessage }: F
                   </div>
                   <button
                     onClick={(e) => handleCopyLink(e, form)}
-                    className="shrink-0 p-1 rounded hover:bg-muted"
+                    disabled={workingId === form.id}
+                    className="shrink-0 p-1 rounded hover:bg-muted disabled:opacity-50"
                   >
-                    {copiedId === form.id ? (
+                    {workingId === form.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                    ) : copiedId === form.id ? (
                       <Check className="h-3.5 w-3.5 text-green-500" />
                     ) : (
                       <Copy className="h-3.5 w-3.5 text-muted-foreground" />
