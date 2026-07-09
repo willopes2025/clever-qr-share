@@ -40,8 +40,11 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
 
   const uploadAttachment = async (file: File): Promise<{ url: string; type: string; name: string } | null> => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
       const ext = file.name.split('.').pop() || 'bin';
-      const path = `notes/${crypto.randomUUID()}.${ext}`;
+      // RLS on inbox-media requires first folder = auth.uid()
+      const path = `${user.id}/notes/${crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from('inbox-media').upload(path, file, {
         contentType: file.type || 'application/octet-stream',
         upsert: false,
