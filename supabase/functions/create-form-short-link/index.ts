@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     // Load form (slug + org)
     const { data: form, error: formErr } = await supabase
       .from("forms")
-      .select("id, slug, organization_id, user_id")
+      .select("id, slug, user_id")
       .eq("id", formId)
       .maybeSingle();
     if (formErr || !form) {
