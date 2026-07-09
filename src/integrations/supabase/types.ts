@@ -2135,6 +2135,7 @@ export type Database = {
           created_at: string
           custom_fields: Json | null
           email: string | null
+          first_shared_by_user_id: string | null
           id: string
           label_id: string | null
           last_message_at: string | null
@@ -2156,6 +2157,7 @@ export type Database = {
           created_at?: string
           custom_fields?: Json | null
           email?: string | null
+          first_shared_by_user_id?: string | null
           id?: string
           label_id?: string | null
           last_message_at?: string | null
@@ -2177,6 +2179,7 @@ export type Database = {
           created_at?: string
           custom_fields?: Json | null
           email?: string | null
+          first_shared_by_user_id?: string | null
           id?: string
           label_id?: string | null
           last_message_at?: string | null
@@ -3253,6 +3256,60 @@ export type Database = {
           },
         ]
       }
+      form_short_links: {
+        Row: {
+          click_count: number
+          code: string
+          created_at: string
+          form_id: string
+          id: string
+          last_click_at: string | null
+          organization_id: string | null
+          shared_by_user_id: string | null
+          slug: string
+          static_params: Json
+        }
+        Insert: {
+          click_count?: number
+          code: string
+          created_at?: string
+          form_id: string
+          id?: string
+          last_click_at?: string | null
+          organization_id?: string | null
+          shared_by_user_id?: string | null
+          slug: string
+          static_params?: Json
+        }
+        Update: {
+          click_count?: number
+          code?: string
+          created_at?: string
+          form_id?: string
+          id?: string
+          last_click_at?: string | null
+          organization_id?: string | null
+          shared_by_user_id?: string | null
+          slug?: string
+          static_params?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_short_links_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_short_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_submissions: {
         Row: {
           contact_id: string | null
@@ -3262,6 +3319,7 @@ export type Database = {
           form_id: string
           id: string
           metadata: Json | null
+          shared_by_user_id: string | null
           user_id: string
         }
         Insert: {
@@ -3272,6 +3330,7 @@ export type Database = {
           form_id: string
           id?: string
           metadata?: Json | null
+          shared_by_user_id?: string | null
           user_id: string
         }
         Update: {
@@ -3282,6 +3341,7 @@ export type Database = {
           form_id?: string
           id?: string
           metadata?: Json | null
+          shared_by_user_id?: string | null
           user_id?: string
         }
         Relationships: [
@@ -7699,6 +7759,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_form_short_link_click: {
+        Args: { _code: string }
+        Returns: undefined
       }
       is_instance_org_admin: {
         Args: { _instance_user_id: string; _user_id: string }
