@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     // Load form (slug + org)
     const { data: form, error: formErr } = await supabase
       .from("forms")
-      .select("id, slug, organization_id, user_id")
+      .select("id, slug, user_id")
       .eq("id", formId)
       .maybeSingle();
     if (formErr || !form) {
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
 
     // Resolve caller's organization for RLS INSERT check
     const { data: orgIdRaw } = await supabase.rpc("resolve_user_organization_id", { _user_id: user.id });
-    const organizationId: string | null = (orgIdRaw as any) ?? (form as any).organization_id ?? null;
+    const organizationId: string | null = (orgIdRaw as any) ?? null;
 
     // Reuse an existing short link with the same (form_id, shared_by, params) if any
     const paramsJson = JSON.stringify(
