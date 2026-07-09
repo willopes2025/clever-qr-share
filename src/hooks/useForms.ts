@@ -387,7 +387,28 @@ export const useFormSubmissions = (formId: string | undefined) => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as (FormSubmission & { contacts: { name: string | null; phone: string; email: string | null } | null })[];
+
+      // Batch-load "shared by" names from profiles
+      const rows = (data || []) as any[];
+      const sharedIds = Array.from(
+        new Set(rows.map(r => r.shared_by_user_id).filter(Boolean))
+      ) as string[];
+      const nameByUserId = new Map<string, string>();
+      if (sharedIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', sharedIds);
+        (profiles || []).forEach((p: any) => nameByUserId.set(p.id, p.full_name || ''));
+      }
+      return rows.map(r => ({
+        ...r,
+        shared_by_name: r.shared_by_user_id ? (nameByUserId.get(r.shared_by_user_id) || null) : null,
+      })) as (FormSubmission & {
+        contacts: { name: string | null; phone: string; email: string | null } | null;
+        shared_by_user_id: string | null;
+        shared_by_name: string | null;
+      })[];
     },
     enabled: !!user && !!formId,
   });
