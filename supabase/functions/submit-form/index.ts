@@ -605,6 +605,24 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Resolve "shared_by" attribution (leader/affiliate who sent the short link)
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const sharedByRaw = staticParams.shared_by;
+    const sharedByUserId = sharedByRaw && UUID_RE.test(sharedByRaw) ? sharedByRaw : null;
+
+    // Stamp first_shared_by_user_id on the contact if not set yet
+    if (contactId && sharedByUserId) {
+      try {
+        await supabase
+          .from('contacts')
+          .update({ first_shared_by_user_id: sharedByUserId })
+          .eq('id', contactId)
+          .is('first_shared_by_user_id', null);
+      } catch (attrErr) {
+        console.error('Error stamping first_shared_by_user_id:', attrErr);
+      }
+    }
+
     // Get metadata from request, including static params
     const metadata = {
       ip: req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || 'unknown',
@@ -623,6 +641,7 @@ Deno.serve(async (req: Request) => {
         contact_id: contactId,
         data: submissionData,
         metadata,
+        shared_by_user_id: sharedByUserId,
       })
       .select('id')
       .single();
