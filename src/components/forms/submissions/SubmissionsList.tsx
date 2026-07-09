@@ -442,6 +442,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                 <TableHead className="w-[90px]"></TableHead>
                 <TableHead className="w-[150px]">{renderColumnHeader("date", "Data")}</TableHead>
                 <TableHead className="w-[180px]">{renderColumnHeader("contact", "Contato")}</TableHead>
+                <TableHead className="w-[160px]">Compartilhado por</TableHead>
                 {visibleFields.map((field) => (
                   <TableHead key={field.id} className="min-w-[150px]">
                     {renderColumnHeader(field.id, field.label)}
@@ -477,6 +478,13 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                       </div>
                     ) : (
                       <Badge variant="secondary">Anônimo</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {(submission as any).shared_by_name ? (
+                      <span className="font-medium">{(submission as any).shared_by_name}</span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
                     )}
                   </TableCell>
                   {visibleFields.map((field) => {
