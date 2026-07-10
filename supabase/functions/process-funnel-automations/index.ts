@@ -22,6 +22,29 @@ interface AutomationPayload {
   skipDelay?: boolean;
 }
 
+const FORM_SHORT_LINK_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+
+function generateFormShortCode(len = 8): string {
+  let out = "";
+  const bytes = new Uint8Array(len);
+  crypto.getRandomValues(bytes);
+  for (let i = 0; i < len; i++) out += FORM_SHORT_LINK_ALPHABET[bytes[i] % FORM_SHORT_LINK_ALPHABET.length];
+  return out;
+}
+
+function normalizeStaticParams(params: Record<string, string>): Record<string, string> {
+  return Object.keys(params).sort().reduce<Record<string, string>>((acc, key) => {
+    acc[key] = String(params[key]);
+    return acc;
+  }, {});
+}
+
+function buildFormPreviewUrl(code: string): string {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const publicAppUrl = Deno.env.get("APP_URL") || "https://zap.wideic.com";
+  return `${supabaseUrl.replace(/\/$/, "")}/functions/v1/form-preview/${code}?o=${encodeURIComponent(publicAppUrl)}`;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -725,14 +748,62 @@ Deno.serve(async (req: Request) => {
               }))
               .filter(p => p.value);
 
-            // Build URL with path-based params
-            const publicUrl = 'https://clever-qr-share.lovable.app';
-            const baseUrl = `${publicUrl}/form/${form.slug}`;
-            const paramsPath = resolvedParams
+            const staticParams = resolvedParams.reduce<Record<string, string>>((acc, param) => {
+              acc[param.key] = param.value;
+              return acc;
+            }, {});
+
+            const normalizedParamsJson = JSON.stringify(normalizeStaticParams(staticParams));
+            const { data: organizationIdRaw } = await supabase.rpc('resolve_user_organization_id', { _user_id: deal.user_id });
+            const organizationId: string | null = (organizationIdRaw as string | null) ?? null;
+            const { data: existingShortLinks } = await supabase
+              .from('form_short_links')
+              .select('code, static_params')
+              .eq('form_id', formId)
+              .eq('shared_by_user_id', deal.user_id)
+              .limit(50);
+
+            const existingShortLink = (existingShortLinks || []).find((row: any) => {
+              const currentParams = normalizeStaticParams((row.static_params || {}) as Record<string, string>);
+              return JSON.stringify(currentParams) === normalizedParamsJson;
+            });
+
+            let shortCode: string | null = existingShortLink?.code || null;
+            if (!shortCode) {
+              for (let attempt = 0; attempt < 6; attempt++) {
+                const candidate = generateFormShortCode();
+                const { data: insertedShortLink, error: insertShortLinkError } = await supabase
+                  .from('form_short_links')
+                  .insert({
+                    code: candidate,
+                    form_id: formId,
+                    slug: form.slug,
+                    static_params: staticParams,
+                    shared_by_user_id: deal.user_id,
+                    organization_id: organizationId,
+                  })
+                  .select('code')
+                  .maybeSingle();
+
+                if (!insertShortLinkError && insertedShortLink?.code) {
+                  shortCode = insertedShortLink.code;
+                  break;
+                }
+
+                if (insertShortLinkError && !/duplicate|unique/i.test(insertShortLinkError.message)) {
+                  console.error('[FUNNEL-AUTOMATIONS] Failed to create form short link:', insertShortLinkError);
+                  break;
+                }
+              }
+            }
+
+            const publicAppUrl = Deno.env.get('APP_URL') || 'https://zap.wideic.com';
+            const fallbackBaseUrl = `${publicAppUrl}/form/${form.slug}`;
+            const fallbackParamsPath = resolvedParams
               .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
               .join('/');
-            
-            const formUrl = paramsPath ? `${baseUrl}/${paramsPath}` : baseUrl;
+            const fallbackFormUrl = fallbackParamsPath ? `${fallbackBaseUrl}/${fallbackParamsPath}` : fallbackBaseUrl;
+            const formUrl = shortCode ? buildFormPreviewUrl(shortCode) : fallbackFormUrl;
 
             // Replace variables in message and insert link
             const message = replaceVariables(messageTemplate).replace(/\{\{link\}\}/g, formUrl);

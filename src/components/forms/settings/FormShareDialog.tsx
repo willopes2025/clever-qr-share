@@ -11,8 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Copy, ExternalLink, Check, Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { buildDirectFormUrl, buildFormPreviewShareUrl } from "@/lib/form-share-links";
 
 interface FormShareDialogProps {
   open: boolean;
@@ -43,24 +44,48 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
   const [staticParams, setStaticParams] = useState<StaticParam[]>(
     Array.isArray(form.url_static_params) ? form.url_static_params : []
   );
+  const [shareUrl, setShareUrl] = useState('');
+  const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
   const [newParamKey, setNewParamKey] = useState('');
   const [newParamValue, setNewParamValue] = useState('');
 
-  // Build URL with static params
-  const buildFormUrl = () => {
-    const baseUrl = `${window.location.origin}/form/${form.slug}`;
-    if (staticParams.length === 0) return baseUrl;
-    
-    const paramsPath = staticParams
+  const buildStaticParamsRecord = () => {
+    return staticParams
       .filter(p => p.key && p.value)
-      .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
-      .join('/');
-    
-    return paramsPath ? `${baseUrl}/${paramsPath}` : baseUrl;
+      .reduce<Record<string, string>>((acc, param) => {
+        acc[param.key] = param.value;
+        return acc;
+      }, {});
   };
 
-  const formUrl = buildFormUrl();
-  const embedCode = `<iframe src="${formUrl}" width="100%" height="600" frameborder="0" style="border: none;"></iframe>`;
+  const directFormUrl = buildDirectFormUrl(form.slug, buildStaticParamsRecord());
+  const formUrl = shareUrl || directFormUrl;
+  const embedCode = `<iframe src="${directFormUrl}" width="100%" height="600" frameborder="0" style="border: none;"></iframe>`;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!open) return;
+
+    const generateShareUrl = async () => {
+      setIsGeneratingShareUrl(true);
+      const url = await buildFormPreviewShareUrl({
+        formId: form.id,
+        slug: form.slug,
+        staticParams: buildStaticParamsRecord(),
+      });
+      if (!cancelled) {
+        setShareUrl(url);
+        setIsGeneratingShareUrl(false);
+      }
+    };
+
+    generateShareUrl();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, form.id, form.slug, staticParams]);
 
   const handleCopy = (text: string, type: string) => {
     navigator.clipboard.writeText(text);
@@ -195,10 +220,15 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
           <div className="space-y-2">
             <Label>Link Gerado</Label>
             <div className="flex gap-2">
-              <Input value={formUrl} readOnly className="flex-1 font-mono text-sm" />
+              <Input
+                value={isGeneratingShareUrl ? 'Gerando link com preview...' : formUrl}
+                readOnly
+                className="flex-1 font-mono text-sm"
+              />
               <Button
                 variant="outline"
                 size="icon"
+                disabled={isGeneratingShareUrl}
                 onClick={() => handleCopy(formUrl, 'link')}
               >
                 {copied === 'link' ? (
@@ -210,6 +240,7 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
               <Button
                 variant="outline"
                 size="icon"
+                disabled={isGeneratingShareUrl}
                 onClick={() => window.open(formUrl, '_blank')}
               >
                 <ExternalLink className="h-4 w-4" />

@@ -10,7 +10,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useForms } from "@/hooks/useForms";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { buildFormPreviewShareUrl } from "@/lib/form-share-links";
 
 interface FormLinkButtonProps {
   contactId: string;
@@ -26,28 +26,12 @@ export const FormLinkButton = ({ contactId, conversationId, onInsertMessage }: F
 
   const publishedForms = forms?.filter(f => f.status === 'published') || [];
 
-  const legacyLongLink = (slug: string) =>
-    `${window.location.origin}/form/${slug}/contact_id=${encodeURIComponent(contactId)}/conversation_id=${encodeURIComponent(conversationId)}`;
-
   const generateShortLink = async (form: { id: string; slug: string }): Promise<string> => {
-    try {
-      const { data, error } = await supabase.functions.invoke('create-form-short-link', {
-        body: {
-          form_id: form.id,
-          static_params: { contact_id: contactId, conversation_id: conversationId },
-        },
-      });
-      if (error) throw error;
-      if (!data?.code) throw new Error('Sem código retornado');
-      // Use the preview edge function URL so WhatsApp/Telegram link previews
-      // show the form's own title/description/image instead of the platform default.
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      const origin = window.location.origin;
-      return `https://${projectId}.supabase.co/functions/v1/form-preview/${data.code}?o=${encodeURIComponent(origin)}`;
-    } catch (e: any) {
-      console.warn('Short link falhou, usando link longo:', e?.message);
-      return legacyLongLink(form.slug);
-    }
+    return buildFormPreviewShareUrl({
+      formId: form.id,
+      slug: form.slug,
+      staticParams: { contact_id: contactId, conversation_id: conversationId },
+    });
   };
 
   const handleSelectForm = async (form: { id: string; slug: string; name: string }) => {
