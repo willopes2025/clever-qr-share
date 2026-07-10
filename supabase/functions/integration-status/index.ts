@@ -46,9 +46,20 @@ Deno.serve(async (req): Promise<Response> => {
       if (teamMember?.organization_id) {
         const memberPermissions = teamMember.permissions as Record<string, boolean> | null;
         const memberRole = teamMember.role as string;
-        
-        // Check view_finances permission: use saved value, fallback to default for role
-        memberHasFinancePermission = memberPermissions?.view_finances ?? (memberRole === 'admin');
+
+        // Consider member has finance access if view_finances is true OR any Financeiro subtab
+        // permission is granted (view_customers_asaas, view_payments_asaas, view_subscriptions_asaas,
+        // view_transfers_asaas, view_payment_links_asaas). Fallback to role default when nothing saved.
+        const financeSubPermKeys = [
+          'view_finances',
+          'view_customers_asaas',
+          'view_payments_asaas',
+          'view_subscriptions_asaas',
+          'view_transfers_asaas',
+          'view_payment_links_asaas',
+        ];
+        const anyFinanceSubPerm = financeSubPermKeys.some((k) => memberPermissions?.[k] === true);
+        memberHasFinancePermission = anyFinanceSubPerm || (memberPermissions == null && memberRole === 'admin');
 
         // Get the organization owner
         const { data: org } = await supabaseAdmin
