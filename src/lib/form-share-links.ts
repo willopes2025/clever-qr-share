@@ -31,6 +31,13 @@ export const buildDirectFormUrl = (slug: string, staticParams: StaticParams = {}
   return paramsPath ? `${baseUrl}/${paramsPath}` : baseUrl;
 };
 
+export const buildFormPreviewUrlFromCode = (code: string) => {
+  const functionsOrigin = String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+  if (!functionsOrigin) throw new Error("URL de funções não configurada");
+
+  return `${functionsOrigin}/functions/v1/form-preview/${encodeURIComponent(code)}?o=${encodeURIComponent(getPublicFormOrigin())}`;
+};
+
 export const buildFormPreviewShareUrl = async ({
   formId,
   slug,
@@ -50,8 +57,5 @@ export const buildFormPreviewShareUrl = async ({
   if (error) throw error;
   if (!data?.code) throw new Error("Sem código retornado");
 
-  const functionsOrigin = String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
-  if (!functionsOrigin) throw new Error("URL de funções não configurada");
-
-  return `${functionsOrigin}/functions/v1/form-preview/${data.code}?o=${encodeURIComponent(getPublicFormOrigin())}`;
+  return buildFormPreviewUrlFromCode(data.code);
 };

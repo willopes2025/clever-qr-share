@@ -18,6 +18,13 @@ function esc(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
+function encodeStaticPath(staticParams: Record<string, unknown> = {}): string {
+  return Object.entries(staticParams)
+    .filter(([key, value]) => key && value !== undefined && value !== null && String(value) !== "")
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join("/");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -57,7 +64,15 @@ Deno.serve(async (req) => {
           description = (form as any).meta_description || (form as any).description || description;
           image = (form as any).og_image_url || (form as any).logo_url || "";
         }
-        redirectPath = `/s/${code}`;
+        const paramsPath = encodeStaticPath(((link as any).static_params || {}) as Record<string, unknown>);
+        const query = new URLSearchParams();
+        if ((link as any).shared_by_user_id) query.set("shared_by", String((link as any).shared_by_user_id));
+        redirectPath = `/f/${encodeURIComponent((link as any).slug)}${paramsPath ? `/${paramsPath}` : ""}${query.toString() ? `?${query.toString()}` : ""}`;
+
+        supabase.rpc("increment_form_short_link_click", { _code: code }).then(
+          () => {},
+          () => {},
+        );
       }
     }
 
