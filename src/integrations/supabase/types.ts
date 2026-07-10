@@ -1933,6 +1933,7 @@ export type Database = {
           id: string
           instance_id: string | null
           is_active: boolean | null
+          meta_phone_number_id: string | null
           name: string
           trigger_config: Json | null
           trigger_type: string | null
@@ -1945,6 +1946,7 @@ export type Database = {
           id?: string
           instance_id?: string | null
           is_active?: boolean | null
+          meta_phone_number_id?: string | null
           name: string
           trigger_config?: Json | null
           trigger_type?: string | null
@@ -1957,6 +1959,7 @@ export type Database = {
           id?: string
           instance_id?: string | null
           is_active?: boolean | null
+          meta_phone_number_id?: string | null
           name?: string
           trigger_config?: Json | null
           trigger_type?: string | null
@@ -1969,6 +1972,13 @@ export type Database = {
             columns: ["instance_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chatbot_flows_meta_phone_number_id_fkey"
+            columns: ["meta_phone_number_id"]
+            isOneToOne: false
+            referencedRelation: "meta_whatsapp_numbers"
             referencedColumns: ["id"]
           },
         ]

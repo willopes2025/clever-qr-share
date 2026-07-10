@@ -1,0 +1,2 @@
+ALTER TABLE public.chatbot_flows ADD COLUMN IF NOT EXISTS meta_phone_number_id uuid REFERENCES public.meta_whatsapp_numbers(id) ON DELETE SET NULL;
+UPDATE public.chatbot_flows SET meta_phone_number_id = '7c51e31f-367c-4c3c-a61e-46679fbef23a', instance_id = NULL WHERE id = 'dfcc3c84-7442-4f4a-b2af-da2709cff4ee';
