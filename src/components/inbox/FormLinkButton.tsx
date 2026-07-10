@@ -39,7 +39,11 @@ export const FormLinkButton = ({ contactId, conversationId, onInsertMessage }: F
       });
       if (error) throw error;
       if (!data?.code) throw new Error('Sem código retornado');
-      return `${window.location.origin}/s/${data.code}`;
+      // Use the preview edge function URL so WhatsApp/Telegram link previews
+      // show the form's own title/description/image instead of the platform default.
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const origin = window.location.origin;
+      return `https://${projectId}.supabase.co/functions/v1/form-preview/${data.code}?o=${encodeURIComponent(origin)}`;
     } catch (e: any) {
       console.warn('Short link falhou, usando link longo:', e?.message);
       return legacyLongLink(form.slug);
