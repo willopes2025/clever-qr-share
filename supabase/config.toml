@@ -201,6 +201,9 @@ verify_jwt = true
 [functions.public-form]
 verify_jwt = false
 
+[functions.form-preview]
+verify_jwt = false
+
 [functions.submit-form]
 verify_jwt = false
 

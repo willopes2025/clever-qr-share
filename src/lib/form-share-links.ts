@@ -2,6 +2,23 @@ import { supabase } from "@/integrations/supabase/client";
 
 type StaticParams = Record<string, string>;
 
+const PUBLIC_FORM_ORIGIN = "https://zap.wideic.com";
+
+const getPublicFormOrigin = () => {
+  if (typeof window === "undefined") return PUBLIC_FORM_ORIGIN;
+
+  const { origin, hostname } = window.location;
+  if (
+    hostname === "localhost" ||
+    hostname.endsWith(".lovable.app") ||
+    hostname.includes("lovableproject.com")
+  ) {
+    return PUBLIC_FORM_ORIGIN;
+  }
+
+  return origin;
+};
+
 const encodeStaticPath = (staticParams: StaticParams = {}) =>
   Object.entries(staticParams)
     .filter(([key, value]) => key && value)
@@ -9,7 +26,7 @@ const encodeStaticPath = (staticParams: StaticParams = {}) =>
     .join("/");
 
 export const buildDirectFormUrl = (slug: string, staticParams: StaticParams = {}) => {
-  const baseUrl = `${window.location.origin}/form/${slug}`;
+  const baseUrl = `${getPublicFormOrigin()}/f/${slug}`;
   const paramsPath = encodeStaticPath(staticParams);
   return paramsPath ? `${baseUrl}/${paramsPath}` : baseUrl;
 };
@@ -23,29 +40,18 @@ export const buildFormPreviewShareUrl = async ({
   slug: string;
   staticParams?: StaticParams;
 }) => {
-  const fallbackUrl = buildDirectFormUrl(slug, staticParams);
+  const { data, error } = await supabase.functions.invoke("create-form-short-link", {
+    body: {
+      form_id: formId,
+      static_params: staticParams,
+    },
+  });
 
-  try {
-    const { data, error } = await supabase.functions.invoke("create-form-short-link", {
-      body: {
-        form_id: formId,
-        static_params: staticParams,
-      },
-    });
+  if (error) throw error;
+  if (!data?.code) throw new Error("Sem código retornado");
 
-    if (error) throw error;
-    if (!data?.code) throw new Error("Sem código retornado");
+  const functionsOrigin = String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+  if (!functionsOrigin) throw new Error("URL de funções não configurada");
 
-    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-    const functionsOrigin = projectId
-      ? `https://${projectId}.supabase.co`
-      : String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
-
-    if (!functionsOrigin) return fallbackUrl;
-
-    return `${functionsOrigin}/functions/v1/form-preview/${data.code}?o=${encodeURIComponent(window.location.origin)}`;
-  } catch (error) {
-    console.warn("Short preview link falhou, usando link direto:", error);
-    return fallbackUrl;
-  }
+  return `${functionsOrigin}/functions/v1/form-preview/${data.code}?o=${encodeURIComponent(getPublicFormOrigin())}`;
 };

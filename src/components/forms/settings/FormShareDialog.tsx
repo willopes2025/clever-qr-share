@@ -68,15 +68,26 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
     if (!open) return;
 
     const generateShareUrl = async () => {
-      setIsGeneratingShareUrl(true);
-      const url = await buildFormPreviewShareUrl({
-        formId: form.id,
-        slug: form.slug,
-        staticParams: buildStaticParamsRecord(),
-      });
-      if (!cancelled) {
-        setShareUrl(url);
-        setIsGeneratingShareUrl(false);
+      try {
+        setIsGeneratingShareUrl(true);
+        const url = await buildFormPreviewShareUrl({
+          formId: form.id,
+          slug: form.slug,
+          staticParams: buildStaticParamsRecord(),
+        });
+        if (!cancelled) {
+          setShareUrl(url);
+        }
+      } catch (error) {
+        console.error("Erro ao gerar link com preview:", error);
+        if (!cancelled) {
+          setShareUrl('');
+          toast.error("Não foi possível gerar o link com preview. Tente novamente.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsGeneratingShareUrl(false);
+        }
       }
     };
 
@@ -88,6 +99,7 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
   }, [open, form.id, form.slug, staticParams]);
 
   const handleCopy = (text: string, type: string) => {
+    if (!text || isGeneratingShareUrl) return;
     navigator.clipboard.writeText(text);
     setCopied(type);
     toast.success("Copiado para a área de transferência!");
