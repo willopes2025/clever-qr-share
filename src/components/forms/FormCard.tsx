@@ -37,6 +37,7 @@ import { format } from "date-fns";
 import { formatDateTimeFull } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { buildDirectFormUrl, buildFormPreviewShareUrl } from "@/lib/form-share-links";
 
 interface FormCardProps {
   form: Form;
@@ -63,15 +64,19 @@ export const FormCard = ({ form }: FormCardProps) => {
   const { submissions } = useFormSubmissions(form.id);
   const { fields } = useFormFields(form.id);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [copyingLink, setCopyingLink] = useState(false);
 
   const status = statusConfig[form.status] || statusConfig.draft;
-  const publicBaseUrl = `${window.location.origin}/form/${form.slug}`;
+  const publicBaseUrl = buildDirectFormUrl(form.slug);
   const formUrl = publicBaseUrl;
   const embedUrl = `${publicBaseUrl}?embed=true`;
   const embedCode = `<iframe src="${embedUrl}" width="100%" height="600" frameborder="0" style="border: none; max-width: 100%;"></iframe>`;
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(formUrl);
+  const handleCopyLink = async () => {
+    setCopyingLink(true);
+    const shareUrl = await buildFormPreviewShareUrl({ formId: form.id, slug: form.slug });
+    await navigator.clipboard.writeText(shareUrl);
+    setCopyingLink(false);
     toast.success("Link copiado para a área de transferência!");
   };
 
@@ -183,9 +188,9 @@ export const FormCard = ({ form }: FormCardProps) => {
                   <Eye className="h-4 w-4 mr-2" />
                   Visualizar
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleCopyLink}>
+                <DropdownMenuItem onClick={handleCopyLink} disabled={copyingLink}>
                   <Link2 className="h-4 w-4 mr-2" />
-                  Copiar Link
+                  {copyingLink ? 'Gerando Link...' : 'Copiar Link'}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleCopyEmbed}>
                   <Code className="h-4 w-4 mr-2" />
