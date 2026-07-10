@@ -142,13 +142,25 @@ Deno.serve(async (req: Request) => {
       resolvedInstanceId = null;
       console.log(`[FLOW] Using override Meta phone_number_id (automation): ${overrideMetaPhoneNumberId}`);
     } else {
-      // No automation override: try the chatbot flow's own default instance_id
+      // No automation override: try the chatbot flow's own defaults
       const { data: flowDefaults } = await supabase
         .from('chatbot_flows')
-        .select('instance_id')
+        .select('instance_id, meta_phone_number_id')
         .eq('id', flowId)
         .maybeSingle();
-      if (flowDefaults?.instance_id) {
+      if (flowDefaults?.meta_phone_number_id) {
+        // Resolve Meta phone_number_id (the flow stores the meta_whatsapp_numbers.id)
+        const { data: metaNum } = await supabase
+          .from('meta_whatsapp_numbers')
+          .select('phone_number_id')
+          .eq('id', flowDefaults.meta_phone_number_id)
+          .maybeSingle();
+        if (metaNum?.phone_number_id) {
+          metaPhoneNumberId = metaNum.phone_number_id;
+          resolvedInstanceId = null;
+          console.log(`[FLOW] Using chatbot flow default Meta phone_number_id: ${metaPhoneNumberId}`);
+        }
+      } else if (flowDefaults?.instance_id) {
         resolvedInstanceId = flowDefaults.instance_id;
         metaPhoneNumberId = null;
         console.log(`[FLOW] Using chatbot flow default Evolution instance: ${flowDefaults.instance_id}`);
