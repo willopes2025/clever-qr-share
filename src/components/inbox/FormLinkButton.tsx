@@ -35,24 +35,36 @@ export const FormLinkButton = ({ contactId, conversationId, onInsertMessage }: F
   };
 
   const handleSelectForm = async (form: { id: string; slug: string; name: string }) => {
-    setWorkingId(form.id);
-    const link = await generateShortLink(form);
-    const message = `📋 Preencha este formulário: ${link}`;
-    onInsertMessage(message);
-    setWorkingId(null);
-    setOpen(false);
-    toast.success("Link do formulário inserido na mensagem");
+    try {
+      setWorkingId(form.id);
+      const link = await generateShortLink(form);
+      const message = `📋 Preencha este formulário: ${link}`;
+      onInsertMessage(message);
+      setOpen(false);
+      toast.success("Link do formulário inserido na mensagem");
+    } catch (error) {
+      console.error("Erro ao gerar link com preview:", error);
+      toast.error("Não foi possível gerar o link com preview. Tente novamente.");
+    } finally {
+      setWorkingId(null);
+    }
   };
 
   const handleCopyLink = async (e: React.MouseEvent, form: { id: string; slug: string }) => {
     e.stopPropagation();
-    setWorkingId(form.id);
-    const link = await generateShortLink(form);
-    await navigator.clipboard.writeText(link);
-    setWorkingId(null);
-    setCopiedId(form.id);
-    toast.success("Link copiado!");
-    setTimeout(() => setCopiedId(null), 2000);
+    try {
+      setWorkingId(form.id);
+      const link = await generateShortLink(form);
+      await navigator.clipboard.writeText(link);
+      setCopiedId(form.id);
+      toast.success("Link copiado!");
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (error) {
+      console.error("Erro ao gerar link com preview:", error);
+      toast.error("Não foi possível gerar o link com preview. Tente novamente.");
+    } finally {
+      setWorkingId(null);
+    }
   };
 
   return (

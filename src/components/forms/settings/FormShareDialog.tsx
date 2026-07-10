@@ -59,7 +59,7 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
   };
 
   const directFormUrl = buildDirectFormUrl(form.slug, buildStaticParamsRecord());
-  const formUrl = shareUrl || directFormUrl;
+  const formUrl = shareUrl;
   const embedCode = `<iframe src="${directFormUrl}" width="100%" height="600" frameborder="0" style="border: none;"></iframe>`;
 
   useEffect(() => {
@@ -68,15 +68,26 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
     if (!open) return;
 
     const generateShareUrl = async () => {
-      setIsGeneratingShareUrl(true);
-      const url = await buildFormPreviewShareUrl({
-        formId: form.id,
-        slug: form.slug,
-        staticParams: buildStaticParamsRecord(),
-      });
-      if (!cancelled) {
-        setShareUrl(url);
-        setIsGeneratingShareUrl(false);
+      try {
+        setIsGeneratingShareUrl(true);
+        const url = await buildFormPreviewShareUrl({
+          formId: form.id,
+          slug: form.slug,
+          staticParams: buildStaticParamsRecord(),
+        });
+        if (!cancelled) {
+          setShareUrl(url);
+        }
+      } catch (error) {
+        console.error("Erro ao gerar link com preview:", error);
+        if (!cancelled) {
+          setShareUrl('');
+          toast.error("Não foi possível gerar o link com preview. Tente novamente.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsGeneratingShareUrl(false);
+        }
       }
     };
 
@@ -88,6 +99,7 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
   }, [open, form.id, form.slug, staticParams]);
 
   const handleCopy = (text: string, type: string) => {
+    if (!text || isGeneratingShareUrl) return;
     navigator.clipboard.writeText(text);
     setCopied(type);
     toast.success("Copiado para a área de transferência!");
@@ -221,14 +233,14 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
             <Label>Link Gerado</Label>
             <div className="flex gap-2">
               <Input
-                value={isGeneratingShareUrl ? 'Gerando link com preview...' : formUrl}
+                value={isGeneratingShareUrl ? 'Gerando link com preview...' : formUrl || 'Erro ao gerar link com preview'}
                 readOnly
                 className="flex-1 font-mono text-sm"
               />
               <Button
                 variant="outline"
                 size="icon"
-                disabled={isGeneratingShareUrl}
+                disabled={isGeneratingShareUrl || !formUrl}
                 onClick={() => handleCopy(formUrl, 'link')}
               >
                 {copied === 'link' ? (
@@ -240,7 +252,7 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
               <Button
                 variant="outline"
                 size="icon"
-                disabled={isGeneratingShareUrl}
+                disabled={isGeneratingShareUrl || !formUrl}
                 onClick={() => window.open(formUrl, '_blank')}
               >
                 <ExternalLink className="h-4 w-4" />

@@ -73,11 +73,17 @@ export const FormCard = ({ form }: FormCardProps) => {
   const embedCode = `<iframe src="${embedUrl}" width="100%" height="600" frameborder="0" style="border: none; max-width: 100%;"></iframe>`;
 
   const handleCopyLink = async () => {
-    setCopyingLink(true);
-    const shareUrl = await buildFormPreviewShareUrl({ formId: form.id, slug: form.slug });
-    await navigator.clipboard.writeText(shareUrl);
-    setCopyingLink(false);
-    toast.success("Link copiado para a área de transferência!");
+    try {
+      setCopyingLink(true);
+      const shareUrl = await buildFormPreviewShareUrl({ formId: form.id, slug: form.slug });
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copiado para a área de transferência!");
+    } catch (error) {
+      console.error("Erro ao gerar link com preview:", error);
+      toast.error("Não foi possível gerar o link com preview. Tente novamente.");
+    } finally {
+      setCopyingLink(false);
+    }
   };
 
   const handleCopyEmbed = () => {
