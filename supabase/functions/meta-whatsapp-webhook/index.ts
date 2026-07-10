@@ -804,13 +804,15 @@ Deno.serve(async (req) => {
                           'video/mp4': 'mp4', 'video/3gpp': '3gp',
                           'application/pdf': 'pdf',
                         };
-                        const ext = extMap[mimeType] || mimeType.split('/')[1] || 'bin';
+                        // Normalize mime: strip parameters like "; codecs=opus"
+                        const baseMime = (mimeType.split(';')[0] || '').trim().toLowerCase();
+                        const ext = extMap[baseMime] || (baseMime.split('/')[1] || 'bin').replace(/[^a-z0-9]/gi, '');
                         const filePath = `meta/${userId}/${Date.now()}_${mediaUrl}.${ext}`;
                         
                         // Step 3: Upload to Supabase Storage
                         const { error: uploadError } = await supabase.storage
                           .from('inbox-media')
-                          .upload(filePath, mediaBuffer, { contentType: mimeType, upsert: false });
+                          .upload(filePath, mediaBuffer, { contentType: baseMime, upsert: false });
                         
                         if (!uploadError) {
                           const { data: publicUrlData } = supabase.storage
