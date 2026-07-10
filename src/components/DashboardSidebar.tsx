@@ -122,7 +122,7 @@ export const DashboardSidebar = () => {
       const dynamicItems: NavItem[] = [];
       
       if (hasAsaas) {
-        dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro", permission: "view_finances" as const });
+        dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro" });
       }
       if (hasSsotica) {
         dynamicItems.push({ icon: Glasses, label: "ssOtica", path: "/ssotica", permission: "view_ssotica" as const });
