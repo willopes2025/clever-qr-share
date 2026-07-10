@@ -223,22 +223,36 @@ Deno.serve(async (req) => {
       const paymentUrl = invoiceUrl || bankSlipUrl || '';
       const due = new Date(dueDate + 'T10:00:00-03:00');
 
+      // Today's window in BRT (-03:00)
+      const todayStrBRT = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const isDueToday = dueDate === todayStrBRT;
+
+      // If a scheduled reminder is on today but already past, run it soon (2 min from now).
+      const bumpIfPastToday = (d: Date): Date => {
+        if (d < now && d.toISOString().split('T')[0] === todayStrBRT) {
+          return new Date(now.getTime() + 2 * 60 * 1000);
+        }
+        return d;
+      };
+
       const allReminders = [
         { type: 'emitted', date: new Date(due.getTime() - 10 * 24 * 60 * 60 * 1000) }, // approximate emission, use now for new
         { type: 'before_5d', date: new Date(due.getTime() - 5 * 24 * 60 * 60 * 1000) },
-        { type: 'due_day', date: new Date(due.getTime()) },
-        { type: 'after_1d', date: new Date(due.getTime() + 1 * 24 * 60 * 60 * 1000) },
-        { type: 'after_3d', date: new Date(due.getTime() + 3 * 24 * 60 * 60 * 1000) },
-        { type: 'after_5d', date: new Date(due.getTime() + 5 * 24 * 60 * 60 * 1000) },
+        { type: 'due_day', date: bumpIfPastToday(new Date(due.getTime())) },
+        { type: 'after_1d', date: bumpIfPastToday(new Date(due.getTime() + 1 * 24 * 60 * 60 * 1000)) },
+        { type: 'after_3d', date: bumpIfPastToday(new Date(due.getTime() + 3 * 24 * 60 * 60 * 1000)) },
+        { type: 'after_5d', date: bumpIfPastToday(new Date(due.getTime() + 5 * 24 * 60 * 60 * 1000)) },
       ];
 
-      // Filter: only future, enabled, and not already existing
+      // Filter: enabled, not already existing, and either in the future OR still today.
       const remindersToCreate = allReminders.filter(r => {
         if (billingEnabledTypes && billingEnabledTypes[r.type] === false) return false;
         if (existingTypes.has(r.type)) return false;
-        // Only schedule future reminders (skip 'emitted' for existing payments - it already happened)
+        // Skip 'emitted' for existing payments — that moment already passed.
         if (r.type === 'emitted') return false;
-        return r.date > now;
+        if (r.date > now) return true;
+        // Also accept reminders scheduled for today (they were bumped to now+2min above).
+        return r.date.toISOString().split('T')[0] === todayStrBRT;
       });
 
       if (remindersToCreate.length === 0) {
