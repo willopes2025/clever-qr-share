@@ -205,12 +205,10 @@ export const useForms = () => {
 
       // Duplicate fields
       if (originalFields && originalFields.length > 0) {
-        const newFields = originalFields.map(field => ({
-          ...field,
-          id: undefined,
-          form_id: newForm.id,
-          created_at: undefined,
-        }));
+        const newFields = originalFields.map((field) => {
+          const { id: _id, created_at: _ca, ...rest } = field as any;
+          return { ...rest, form_id: newForm.id };
+        });
 
         const { error: insertFieldsError } = await supabase
           .from('form_fields')
