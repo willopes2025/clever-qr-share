@@ -187,16 +187,14 @@ export const useForms = () => {
 
       // Create new form with modified name and slug
       const newSlug = `${originalForm.slug}-copia-${Date.now()}`;
+      const { id: _id, created_at: _ca, updated_at: _ua, ...restForm } = originalForm as any;
       const { data: newForm, error: createError } = await supabase
         .from('forms')
         .insert({
-          ...originalForm,
-          id: undefined,
+          ...restForm,
           name: `${originalForm.name} (Cópia)`,
           slug: newSlug,
           status: 'draft',
-          created_at: undefined,
-          updated_at: undefined,
         })
         .select()
         .single();
