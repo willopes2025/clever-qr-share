@@ -187,16 +187,14 @@ export const useForms = () => {
 
       // Create new form with modified name and slug
       const newSlug = `${originalForm.slug}-copia-${Date.now()}`;
+      const { id: _id, created_at: _ca, updated_at: _ua, ...restForm } = originalForm as any;
       const { data: newForm, error: createError } = await supabase
         .from('forms')
         .insert({
-          ...originalForm,
-          id: undefined,
+          ...restForm,
           name: `${originalForm.name} (Cópia)`,
           slug: newSlug,
           status: 'draft',
-          created_at: undefined,
-          updated_at: undefined,
         })
         .select()
         .single();
@@ -205,12 +203,10 @@ export const useForms = () => {
 
       // Duplicate fields
       if (originalFields && originalFields.length > 0) {
-        const newFields = originalFields.map(field => ({
-          ...field,
-          id: undefined,
-          form_id: newForm.id,
-          created_at: undefined,
-        }));
+        const newFields = originalFields.map((field) => {
+          const { id: _id, created_at: _ca, ...rest } = field as any;
+          return { ...rest, form_id: newForm.id };
+        });
 
         const { error: insertFieldsError } = await supabase
           .from('form_fields')
