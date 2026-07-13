@@ -51,7 +51,7 @@ const FormBuilder = () => {
     if (!trimmed || trimmed === form.name) return;
     updateForm.mutate({ id: form.id, name: trimmed });
   };
-  const [activeTab, setActiveTab] = useState(initialTab);
+
 
   const selectedField = fields?.find(f => f.id === selectedFieldId) || null;
   const isLoading = formLoading || fieldsLoading;
