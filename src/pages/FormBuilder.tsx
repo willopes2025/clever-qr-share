@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
 import { useFormById, useFormFields, useForms } from "@/hooks/useForms";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, ExternalLink, Eye, Loader2, Settings, Palette, Share2, FileText, Webhook } from "lucide-react";
+import { ArrowLeft, Save, ExternalLink, Eye, Loader2, Settings, Palette, Share2, FileText, Webhook, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { FieldPalette } from "@/components/forms/builder/FieldPalette";
 import { FieldCanvas } from "@/components/forms/builder/FieldCanvas";
