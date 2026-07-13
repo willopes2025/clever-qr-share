@@ -722,11 +722,19 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Evolution says the WhatsApp websocket is down → instance actually
+      // disconnected. Reflect that in the DB and give a clear next step.
+      if (/connection\s*closed/i.test(String(rawEvoMsg))) {
+        await supabase.from('whatsapp_instances').update({ status: 'disconnected' }).eq('id', instanceId);
+        errorMessage =
+          `A instância "${instance.instance_name}" está desconectada do WhatsApp (sessão caiu). ` +
+          `Reconecte-a em Configurações › Instâncias (escaneie o QR Code) e tente novamente, ` +
+          `ou troque o remetente para outro canal conectado.`;
+      }
       // Generic 400 with no useful detail — most common cause when switching
       // from a Meta conversation to an Evolution instance that never had a
-      // session with this contact: the number needs to exist / be reachable
-      // from that specific instance.
-      if (response.status === 400 && (!rawEvoMsg || /^bad request$/i.test(String(rawEvoMsg).trim()))) {
+      // session with this contact.
+      else if (response.status === 400 && (!rawEvoMsg || /^bad request$/i.test(String(rawEvoMsg).trim()))) {
         errorMessage =
           `A instância "${instance.instance_name}" recusou o envio para ${phone} (HTTP 400 Bad Request). ` +
           `Isso geralmente acontece quando o número nunca conversou com essa instância ou não está no WhatsApp a partir dela.`;
