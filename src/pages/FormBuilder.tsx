@@ -25,7 +25,32 @@ const FormBuilder = () => {
   
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const initialTab = searchParams.get("tab") || "fields";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (isEditingName) {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }
+  }, [isEditingName]);
+
+  const startRename = () => {
+    if (!form) return;
+    setNameDraft(form.name);
+    setIsEditingName(true);
+  };
+
+  const commitRename = () => {
+    if (!form) return;
+    const trimmed = nameDraft.trim();
+    setIsEditingName(false);
+    if (!trimmed || trimmed === form.name) return;
+    updateForm.mutate({ id: form.id, name: trimmed });
+  };
   const [activeTab, setActiveTab] = useState(initialTab);
 
   const selectedField = fields?.find(f => f.id === selectedFieldId) || null;
