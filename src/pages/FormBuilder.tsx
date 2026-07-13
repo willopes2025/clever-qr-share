@@ -101,8 +101,30 @@ const FormBuilder = () => {
             <Button variant="ghost" size="icon" onClick={() => navigate('/forms')}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div>
-              <h1 className="font-semibold">{form.name}</h1>
+            <div className="min-w-0">
+              {isEditingName ? (
+                <Input
+                  ref={nameInputRef}
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+                    if (e.key === 'Escape') { setIsEditingName(false); }
+                  }}
+                  className="h-8 font-semibold"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={startRename}
+                  className="group flex items-center gap-2 text-left hover:opacity-80"
+                  title="Clique para renomear"
+                >
+                  <h1 className="font-semibold truncate">{form.name}</h1>
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                </button>
+              )}
               <p className="text-xs text-muted-foreground">/{form.slug}</p>
             </div>
           </div>
