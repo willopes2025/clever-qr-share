@@ -660,28 +660,79 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      let errorMessage = result.message || result.error || rawText || 'Unknown error';
+      // Log full raw response so we can debug 400s that Evolution answers with
+      // a generic "Bad Request" body.
+      const rawBodyPreview = rawText || (result ? JSON.stringify(result).slice(0, 500) : '');
+      console.error(
+        `[SEND] Evolution API error: HTTP ${response.status} ${response.statusText} — body: ${rawBodyPreview}`
+      );
 
-      // For 5xx with non-JSON body, surface status + attempt count for clarity
+      // Build a context suffix so the user knows exactly which channel was used
+      // and (when it's a cross-provider send) which Meta number the conversation
+      // originally belongs to — so they can switch sender if needed.
+      let metaNumberLabel: string | null = null;
+      if (forceEvolution && conversation.meta_phone_number_id) {
+        const { data: metaNum } = await supabase
+          .from('meta_whatsapp_numbers')
+          .select('display_name, phone_number')
+          .eq('phone_number_id', conversation.meta_phone_number_id)
+          .maybeSingle();
+        if (metaNum) {
+          metaNumberLabel = `${metaNum.display_name || 'WhatsApp Oficial'} (${metaNum.phone_number})`;
+        } else {
+          metaNumberLabel = `phone_number_id ${conversation.meta_phone_number_id}`;
+        }
+      }
+      const channelHint = `\n\nCanal usado no envio: Evolution — instância "${instance.instance_name}".` +
+        (metaNumberLabel
+          ? `\nEssa conversa veio pelo número Meta: ${metaNumberLabel}. Para responder pelo mesmo número em que o cliente falou, troque o remetente no topo do chat para esse número Meta.`
+          : '');
+
+      // Extract the most informative message the Evolution API gave us
+      const rawEvoMsg =
+        (typeof result?.response?.message === 'string' && result.response.message) ||
+        (Array.isArray(result?.response?.message) && result.response.message.map((m: any) => typeof m === 'string' ? m : JSON.stringify(m)).join(' | ')) ||
+        result?.message ||
+        result?.error ||
+        rawText ||
+        `HTTP ${response.status} ${response.statusText || ''}`.trim();
+
+      let errorMessage = `Falha ao enviar via Evolution API (HTTP ${response.status}): ${String(rawEvoMsg).slice(0, 300)}`;
+
+      // 5xx: highlight retry attempts
       if (response.status >= 500) {
-        const detail = rawText || lastTransientError || errorMessage;
-        errorMessage = `Evolution API HTTP ${response.status}: ${String(detail).slice(0, 200)} (após ${attempts} tentativa${attempts > 1 ? 's' : ''})`;
+        const detail = rawText || lastTransientError || rawEvoMsg;
+        errorMessage = `Evolution API instável (HTTP ${response.status}) após ${attempts} tentativa${attempts > 1 ? 's' : ''}: ${String(detail).slice(0, 200)}`;
       }
 
+      // Instance disconnected
       if (response.status === 404 && result.response?.message) {
         const msgDetails = result.response.message;
-        if (Array.isArray(msgDetails) && msgDetails.some((m: string) => m.includes('does not exist'))) {
+        if (Array.isArray(msgDetails) && msgDetails.some((m: string) => typeof m === 'string' && m.includes('does not exist'))) {
           await supabase.from('whatsapp_instances').update({ status: 'disconnected' }).eq('id', instanceId);
-          errorMessage = `Instância "${instance.instance_name}" desconectada. Reconecte nas configurações.`;
+          errorMessage = `A instância "${instance.instance_name}" está desconectada. Reconecte-a em Configurações › Instâncias e tente novamente.`;
         }
       }
 
-      if (result.response?.message) {
+      // Number not on WhatsApp
+      if (result?.response?.message) {
         const msgDetails = result.response.message;
         if (Array.isArray(msgDetails) && msgDetails.length > 0 && msgDetails[0]?.exists === false) {
-          errorMessage = `Número (${phone}) não registrado no WhatsApp.`;
+          errorMessage = `O número ${phone} não está registrado no WhatsApp na instância "${instance.instance_name}".`;
         }
       }
+
+      // Generic 400 with no useful detail — most common cause when switching
+      // from a Meta conversation to an Evolution instance that never had a
+      // session with this contact: the number needs to exist / be reachable
+      // from that specific instance.
+      if (response.status === 400 && (!rawEvoMsg || /^bad request$/i.test(String(rawEvoMsg).trim()))) {
+        errorMessage =
+          `A instância "${instance.instance_name}" recusou o envio para ${phone} (HTTP 400 Bad Request). ` +
+          `Isso geralmente acontece quando o número nunca conversou com essa instância ou não está no WhatsApp a partir dela.`;
+      }
+
+      errorMessage += channelHint;
 
       await supabase.from('inbox_messages').update({ status: 'failed', error_message: errorMessage }).eq('id', message.id);
       throw new Error(errorMessage);
