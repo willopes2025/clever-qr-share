@@ -550,8 +550,13 @@ Deno.serve(async (req) => {
       .eq('id', instanceId)
       .single();
 
-    if (instError || !instance) throw new Error('Failed to fetch instance');
-    if (instance.status !== 'connected') throw new Error('Instance is not connected');
+    if (instError || !instance) throw new Error('Não foi possível carregar a instância selecionada.');
+    if (instance.status !== 'connected') {
+      throw new Error(
+        `A instância "${instance.instance_name}" está desconectada. ` +
+        `Reconecte-a em Configurações › Instâncias (escaneie o QR Code) ou troque o remetente para outro canal conectado.`
+      );
+    }
 
     // Format phone number — use targetPhone if provided
     const rawPhone = targetPhone || contactData.phone || '';
