@@ -9,6 +9,19 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+// Runs a promise after the response is sent, instead of blocking the webhook ack on it.
+const waitUntil = (promise: Promise<unknown>) => {
+  const runtime = (globalThis as typeof globalThis & {
+    EdgeRuntime?: { waitUntil: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(promise);
+  } else {
+    promise.catch((error) => console.error('Background task error:', error));
+  }
+};
+
 function normalizePhoneDigits(phone: string | undefined | null): string {
   return (phone || '').replace(/\D/g, '');
 }
@@ -986,7 +999,9 @@ Deno.serve(async (req) => {
 
                 if (activeExecution) {
                   console.log(`[META-WEBHOOK] Continuing chatbot execution ${activeExecution.id}`);
-                  await fetch(`${SUPABASE_URL}/functions/v1/execute-chatbot-flow`, {
+                  // Fire-and-forget: the flow does multi-second sleeps between messages,
+                  // and blocking the webhook ack on it causes Meta to time out and retry.
+                  waitUntil(fetch(`${SUPABASE_URL}/functions/v1/execute-chatbot-flow`, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
@@ -1001,7 +1016,7 @@ Deno.serve(async (req) => {
                       currentNodeId: activeExecution.current_node_id,
                       inputValue: content,
                     }),
-                  });
+                  }));
                 }
               } catch (cbErr) {
                 console.error('[META-WEBHOOK] Error continuing chatbot flow:', cbErr);
