@@ -1,66 +1,105 @@
-Hoje o link copiado no Inbox é do tipo:
+## Objetivo
 
-```text
-https://.../form/<slug>/contact_id=<uuid>/conversation_id=<uuid>
-```
+Adicionar um canal de **E-mail** ao Widezap, no mesmo nível do WhatsApp: cada organização conecta a caixa compartilhada da empresa (Gmail, Outlook 365 ou IMAP/SMTP), o Inbox sincroniza recebidos e enviados, e a plataforma passa a enviar e-mails por template — manualmente, por automação de funil, por campanha, por chatbot e por webhook externo.
 
-Fica gigante porque carrega dois UUIDs. Vamos encurtar e, no mesmo movimento, transformar em link "de afiliado" com rastreio de quem enviou.
+## Escopo confirmado com você
 
-## 1. Encurtador nativo (estilo short.io)
+- Provedores: Gmail (OAuth), Outlook/M365 (OAuth) e IMAP/SMTP genérico.
+- Conexão: **1 caixa compartilhada por organização** (não por atendente).
+- Inbox: aba própria só de E-mail (separada do WhatsApp).
+- Gatilhos: automações de funil, campanhas em massa, chatbots e webhooks/API externa.
 
-Nova tabela `form_short_links` guarda um código curto (8 caracteres, ex.: `k9Xa2P7q`) mapeando para o formulário + parâmetros originais:
+## Como vai funcionar (visão do usuário)
 
-- `code` (unique, 8 chars) — o que aparece na URL
-- `form_id`, `slug`
-- `static_params` (jsonb) — contact_id / conversation_id / quaisquer outros
-- `shared_by_user_id` — quem gerou o link (o "líder")
-- `organization_id`
-- `click_count`, `last_click_at` (para métricas simples)
-- `created_at`
+1. Em **Configurações → Canais de E-mail**, o admin clica em "Conectar Gmail" (ou Outlook) e faz OAuth com a conta compartilhada da empresa (ex.: `contato@empresa.com`). Para outros provedores, preenche host IMAP + SMTP + credencial.
+2. A partir daí, o Inbox ganha uma aba **E-mail** ao lado das instâncias de WhatsApp, com lista de conversas por contato, leitor de mensagem e composer com anexos.
+3. Em **Templates**, é possível criar templates de e-mail (assunto + corpo HTML rico + variáveis do lead/contato) separados dos templates de WhatsApp.
+4. Nas **Automações de Funil**, aparece uma nova ação "Enviar e-mail" com seletor de template e caixa de origem.
+5. Nas **Campanhas**, um switch escolhe o canal (WhatsApp ou E-mail); o envio em lote passa a suportar e-mail.
+6. No **Chatbot Builder**, novo tipo de nó "Enviar e-mail".
+7. Nos **Webhooks / API externa**, novo endpoint documentado para disparar template de e-mail.
 
-Rota nova: `/f/:code` (React Router).
-`ShortLinkRedirect.tsx` consulta a tabela, incrementa `click_count` e navega para a URL completa do formulário já com `?shared_by=<user_id>` embutido.
+## Fases de entrega
 
-Link final passa de ~120 caracteres para algo como:
+Recomendo entregar em 4 fases para o app subir estável — cada fase é utilizável sozinha:
 
-```text
-https://zap.wideic.com/f/k9Xa2P7q
-```
+### Fase 1 — Conexão + Inbox (Gmail primeiro)
+- Tabela `email_channels` por organização (provider, credenciais, from address, display name, status).
+- Fluxo OAuth Gmail com credenciais próprias do Widezap (um único OAuth app registrado no Google Cloud, tokens de cada org guardados na tabela).
+- Sync inicial das últimas N mensagens + sync incremental via Gmail History API a cada 1 min (cron pg_cron).
+- Tabelas `email_threads`, `email_messages`, `email_attachments` (arquivos no Supabase Storage).
+- Aba E-mail no Inbox (lista de threads, leitor, composer básico com responder/encaminhar).
+- Vínculo automático da thread ao `contacts` pelo endereço de e-mail (cria contato se não existir).
 
-## 2. Rastreio de quem enviou (afiliado)
+### Fase 2 — Outlook + IMAP/SMTP
+- OAuth Microsoft Graph com o mesmo padrão da Fase 1.
+- IMAP/SMTP: formulário com host/porta/usuário/senha, credenciais criptografadas via Vault.
+- Sync IMAP por polling (cron 2 min).
+- Envio via SMTP para IMAP; via Graph API para Outlook.
 
-- Coluna nova em `form_submissions`: `shared_by_user_id uuid` (FK para `auth.users`).
-- Coluna nova em `contacts`: `first_shared_by_user_id uuid` — preenchida só na primeira vez, para não sobrescrever quando o mesmo lead voltar por outro link.
-- A edge function `submit-form` (ou equivalente) lê o `shared_by` vindo da URL/short link e grava nas duas colunas.
-- Cada submissão passa a ter, junto com os dados, o nome do líder que compartilhou o link — visível na listagem de submissões e disponível para relatórios/CRM.
+### Fase 3 — Templates + envio manual e por automação
+- Tabela `email_templates` (assunto, HTML, variáveis, org_id) + página de gerenciamento com editor rich text (usa a lib TipTap já no projeto ou react-email).
+- Preview com dados fake e renderização real com variáveis do contato/deal.
+- Edge function unificada `send-email` (resolve channel + template + destinatário + variáveis, envia pelo provider correto, grava mensagem enviada na thread).
+- Nova ação nas automações de funil: "Enviar e-mail" (template + canal de origem).
 
-## 3. UI do botão no Inbox
-
-`src/components/inbox/FormLinkButton.tsx`:
-
-- Ao selecionar o formulário, chama edge function `create-form-short-link` passando `{ form_id, contact_id, conversation_id }`.
-- Edge function reaproveita um short link existente com os mesmos parâmetros (evita duplicar códigos) ou cria um novo.
-- Insere/copia sempre o link curto (`/f/<code>`), não o longo.
-- Fallback: se a criação falhar, cai no formato antigo para não travar o envio.
-
-## 4. Onde ver o rastreio
-
-- Tabela de submissões do formulário passa a mostrar coluna "Compartilhado por" (nome vindo de `profiles`).
-- No card do contato/deal, mostrar "Origem: link enviado por <Nome>" quando `first_shared_by_user_id` estiver preenchido.
+### Fase 4 — Campanhas, Chatbot e Webhooks
+- Campanhas: coluna `channel` em `campaigns`, seletor no wizard, dispatcher em batch por cron (reaproveita o padrão atual de campanha WhatsApp, com throttle específico para e-mail).
+- Chatbot Builder: novo tipo de nó `send_email`.
+- Endpoint `POST /functions/v1/api-send-email` protegido por API key da organização.
+- Rastreio opcional de abertura (pixel) e clique (link rewrite), desligado por padrão.
 
 ## Detalhes técnicos
 
-Arquivos:
+### Novas tabelas (com RLS por organização, seguindo padrão atual do projeto)
 
-- `supabase/migrations/*_form_short_links.sql` — cria `form_short_links`, GRANTs, RLS (SELECT público por `code`; INSERT/UPDATE restritos ao dono/organização), adiciona colunas `shared_by_user_id` em `form_submissions` e `first_shared_by_user_id` em `contacts`.
-- `supabase/functions/create-form-short-link/index.ts` — POST autenticado, gera código único (nanoid-like, 8 chars alfanuméricos, retry em colisão), persiste e retorna `{ code, url }`.
-- `supabase/functions/resolve-form-short-link/index.ts` (ou fazer a leitura direto do client via `anon` SELECT por `code`) — retorna `form_slug` + `static_params` + `shared_by_user_id`; incrementa `click_count`.
-- `supabase/functions/public-form/index.ts` e `submit-form` — passar `shared_by` do query string para dentro do HTML do form (hidden field) e gravar na submissão.
-- `src/pages/ShortLinkRedirect.tsx` — nova página em `/f/:code` que resolve e faz `window.location.replace` para `/form/<slug>/...` com parâmetros já embutidos.
-- `src/App.tsx` — registrar rota `/f/:code`.
-- `src/components/inbox/FormLinkButton.tsx` — trocar `generateFormLink` por chamada assíncrona ao endpoint de short link.
-- `src/components/forms/submissions/*` — nova coluna "Compartilhado por" (join com `profiles`).
+```text
+email_channels
+  id, organization_id, provider (gmail|outlook|imap), from_address, display_name,
+  oauth_access_token, oauth_refresh_token, oauth_expires_at,
+  imap_host, imap_port, imap_user, imap_pass_encrypted,
+  smtp_host, smtp_port, smtp_user, smtp_pass_encrypted,
+  history_id, last_sync_at, status, is_active
 
-Códigos curtos usam alfabeto `[A-Za-z0-9]` (62^8 ≈ 218 trilhões de combinações) — colisão praticamente nula.
+email_threads
+  id, organization_id, channel_id, contact_id, subject,
+  provider_thread_id, last_message_at, unread_count, is_archived
 
-Nenhum serviço externo (short.io etc.) é necessário; tudo roda no Lovable Cloud usando o domínio publicado (`zap.wideic.com`), então o link continua com sua marca.
+email_messages
+  id, thread_id, direction (in|out), from_addr, to_addrs[], cc_addrs[], bcc_addrs[],
+  subject, body_html, body_text, provider_message_id, in_reply_to,
+  sent_at, received_at, is_read, sent_by_user_id
+
+email_attachments
+  id, message_id, filename, mime_type, size, storage_path
+
+email_templates
+  id, organization_id, name, subject, body_html, variables[], created_by
+```
+
+Todas com `GRANT` para `authenticated`/`service_role` no mesmo migration e políticas RLS usando `get_organization_member_ids` (padrão do projeto).
+
+### Novas Edge Functions
+
+- `email-oauth-start` / `email-oauth-callback` (Gmail e Outlook)
+- `email-sync` (cron a cada 1 min — puxa histórico Gmail/Outlook, poll IMAP)
+- `email-webhook-gmail` (Pub/Sub push, quando ligarmos)
+- `send-email` (chamada por UI, automação, campanha, chatbot, webhook)
+- `api-send-email` (endpoint público autenticado por API key)
+
+### Segredos que serão necessários
+
+- `GMAIL_OAUTH_CLIENT_ID` / `GMAIL_OAUTH_CLIENT_SECRET` (você registra 1 OAuth app no Google Cloud)
+- `MICROSOFT_OAUTH_CLIENT_ID` / `MICROSOFT_OAUTH_CLIENT_SECRET` (registrar no Entra ID)
+- `EMAIL_CREDS_ENCRYPTION_KEY` (para criptografar senhas SMTP/IMAP no banco)
+
+Vou pedir esses segredos quando cada fase começar, não agora.
+
+### Fora do escopo desta feature
+
+- Não altera o sistema de e-mails transacionais/auth existente (`send-transactional-email`, `auth-email-hook`) — aquele é do próprio Widezap para os usuários da plataforma; este é canal de comunicação com os leads dos clientes.
+- Marketing/newsletter em massa continua fora — campanhas serão transacionais/1:1 disparadas por evento, respeitando volumes razoáveis.
+
+## Pergunta antes de começar
+
+Quer que eu **entregue tudo em sequência** (fases 1 → 4) ou prefere que eu **comece só pela Fase 1** (Gmail + Inbox) para você validar o fluxo antes de expandir? Confirme também se posso iniciar já pela Fase 1 com este plano.
