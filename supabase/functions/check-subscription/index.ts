@@ -286,14 +286,26 @@ Deno.serve(async (req: Request) => {
 
     // Se a consulta falhou (timeout, etc), não arriscar sobrescrever dados
     if (existingSubError && existingSubError.code !== 'PGRST116') {
-      logStep("WARNING: Failed to fetch existing subscription, returning safe response", { 
+      logStep("WARNING: Failed to fetch existing subscription, returning safe fallback", { 
         error: existingSubError.message 
       });
-      return new Response(JSON.stringify({ 
-        error: "Database temporarily unavailable, please retry" 
+      // Return 200 with fallback signal so client doesn't crash / blank screen
+      return new Response(JSON.stringify({
+        subscribed: true,
+        plan: FREE_PLAN.plan,
+        max_instances: FREE_PLAN.maxInstances,
+        max_contacts: FREE_PLAN.maxContacts,
+        max_messages: FREE_PLAN.maxMessages,
+        max_leads: FREE_PLAN.maxLeads,
+        leads_used: 0,
+        leads_reset_at: null,
+        subscription_end: null,
+        is_organization_member: false,
+        fallback: true,
+        error: "Database temporarily unavailable, please retry",
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 503,
+        status: 200,
       });
     }
 
