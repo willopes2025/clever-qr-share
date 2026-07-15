@@ -1,277 +1,189 @@
 project_id = "fgbenetdksqnvwkgnips"
 
-[functions.process-knowledge-url]
-verify_jwt = true
-
-[functions.create-instance]
-verify_jwt = false
-
-[functions.connect-instance]
-verify_jwt = false
-
-[functions.check-connection-status]
-verify_jwt = false
-
-[functions.delete-instance]
-verify_jwt = false
-
-[functions.start-campaign]
-verify_jwt = false
-
-[functions.send-campaign-messages]
-verify_jwt = false
-
-[functions.resume-campaign]
-verify_jwt = false
-
-[functions.process-scheduled-campaigns]
-verify_jwt = false
-
-[functions.generate-template-variations]
-verify_jwt = false
-
-[functions.create-checkout]
-verify_jwt = true
-
-[functions.check-subscription]
-verify_jwt = false
-
-[functions.customer-portal]
-verify_jwt = true
-
-[functions.list-invoices]
-verify_jwt = true
-
-[functions.admin-update-subscription]
-verify_jwt = true
-
-[functions.send-inbox-message]
-verify_jwt = false
-
-[functions.receive-webhook]
-verify_jwt = false
-
-[functions.configure-instance-webhook]
-verify_jwt = false
-
-[functions.send-inbox-media]
-verify_jwt = false
-
-[functions.transcribe-audio]
-verify_jwt = false
-
-[functions.inbox-ai-assistant]
-verify_jwt = false
-
-[functions.process-warming]
-verify_jwt = false
-
-[functions.reset-warming-daily]
-verify_jwt = false
-
-[functions.analyze-conversations]
-verify_jwt = true
-
-[functions.process-funnel-automations]
-verify_jwt = false
-
-[functions.ai-campaign-agent]
-verify_jwt = false
-
-[functions.process-knowledge-pdf]
-verify_jwt = false
-
-[functions.search-companies]
-verify_jwt = false
-
-[functions.send-team-invite]
-verify_jwt = true
-
-[functions.admin-update-user-password]
-verify_jwt = true
-
-[functions.admin-create-user]
-verify_jwt = true
-
-[functions.calendly-integration]
-verify_jwt = false
-
-[functions.elevenlabs-tts]
-verify_jwt = false
-
-[functions.elevenlabs-list-voices]
-verify_jwt = false
-
-[functions.elevenlabs-preview-voice]
-verify_jwt = false
-
-[functions.sync-message-history]
-verify_jwt = false
-
-[functions.receive-automation-webhook]
-verify_jwt = false
-
-[functions.chatbot-ai-condition]
-verify_jwt = false
-
-[functions.suggest-chatbot-intents]
-verify_jwt = false
-
-[functions.send-whatsapp-notification]
-verify_jwt = false
-
-[functions.suggest-funnel-intents]
-verify_jwt = false
-
-[functions.personalize-agent-template]
-verify_jwt = false
-
-[functions.vono-click-to-call]
-verify_jwt = true
-
-[functions.vono-api]
-verify_jwt = true
-
-[functions.elevenlabs-conversation-token]
-verify_jwt = true
-
-[functions.elevenlabs-sip-call]
-verify_jwt = true
-
-[functions.elevenlabs-call-webhook]
-verify_jwt = false
-
-[functions.fusionpbx-webrtc-config]
-verify_jwt = true
-
-[functions.fusionpbx-originate]
-verify_jwt = true
-
-[functions.fusionpbx-events-webhook]
-verify_jwt = false
-
-[functions.fusionpbx-transfer]
-verify_jwt = true
-
-[functions.meta-whatsapp-webhook]
-verify_jwt = false
-
-[functions.meta-whatsapp-send]
-verify_jwt = true
-
-[functions.meta-whatsapp-templates]
-verify_jwt = true
-
-[functions.internal-chat-whatsapp]
-verify_jwt = false
-
-[functions.process-notification-queue]
-verify_jwt = false
-
-[functions.fetch-profile-picture]
-verify_jwt = false
-
-[functions.purchase-ai-tokens]
-verify_jwt = true
-
-[functions.stripe-tokens-webhook]
-verify_jwt = false
-
-[functions.consume-ai-tokens]
-verify_jwt = true
-
-[functions.check-ai-tokens]
-verify_jwt = true
-
-[functions.test-ai-agent]
-verify_jwt = true
-
-[functions.admin-transfer-tokens]
-verify_jwt = true
-
-[functions.agent-integration-webhook]
-verify_jwt = false
-
-[functions.ssotica-api]
-verify_jwt = false
-
-[functions.process-agent-correction]
-verify_jwt = true
-
-[functions.public-form]
-verify_jwt = false
-
-[functions.form-preview]
-verify_jwt = false
-
-[functions.submit-form]
-verify_jwt = false
-
-[functions.admin-stripe-metrics]
-verify_jwt = true
-
-[functions.check-stuck-campaigns]
-verify_jwt = false
-
-[functions.sync-asaas-contacts]
-verify_jwt = false
-
-[functions.sync-funnel-deals]
-verify_jwt = false
-
-[functions.instagram-scraper]
-verify_jwt = false
-
-[functions.instagram-enricher]
-verify_jwt = false
-
-[functions.integration-status]
-verify_jwt = false
-
-[functions.generate-warming-content]
-verify_jwt = true
-
-[functions.extract-pdf-content]
-verify_jwt = false
-
-[functions.wil-assistant]
-verify_jwt = false
-
-[functions.google-calendar-integration]
-verify_jwt = false
-
-[functions.auto-pair-warming-pool]
-verify_jwt = false
-
-[functions.sync-single-contact]
-verify_jwt = false
-
-[functions.generate-daily-warming-news]
-verify_jwt = false
-
-[functions.check-availability]
-verify_jwt = false
-
-[functions.execute-chatbot-flow]
-verify_jwt = false
-
-[functions.generate-opportunity-messages]
-verify_jwt = false
-
-[functions.receive-meta-messenger-webhook]
-verify_jwt = false
-
-[functions.process-email-queue]
-verify_jwt = true
-
-[functions.send-transactional-email]
-verify_jwt = true
-
-[functions.preview-transactional-email]
-verify_jwt = false
-
-[functions.handle-email-unsubscribe]
-verify_jwt = false
-
-[functions.handle-email-suppression]
-verify_jwt = false
+[functions]
+  [functions.admin-create-user]
+    verify_jwt = true
+  [functions.admin-stripe-metrics]
+    verify_jwt = true
+  [functions.admin-transfer-tokens]
+    verify_jwt = true
+  [functions.admin-update-subscription]
+    verify_jwt = true
+  [functions.admin-update-user-password]
+    verify_jwt = true
+  [functions.agent-integration-webhook]
+    verify_jwt = false
+  [functions.ai-campaign-agent]
+    verify_jwt = false
+  [functions.analyze-conversations]
+    verify_jwt = true
+  [functions.auth-email-hook]
+    verify_jwt = false
+  [functions.auto-pair-warming-pool]
+    verify_jwt = false
+  [functions.calendly-integration]
+    verify_jwt = false
+  [functions.chatbot-ai-condition]
+    verify_jwt = false
+  [functions.check-ai-tokens]
+    verify_jwt = true
+  [functions.check-availability]
+    verify_jwt = false
+  [functions.check-connection-status]
+    verify_jwt = false
+  [functions.check-stuck-campaigns]
+    verify_jwt = false
+  [functions.check-subscription]
+    verify_jwt = false
+  [functions.configure-instance-webhook]
+    verify_jwt = false
+  [functions.connect-instance]
+    verify_jwt = false
+  [functions.consume-ai-tokens]
+    verify_jwt = true
+  [functions.create-checkout]
+    verify_jwt = true
+  [functions.create-instance]
+    verify_jwt = false
+  [functions.customer-portal]
+    verify_jwt = true
+  [functions.delete-instance]
+    verify_jwt = false
+  [functions.elevenlabs-call-webhook]
+    verify_jwt = false
+  [functions.elevenlabs-conversation-token]
+    verify_jwt = true
+  [functions.elevenlabs-list-voices]
+    verify_jwt = false
+  [functions.elevenlabs-preview-voice]
+    verify_jwt = false
+  [functions.elevenlabs-sip-call]
+    verify_jwt = true
+  [functions.elevenlabs-tts]
+    verify_jwt = false
+  [functions.execute-chatbot-flow]
+    verify_jwt = false
+  [functions.extract-pdf-content]
+    verify_jwt = false
+  [functions.fetch-profile-picture]
+    verify_jwt = false
+  [functions.form-preview]
+    verify_jwt = false
+  [functions.fusionpbx-events-webhook]
+    verify_jwt = false
+  [functions.fusionpbx-originate]
+    verify_jwt = true
+  [functions.fusionpbx-transfer]
+    verify_jwt = true
+  [functions.fusionpbx-webrtc-config]
+    verify_jwt = true
+  [functions.generate-daily-warming-news]
+    verify_jwt = false
+  [functions.generate-opportunity-messages]
+    verify_jwt = false
+  [functions.generate-template-variations]
+    verify_jwt = false
+  [functions.generate-warming-content]
+    verify_jwt = true
+  [functions.google-calendar-integration]
+    verify_jwt = false
+  [functions.handle-email-suppression]
+    verify_jwt = false
+  [functions.handle-email-unsubscribe]
+    verify_jwt = false
+  [functions.inbox-ai-assistant]
+    verify_jwt = false
+  [functions.instagram-enricher]
+    verify_jwt = false
+  [functions.instagram-scraper]
+    verify_jwt = false
+  [functions.integration-status]
+    verify_jwt = false
+  [functions.internal-chat-whatsapp]
+    verify_jwt = false
+  [functions.list-invoices]
+    verify_jwt = true
+  [functions.meta-whatsapp-send]
+    verify_jwt = true
+  [functions.meta-whatsapp-templates]
+    verify_jwt = true
+  [functions.meta-whatsapp-webhook]
+    verify_jwt = false
+  [functions.personalize-agent-template]
+    verify_jwt = false
+  [functions.preview-transactional-email]
+    verify_jwt = false
+  [functions.process-agent-correction]
+    verify_jwt = true
+  [functions.process-email-queue]
+    verify_jwt = true
+  [functions.process-funnel-automations]
+    verify_jwt = false
+  [functions.process-knowledge-pdf]
+    verify_jwt = false
+  [functions.process-knowledge-url]
+    verify_jwt = true
+  [functions.process-notification-queue]
+    verify_jwt = false
+  [functions.process-scheduled-campaigns]
+    verify_jwt = false
+  [functions.process-warming]
+    verify_jwt = false
+  [functions.public-form]
+    verify_jwt = false
+  [functions.purchase-ai-tokens]
+    verify_jwt = true
+  [functions.receive-automation-webhook]
+    verify_jwt = false
+  [functions.receive-meta-messenger-webhook]
+    verify_jwt = false
+  [functions.receive-webhook]
+    verify_jwt = false
+  [functions.reset-warming-daily]
+    verify_jwt = false
+  [functions.resume-campaign]
+    verify_jwt = false
+  [functions.search-companies]
+    verify_jwt = false
+  [functions.send-campaign-messages]
+    verify_jwt = false
+  [functions.send-inbox-media]
+    verify_jwt = false
+  [functions.send-inbox-message]
+    verify_jwt = false
+  [functions.send-team-invite]
+    verify_jwt = true
+  [functions.send-transactional-email]
+    verify_jwt = true
+  [functions.send-whatsapp-notification]
+    verify_jwt = false
+  [functions.ssotica-api]
+    verify_jwt = false
+  [functions.start-campaign]
+    verify_jwt = false
+  [functions.stripe-tokens-webhook]
+    verify_jwt = false
+  [functions.submit-form]
+    verify_jwt = false
+  [functions.suggest-chatbot-intents]
+    verify_jwt = false
+  [functions.suggest-funnel-intents]
+    verify_jwt = false
+  [functions.sync-asaas-contacts]
+    verify_jwt = false
+  [functions.sync-funnel-deals]
+    verify_jwt = false
+  [functions.sync-message-history]
+    verify_jwt = false
+  [functions.sync-single-contact]
+    verify_jwt = false
+  [functions.test-ai-agent]
+    verify_jwt = true
+  [functions.transcribe-audio]
+    verify_jwt = false
+  [functions.vono-api]
+    verify_jwt = true
+  [functions.vono-click-to-call]
+    verify_jwt = true
+  [functions.wil-assistant]
+    verify_jwt = false
