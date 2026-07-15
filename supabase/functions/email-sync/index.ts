@@ -94,7 +94,8 @@ async function syncGmailChannel(admin: any, channel: EmailChannel) {
         last_message_at: receivedAt, subject: subject || undefined,
       }).eq('id', localThreadId);
     } else {
-      const contactId = isInbound ? await findContactByEmail(admin, channel.organization_id, fromEmail) : null;
+      const lookupEmail = isInbound ? fromEmail : (toList[0] ?? '');
+      const contactId = await findContactByEmail(admin, channel.organization_id, lookupEmail);
       const { data: created } = await admin.from('email_threads').insert({
         organization_id: channel.organization_id,
         channel_id: channel.id,
