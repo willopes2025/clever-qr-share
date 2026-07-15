@@ -57,5 +57,5 @@ export const buildFormPreviewShareUrl = async ({
   if (error) throw error;
   if (!data?.code) throw new Error("Sem código retornado");
 
-  return buildFormPreviewUrlFromCode(data.code);
+  return `${getPublicFormOrigin()}/s/${encodeURIComponent(data.code)}`;
 };
