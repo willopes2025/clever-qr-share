@@ -3096,6 +3096,168 @@ export type Database = {
           },
         ]
       }
+      email_campaign_recipients: {
+        Row: {
+          attempts: number
+          campaign_id: string
+          contact_id: string | null
+          created_at: string
+          email: string
+          error_message: string | null
+          id: string
+          name: string | null
+          organization_id: string
+          provider_message_id: string | null
+          provider_thread_id: string | null
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+          variables: Json
+        }
+        Insert: {
+          attempts?: number
+          campaign_id: string
+          contact_id?: string | null
+          created_at?: string
+          email: string
+          error_message?: string | null
+          id?: string
+          name?: string | null
+          organization_id: string
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          variables?: Json
+        }
+        Update: {
+          attempts?: number
+          campaign_id?: string
+          contact_id?: string | null
+          created_at?: string
+          email?: string
+          error_message?: string | null
+          id?: string
+          name?: string | null
+          organization_id?: string
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          variables?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_campaign_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_campaign_recipients_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_campaigns: {
+        Row: {
+          batch_interval_seconds: number
+          batch_size: number
+          body_html: string
+          body_text: string | null
+          channel_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_dispatch_at: string | null
+          name: string
+          organization_id: string
+          scheduled_start_at: string | null
+          send_window: Json
+          source_config: Json
+          source_type: string
+          started_at: string | null
+          stats: Json
+          status: string
+          subject: string
+          template_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          batch_interval_seconds?: number
+          batch_size?: number
+          body_html: string
+          body_text?: string | null
+          channel_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_dispatch_at?: string | null
+          name: string
+          organization_id: string
+          scheduled_start_at?: string | null
+          send_window?: Json
+          source_config?: Json
+          source_type: string
+          started_at?: string | null
+          stats?: Json
+          status?: string
+          subject: string
+          template_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          batch_interval_seconds?: number
+          batch_size?: number
+          body_html?: string
+          body_text?: string | null
+          channel_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_dispatch_at?: string | null
+          name?: string
+          organization_id?: string
+          scheduled_start_at?: string | null
+          send_window?: Json
+          source_config?: Json
+          source_type?: string
+          started_at?: string | null
+          stats?: Json
+          status?: string
+          subject?: string
+          template_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_campaigns_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "email_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_campaigns_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_channels: {
         Row: {
           created_at: string
@@ -8224,6 +8386,7 @@ export type Database = {
         | "move_to_funnel"
         | "activate_ai"
         | "generate_asaas_pix"
+        | "send_email"
       funnel_trigger_type:
         | "on_stage_enter"
         | "on_stage_exit"
@@ -8405,6 +8568,7 @@ export const Constants = {
         "move_to_funnel",
         "activate_ai",
         "generate_asaas_pix",
+        "send_email",
       ],
       funnel_trigger_type: [
         "on_stage_enter",

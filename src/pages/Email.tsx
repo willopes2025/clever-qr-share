@@ -9,10 +9,11 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Mail, RefreshCw, Plus, Loader2, Send, Trash2 } from "lucide-react";
+import { Mail, RefreshCw, Plus, Loader2, Send, Trash2, Megaphone } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Link } from "react-router-dom";
 
 interface EmailChannel {
   id: string; email_address: string; display_name: string | null;
@@ -129,6 +130,11 @@ export default function EmailPage() {
             )}
           </div>
           <div className="flex gap-2">
+            <Link to="/email/campaigns">
+              <Button variant="outline" size="sm">
+                <Megaphone className="h-4 w-4 mr-2" />Campanhas
+              </Button>
+            </Link>
             {activeChannel && (
               <>
                 <Button variant="outline" size="sm" onClick={sync} disabled={syncing}>

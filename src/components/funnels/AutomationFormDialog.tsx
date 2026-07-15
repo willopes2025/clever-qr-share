@@ -71,6 +71,7 @@ type ActionType =
   | 'send_message' 
   | 'send_template' 
   | 'send_form_link'
+  | 'send_email'
   | 'add_tag' 
   | 'remove_tag' 
   | 'notify_user' 
@@ -87,6 +88,60 @@ type ActionType =
   | 'close_deal_lost'
   | 'ai_analyze_and_move'
   | 'activate_ai';
+
+// Email action config: choose channel + template (or subject+body inline)
+function SendEmailActionConfig({ actionConfig, setActionConfig }: {
+  actionConfig: Record<string, unknown>;
+  setActionConfig: (v: Record<string, unknown>) => void;
+}) {
+  const [channels, setChannels] = useState<{ id: string; email_address: string }[]>([]);
+  const [templates, setTemplates] = useState<{ id: string; name: string; subject: string; body_html: string }[]>([]);
+  useEffect(() => {
+    supabase.from("email_channels").select("id,email_address").eq("status", "active")
+      .then(({ data }) => setChannels((data ?? []) as { id: string; email_address: string }[]));
+    supabase.from("email_templates").select("id,name,subject,body_html").order("name")
+      .then(({ data }) => setTemplates((data ?? []) as { id: string; name: string; subject: string; body_html: string }[]));
+  }, []);
+  return (
+    <div className="space-y-3">
+      <div className="p-3 bg-primary/10 rounded-lg border border-primary/20 text-sm text-muted-foreground">
+        ✉️ Envia um e-mail para o endereço cadastrado no contato do deal.
+      </div>
+      <div className="space-y-2">
+        <Label>Canal de envio (Gmail conectado)</Label>
+        <Select value={(actionConfig.email_channel_id as string) || ''} onValueChange={(v) => setActionConfig({ ...actionConfig, email_channel_id: v })}>
+          <SelectTrigger><SelectValue placeholder="Selecionar canal" /></SelectTrigger>
+          <SelectContent>
+            {channels.map(c => <SelectItem key={c.id} value={c.id}>{c.email_address}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {channels.length === 0 && (
+          <p className="text-xs text-muted-foreground">Conecte uma conta em /email antes de usar esta ação.</p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Label>Template de e-mail (opcional)</Label>
+        <Select value={(actionConfig.email_template_id as string) || ''} onValueChange={(v) => {
+          const tpl = templates.find(t => t.id === v);
+          setActionConfig({ ...actionConfig, email_template_id: v, subject: tpl?.subject ?? actionConfig.subject, body_html: tpl?.body_html ?? actionConfig.body_html });
+        }}>
+          <SelectTrigger><SelectValue placeholder="Nenhum (usar assunto/corpo abaixo)" /></SelectTrigger>
+          <SelectContent>
+            {templates.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Assunto</Label>
+        <Input value={(actionConfig.subject as string) || ''} onChange={(e) => setActionConfig({ ...actionConfig, subject: e.target.value })} placeholder="Use {{nome}} para variáveis" />
+      </div>
+      <div className="space-y-2">
+        <Label>Corpo (HTML)</Label>
+        <Textarea rows={6} value={(actionConfig.body_html as string) || ''} onChange={(e) => setActionConfig({ ...actionConfig, body_html: e.target.value })} placeholder="<p>Olá {{nome}}...</p>" />
+      </div>
+    </div>
+  );
+}
 
 interface AutomationCondition {
   field: string;
@@ -948,6 +1003,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 <SelectItem value="send_message">Enviar mensagem</SelectItem>
                 <SelectItem value="send_template">Enviar template</SelectItem>
                 <SelectItem value="send_form_link">📝 Enviar link de formulário</SelectItem>
+                <SelectItem value="send_email">✉️ Enviar e-mail</SelectItem>
                 <SelectItem value="add_tag">Adicionar tag</SelectItem>
                 <SelectItem value="remove_tag">Remover tag</SelectItem>
                 <SelectItem value="notify_user">Notificar usuário</SelectItem>
@@ -1006,6 +1062,11 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
               </Select>
             </div>
           )}
+
+          {actionType === 'send_email' && (
+            <SendEmailActionConfig actionConfig={actionConfig} setActionConfig={setActionConfig} />
+          )}
+
 
           {actionType === 'send_form_link' && (
             <div className="space-y-4">
