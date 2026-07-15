@@ -949,6 +949,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 <SelectItem value="send_message">Enviar mensagem</SelectItem>
                 <SelectItem value="send_template">Enviar template</SelectItem>
                 <SelectItem value="send_form_link">📝 Enviar link de formulário</SelectItem>
+                <SelectItem value="send_email">✉️ Enviar e-mail</SelectItem>
                 <SelectItem value="add_tag">Adicionar tag</SelectItem>
                 <SelectItem value="remove_tag">Remover tag</SelectItem>
                 <SelectItem value="notify_user">Notificar usuário</SelectItem>
@@ -1007,6 +1008,11 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
               </Select>
             </div>
           )}
+
+          {actionType === 'send_email' && (
+            <SendEmailActionConfig actionConfig={actionConfig} setActionConfig={setActionConfig} />
+          )}
+
 
           {actionType === 'send_form_link' && (
             <div className="space-y-4">
