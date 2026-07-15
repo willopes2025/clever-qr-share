@@ -1787,6 +1787,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           <FormLinkButton
             contactId={conversation.contact_id}
             conversationId={conversation.id}
+            contactName={conversation.contact?.name || null}
+            contactDisplayId={(conversation.contact as any)?.contact_display_id || null}
             onInsertMessage={(msg) => composerRef.current?.setValue(msg)}
           />
           
