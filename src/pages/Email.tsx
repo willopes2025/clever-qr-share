@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Mail, RefreshCw, Plus, Loader2, Send, Trash2, Megaphone } from "lucide-react";
+import { Mail, RefreshCw, Plus, Loader2, Send, Trash2, Megaphone, Inbox as InboxIcon, SendHorizonal, Archive, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -32,6 +32,15 @@ interface EmailMessage {
   is_read: boolean;
 }
 
+type FolderKey = "inbox" | "sent" | "archived" | "all";
+
+const FOLDERS: { key: FolderKey; label: string; icon: any }[] = [
+  { key: "inbox", label: "Caixa de entrada", icon: InboxIcon },
+  { key: "sent", label: "Enviados", icon: SendHorizonal },
+  { key: "archived", label: "Arquivados", icon: Archive },
+  { key: "all", label: "Todos", icon: Layers },
+];
+
 export default function EmailPage() {
   const [loading, setLoading] = useState(true);
   const [channels, setChannels] = useState<EmailChannel[]>([]);
@@ -40,11 +49,12 @@ export default function EmailPage() {
   const [messages, setMessages] = useState<EmailMessage[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [folder, setFolder] = useState<FolderKey>("inbox");
 
   const activeChannel = useMemo(() => channels.find(c => c.status === "active") ?? null, [channels]);
 
   useEffect(() => { loadChannels(); }, []);
-  useEffect(() => { if (activeChannel) loadThreads(activeChannel.id); }, [activeChannel?.id]);
+  useEffect(() => { if (activeChannel) loadThreads(activeChannel.id, folder); }, [activeChannel?.id, folder]);
   useEffect(() => { if (selectedThreadId) loadMessages(selectedThreadId); }, [selectedThreadId]);
 
   async function loadChannels() {
@@ -54,9 +64,21 @@ export default function EmailPage() {
     setChannels((data ?? []) as any);
     setLoading(false);
   }
-  async function loadThreads(channelId: string) {
-    const { data, error } = await supabase.from("email_threads")
+  async function loadThreads(channelId: string, f: FolderKey) {
+    let threadIds: string[] | null = null;
+    if (f === "inbox" || f === "sent") {
+      const dir = f === "inbox" ? "inbound" : "outbound";
+      const { data: msgs } = await supabase.from("email_messages")
+        .select("thread_id").eq("channel_id", channelId).eq("direction", dir).not("thread_id", "is", null).limit(2000);
+      threadIds = Array.from(new Set((msgs ?? []).map((m: any) => m.thread_id).filter(Boolean)));
+      if (threadIds.length === 0) { setThreads([]); return; }
+    }
+    let q = supabase.from("email_threads")
       .select("*").eq("channel_id", channelId).order("last_message_at", { ascending: false }).limit(100);
+    if (f === "archived") q = q.eq("is_archived", true);
+    else q = q.eq("is_archived", false);
+    if (threadIds) q = q.in("id", threadIds);
+    const { data, error } = await q;
     if (error) toast.error(error.message);
     setThreads((data ?? []) as any);
   }
@@ -109,7 +131,7 @@ export default function EmailPage() {
     const { error } = await supabase.functions.invoke("email-sync", { body: { channel_id: activeChannel.id } });
     setSyncing(false);
     if (error) toast.error(error.message);
-    else { toast.success("Sincronizado"); loadThreads(activeChannel.id); }
+    else { toast.success("Sincronizado"); loadThreads(activeChannel.id, folder); }
   }
 
   async function disconnect(id: string) {
@@ -154,35 +176,51 @@ export default function EmailPage() {
         ) : channels.length === 0 ? (
           <ConnectCard onConnect={connectGmail} />
         ) : (
-          <div className="grid flex-1 grid-cols-[320px_1fr] overflow-hidden">
+          <div className="grid flex-1 grid-cols-[200px_320px_1fr] overflow-hidden min-h-0">
+            {/* Folder sidebar */}
+            <div className="border-r border-border bg-muted/20 min-h-0 overflow-y-auto">
+              <div className="p-2 space-y-1">
+                {FOLDERS.map(f => {
+                  const Icon = f.icon;
+                  const active = folder === f.key;
+                  return (
+                    <button key={f.key}
+                      onClick={() => { setFolder(f.key); setSelectedThreadId(null); }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition ${active ? "bg-accent text-accent-foreground font-medium" : "hover:bg-accent/50 text-muted-foreground"}`}>
+                      <Icon className="h-4 w-4" />
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Thread list */}
-            <div className="border-r border-border">
-              <ScrollArea className="h-full">
-                {threads.length === 0 ? (
-                  <div className="p-6 text-center text-sm text-muted-foreground">
-                    Nenhuma conversa. Clique em Sincronizar para buscar da caixa de entrada.
+            <div className="border-r border-border min-h-0 overflow-y-auto">
+              {threads.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  Nenhuma conversa nesta pasta. Clique em Sincronizar.
+                </div>
+              ) : threads.map(t => (
+                <button key={t.id}
+                  onClick={() => setSelectedThreadId(t.id)}
+                  className={`w-full text-left border-b border-border/50 p-3 hover:bg-accent/50 transition ${selectedThreadId === t.id ? "bg-accent" : ""}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="truncate text-sm font-medium">{t.subject || "(sem assunto)"}</div>
+                    {t.unread_count > 0 && <Badge variant="default" className="h-5 min-w-5 px-1.5">{t.unread_count}</Badge>}
                   </div>
-                ) : threads.map(t => (
-                  <button key={t.id}
-                    onClick={() => setSelectedThreadId(t.id)}
-                    className={`w-full text-left border-b border-border/50 p-3 hover:bg-accent/50 transition ${selectedThreadId === t.id ? "bg-accent" : ""}`}>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="truncate text-sm font-medium">{t.subject || "(sem assunto)"}</div>
-                      {t.unread_count > 0 && <Badge variant="default" className="h-5 min-w-5 px-1.5">{t.unread_count}</Badge>}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {t.last_message_at ? formatDistanceToNow(new Date(t.last_message_at), { addSuffix: true, locale: ptBR }) : ""}
-                    </div>
-                  </button>
-                ))}
-              </ScrollArea>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {t.last_message_at ? formatDistanceToNow(new Date(t.last_message_at), { addSuffix: true, locale: ptBR }) : ""}
+                  </div>
+                </button>
+              ))}
             </div>
 
             {/* Thread viewer */}
-            <div className="overflow-hidden">
+            <div className="min-h-0 overflow-hidden">
               {selectedThreadId ? (
                 <ThreadView messages={messages} channel={activeChannel!} threadId={selectedThreadId}
-                  onReplySent={() => { loadMessages(selectedThreadId); loadThreads(activeChannel!.id); }} />
+                  onReplySent={() => { loadMessages(selectedThreadId); loadThreads(activeChannel!.id, folder); }} />
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
                   Selecione uma conversa
@@ -214,7 +252,7 @@ export default function EmailPage() {
       </div>
 
       <ComposeDialog open={composeOpen} onOpenChange={setComposeOpen}
-        channel={activeChannel} onSent={() => { setComposeOpen(false); if (activeChannel) loadThreads(activeChannel.id); }} />
+        channel={activeChannel} onSent={() => { setComposeOpen(false); if (activeChannel) loadThreads(activeChannel.id, folder); }} />
     </DashboardLayout>
   );
 }
