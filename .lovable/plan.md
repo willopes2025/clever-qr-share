@@ -1,81 +1,51 @@
+## Problema
+
+O link curto gerado no inbox de um lead (ex.: Rotary Club) está sendo tratado como se identificasse o próprio remetente:
+
+- `FormLinkButton` envia `contact_id` e `conversation_id` como `static_params` do short link.
+- `submit-form` ao detectar `static_params.contact_id` reusa o contato existente (linhas 483-519 de `supabase/functions/submit-form/index.ts`), atualiza os dados dele com o que a outra pessoa preencheu e dispara a automação para o número original.
+
+Resultado: quem preenche não vira lead novo, e o lead do Rotary é sobrescrito.
+
 ## Objetivo
 
-Adicionar envio em massa de e-mails a partir dos contatos (capturados via QR codes), com fila, histórico, templates de e-mail e gatilhos automáticos no funil.
+Ao compartilhar o link do inbox com outra pessoa:
+1. Sempre criar um novo contato/lead a partir do telefone/email preenchido (não reutilizar o contato de origem).
+2. Registrar no `tracking` do novo deal os dados do lead que originou o compartilhamento (referrer), aparecendo nos campos de UTM/origem do lead novo.
 
-## Escopo funcional
+## Mudanças
 
-### 1. Templates de e-mail
-- Nova página `/email/templates` (ou aba dentro de `/email`) para CRUD de templates.
-- Campos: nome, assunto, corpo HTML (editor rich text simples), variáveis (`{{nome}}`, `{{email}}`, `{{empresa}}`, campos customizados do contato).
-- Preview com substituição de variáveis.
-
-### 2. Envio em massa
-- Nova tela "Campanha de E-mail" em `/email/campaigns`.
-- Seleção de origem dos destinatários:
-  - Broadcast list existente
-  - Contatos por filtro (tags, funil, etapa, campo customizado)
-  - Contatos capturados por formulário/QR code específico
-- Escolha do canal (email_channel Gmail conectado) + template + variáveis.
-- Configuração de ritmo: quantidade por lote, intervalo entre lotes, janela de horário.
-- Ao disparar: cria linhas em `email_campaign_recipients` com status `pending`, agendadas conforme ritmo.
-
-### 3. Fila e processamento
-- Tabela `email_campaigns` (config da campanha) e `email_campaign_recipients` (1 linha por destinatário).
-- Edge function `email-campaign-dispatch` chamada por pg_cron a cada minuto: pega recipients `pending` com `scheduled_at <= now()`, respeita limite por chamada, envia via `email-send` reaproveitando `ensureFreshGmailToken` + `buildRawMime`, marca `sent`/`failed`, grava erro.
-- Retry automático em falha transitória (até 3 tentativas).
-
-### 4. Histórico
-- Tela da campanha mostra: totais (pendente/enviado/falhou), lista de destinatários com status, timestamp, erro.
-- Tabela `email_send_log` (por campanha) para auditoria agregada.
-
-### 5. Gatilhos no funil
-- Estender `funnel_automations` para suportar `action_type = 'send_email'`.
-- Config da automação: template de e-mail, canal, destinatário (email do contato do deal).
-- Ao mover deal para etapa X (`on_stage_enter`), engine dispara e-mail imediatamente via `email-send`, registrando no histórico.
-- UI: no editor de automação do funil, adicionar "Enviar e-mail" como ação, com seletor de template + canal.
-
-## Detalhes técnicos
-
-### Novas tabelas
+### 1. `src/components/inbox/FormLinkButton.tsx`
+Trocar os `staticParams` enviados ao criar o short link. Em vez de:
 ```
-email_templates_v2 (id, organization_id, user_id, name, subject, body_html, variables jsonb, created_at, updated_at)
-email_campaigns (id, organization_id, user_id, name, channel_id, template_id, source_type, source_config jsonb,
-                 batch_size int, batch_interval_seconds int, send_window jsonb,
-                 status ['draft','running','paused','completed','failed'],
-                 stats jsonb, started_at, completed_at, created_at, updated_at)
-email_campaign_recipients (id, campaign_id, contact_id, email, variables jsonb,
-                           status ['pending','sending','sent','failed','skipped'],
-                           scheduled_at, sent_at, error_message, message_id, thread_id,
-                           attempts int default 0, created_at, updated_at)
+{ contact_id, conversation_id }
 ```
-Todas com RLS por `organization_id` via `get_organization_member_ids`, GRANT para authenticated/service_role.
+enviar chaves de rastreamento (que o `submit-form` já mescla em `tracking`):
+```
+{
+  utm_source: 'indicacao',
+  utm_medium: 'inbox',
+  utm_campaign: 'lead-<contact_display_id ou id curto>',
+  utm_referrer_contact_id: contactId,
+  utm_referrer_conversation_id: conversationId,
+  utm_referrer_name: <nome do contato de origem>,
+}
+```
+Isso exige receber `contactName` (e opcionalmente `contactDisplayId`) via props — a chamada em `MessageInput`/afins passa a repassar esses dados.
 
-Reaproveitar `email_templates` existente se schema for compatível; senão criar `email_templates_v2` limpo.
+### 2. `supabase/functions/submit-form/index.ts`
+- Remover (ou tornar opt-in por outra chave, ex.: `static_params.update_existing_contact === 'true'`) o bloco das linhas 483-519 que reutiliza `staticContactId`. Sem isso, o fluxo natural (linhas 521-575) já busca por telefone/email e cria um contato novo quando não existe.
+- Garantir que as chaves `utm_referrer_contact_id`, `utm_referrer_conversation_id`, `utm_referrer_name` sejam incluídas na lista `trackingKeys` (linha 79) para que entrem no `tracking` do deal criado.
+- Manter o `shared_by` já existente (atribuição do usuário que compartilhou).
 
-### Edge functions
-- `email-campaign-create` — cria campanha + expande recipients + agenda.
-- `email-campaign-dispatch` — chamada por pg_cron; processa lote respeitando ritmo, envia via lógica de `email-send`. Marca campanha `completed` quando não há mais `pending`.
-- `email-campaign-control` — pausar/retomar/cancelar.
-- Extensão do engine de automações do funil (`funnel-automation-runner` ou equivalente) para suportar `send_email`.
+### 3. `src/components/funnels/DealTrackingSection.tsx`
+Adicionar labels amigáveis para as novas chaves em `LABELS` e `ORDER`:
+- `utm_referrer_contact_id` → "Indicado por (ID)"
+- `utm_referrer_name` → "Indicado por"
+- `utm_referrer_conversation_id` → "Conversa de origem"
 
-### pg_cron
-Job `email-campaign-tick` a cada 1 minuto chamando `email-campaign-dispatch`.
+## Fora de escopo
 
-### Frontend
-- `src/pages/EmailCampaigns.tsx` (lista + criação)
-- `src/pages/EmailCampaignDetail.tsx` (progresso + histórico)
-- `src/pages/EmailTemplates.tsx` (CRUD templates)
-- `src/components/email/CampaignWizard.tsx` (passos: destinatários → template → ritmo → revisar)
-- Hooks: `useEmailTemplates`, `useEmailCampaigns`, `useEmailCampaignRecipients`
-- Adicionar ação "Enviar e-mail" no editor de automações do funil (`src/components/funnels/automations/...`).
-
-### Segurança / RLS
-- Todas as tabelas com RLS por organização.
-- Envio só permite `channel_id` cuja `organization_id` bate com a do usuário.
-- Validação server-side de e-mails (formato) e deduplicação por (campaign_id, email).
-
-## Fora de escopo (para depois)
-- Editor drag-and-drop visual.
-- A/B testing.
-- Tracking de abertura/clique (requer pixel + link redirect).
-- SMTP genérico além de Gmail conectado.
+- Não mexer no `create-form-short-link` (ele só persiste o que vier em `static_params`).
+- Não mexer no fluxo `/s/:code` — o `ShortLinkRedirect` continua propagando `static_params` como query, então as novas chaves UTM já viajam para o formulário e para o `submit-form`.
+- Nenhuma migração de banco: `funnel_deals.tracking` é `jsonb` livre.
