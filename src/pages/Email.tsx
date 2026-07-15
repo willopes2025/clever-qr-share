@@ -32,6 +32,15 @@ interface EmailMessage {
   is_read: boolean;
 }
 
+type FolderKey = "inbox" | "sent" | "archived" | "all";
+
+const FOLDERS: { key: FolderKey; label: string; icon: any }[] = [
+  { key: "inbox", label: "Caixa de entrada", icon: InboxIcon },
+  { key: "sent", label: "Enviados", icon: SendHorizonal },
+  { key: "archived", label: "Arquivados", icon: Archive },
+  { key: "all", label: "Todos", icon: Layers },
+];
+
 export default function EmailPage() {
   const [loading, setLoading] = useState(true);
   const [channels, setChannels] = useState<EmailChannel[]>([]);
@@ -40,11 +49,12 @@ export default function EmailPage() {
   const [messages, setMessages] = useState<EmailMessage[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [folder, setFolder] = useState<FolderKey>("inbox");
 
   const activeChannel = useMemo(() => channels.find(c => c.status === "active") ?? null, [channels]);
 
   useEffect(() => { loadChannels(); }, []);
-  useEffect(() => { if (activeChannel) loadThreads(activeChannel.id); }, [activeChannel?.id]);
+  useEffect(() => { if (activeChannel) loadThreads(activeChannel.id, folder); }, [activeChannel?.id, folder]);
   useEffect(() => { if (selectedThreadId) loadMessages(selectedThreadId); }, [selectedThreadId]);
 
   async function loadChannels() {
@@ -54,9 +64,21 @@ export default function EmailPage() {
     setChannels((data ?? []) as any);
     setLoading(false);
   }
-  async function loadThreads(channelId: string) {
-    const { data, error } = await supabase.from("email_threads")
+  async function loadThreads(channelId: string, f: FolderKey) {
+    let threadIds: string[] | null = null;
+    if (f === "inbox" || f === "sent") {
+      const dir = f === "inbox" ? "inbound" : "outbound";
+      const { data: msgs } = await supabase.from("email_messages")
+        .select("thread_id").eq("channel_id", channelId).eq("direction", dir).not("thread_id", "is", null).limit(2000);
+      threadIds = Array.from(new Set((msgs ?? []).map((m: any) => m.thread_id).filter(Boolean)));
+      if (threadIds.length === 0) { setThreads([]); return; }
+    }
+    let q = supabase.from("email_threads")
       .select("*").eq("channel_id", channelId).order("last_message_at", { ascending: false }).limit(100);
+    if (f === "archived") q = q.eq("is_archived", true);
+    else q = q.eq("is_archived", false);
+    if (threadIds) q = q.in("id", threadIds);
+    const { data, error } = await q;
     if (error) toast.error(error.message);
     setThreads((data ?? []) as any);
   }
