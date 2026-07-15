@@ -71,6 +71,7 @@ type ActionType =
   | 'send_message' 
   | 'send_template' 
   | 'send_form_link'
+  | 'send_email'
   | 'add_tag' 
   | 'remove_tag' 
   | 'notify_user' 
