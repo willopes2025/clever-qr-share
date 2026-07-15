@@ -47,6 +47,7 @@ const DataDeletionCallback = lazy(() => import("./pages/DataDeletionCallback"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const MetaAuthCallback = lazy(() => import("./pages/MetaAuthCallback"));
 const MetaMessengerCallback = lazy(() => import("./pages/MetaMessengerCallback"));
+const Email = lazy(() => import("./pages/Email"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Forms = lazy(() => import("./pages/Forms"));
 const FormBuilder = lazy(() => import("./pages/FormBuilder"));
