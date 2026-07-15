@@ -76,7 +76,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Build tracking object (UTMs / referrer / landing) from staticParams
-    const trackingKeys = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','referrer','landing_url'];
+    const trackingKeys = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','referrer','landing_url','utm_referrer_contact_id','utm_referrer_conversation_id','utm_referrer_name'];
     const trackingFromForm: Record<string, string> = {};
     for (const k of trackingKeys) {
       const v = staticParams[k];
