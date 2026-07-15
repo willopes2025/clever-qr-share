@@ -988,7 +988,8 @@ Deno.serve(async (req: Request) => {
               .single();
             const existing = (dealTrk?.tracking as Record<string, any>) || {};
             dealUpdateData.tracking = { ...trackingFromForm, ...existing };
-          
+          }
+
           if (Object.keys(dealUpdateData).length > 0) {
             await supabase
               .from('funnel_deals')
