@@ -1762,10 +1762,105 @@ Retorne APENAS a mensagem, sem explicações ou aspas.`;
             break;
           }
 
+          case 'send_email': {
+            const templateId = actionConfig.email_template_id as string | undefined;
+            const channelId = actionConfig.email_channel_id as string | undefined;
+            let subject = (actionConfig.subject as string) || '';
+            let bodyHtml = (actionConfig.body_html as string) || '';
+            const toEmail = (deal.contact?.email as string | undefined)?.trim();
+
+            if (!toEmail) {
+              results.push({ automationId: automation.id, success: false, error: 'Contato sem e-mail' });
+              break;
+            }
+            if (!channelId) {
+              results.push({ automationId: automation.id, success: false, error: 'Canal de e-mail não configurado' });
+              break;
+            }
+            if (templateId) {
+              const { data: tpl } = await supabase.from('email_templates')
+                .select('subject, body_html').eq('id', templateId).maybeSingle();
+              if (tpl) { subject = tpl.subject; bodyHtml = tpl.body_html; }
+            }
+            if (!subject || !bodyHtml) {
+              results.push({ automationId: automation.id, success: false, error: 'Assunto ou corpo do e-mail vazios' });
+              break;
+            }
+
+            const renderedSubject = replaceVariables(subject);
+            const renderedHtml = replaceVariables(bodyHtml);
+
+            const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+            const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+            try {
+              // Buscar canal + refresh token na própria supabase (via edge admin)
+              const { data: channel } = await supabase.from('email_channels').select('*').eq('id', channelId).maybeSingle();
+              if (!channel) throw new Error('canal não encontrado');
+
+              // Refresh token
+              const now = Date.now();
+              const expAt = channel.oauth_token_expires_at ? new Date(channel.oauth_token_expires_at).getTime() : 0;
+              let accessToken = channel.oauth_access_token as string;
+              if (!accessToken || expAt - 60_000 <= now) {
+                const clientId = Deno.env.get('GMAIL_OAUTH_CLIENT_ID')!;
+                const clientSecret = Deno.env.get('GMAIL_OAUTH_CLIENT_SECRET')!;
+                const rres = await fetch('https://oauth2.googleapis.com/token', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: new URLSearchParams({
+                    client_id: clientId, client_secret: clientSecret,
+                    refresh_token: channel.oauth_refresh_token, grant_type: 'refresh_token',
+                  }),
+                });
+                if (!rres.ok) throw new Error(`refresh: ${await rres.text()}`);
+                const t = await rres.json();
+                accessToken = t.access_token;
+                await supabase.from('email_channels').update({
+                  oauth_access_token: t.access_token,
+                  oauth_token_expires_at: new Date(Date.now() + (t.expires_in ?? 3600) * 1000).toISOString(),
+                }).eq('id', channel.id);
+              }
+
+              const fromHeader = channel.display_name ? `"${channel.display_name}" <${channel.email_address}>` : channel.email_address;
+              const boundary = `bnd_${crypto.randomUUID().replace(/-/g, '')}`;
+              const mime = [
+                `From: ${fromHeader}`,
+                `To: ${toEmail}`,
+                `Subject: ${renderedSubject}`,
+                'MIME-Version: 1.0',
+                `Content-Type: multipart/alternative; boundary="${boundary}"`,
+                '',
+                `--${boundary}`,
+                'Content-Type: text/plain; charset="UTF-8"',
+                '',
+                renderedHtml.replace(/<[^>]+>/g, ''),
+                `--${boundary}`,
+                'Content-Type: text/html; charset="UTF-8"',
+                '',
+                renderedHtml,
+                `--${boundary}--`, '',
+              ].join('\r\n');
+              const raw = btoa(unescape(encodeURIComponent(mime))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+              const sendRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ raw }),
+              });
+              if (!sendRes.ok) throw new Error(`gmail send [${sendRes.status}]: ${await sendRes.text()}`);
+              results.push({ automationId: automation.id, success: true });
+            } catch (mailErr) {
+              console.error('[FUNNEL-AUTOMATIONS] send_email error', mailErr);
+              results.push({ automationId: automation.id, success: false, error: mailErr instanceof Error ? mailErr.message : 'send_email failed' });
+            }
+            break;
+          }
+
           default:
             console.log(`[FUNNEL-AUTOMATIONS] Unknown action type: ${automation.action_type}`);
             results.push({ automationId: automation.id, success: false, error: 'Unknown action type' });
         }
+
       } catch (actionError) {
         console.error(`[FUNNEL-AUTOMATIONS] Error executing automation ${automation.id}:`, actionError);
         results.push({ 
