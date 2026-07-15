@@ -70,11 +70,10 @@ export default function EmailPage() {
   }
 
   async function connectGmail() {
-    const { data, error } = await supabase.functions.invoke("email-oauth-start");
-    if (error || !data?.auth_url) { toast.error(error?.message ?? "falha ao iniciar OAuth"); return; }
-    // Open in a top-level tab (Google blocks OAuth inside iframes/preview popups)
-    const popup = window.open(data.auth_url, "_blank", "noopener,noreferrer");
+    // Open synchronously from the click event so browsers do not block it.
+    const popup = window.open("about:blank", "gmail-oauth", "width=520,height=720");
     if (!popup) { toast.error("Permita pop-ups para conectar o Gmail"); return; }
+
     const handler = (ev: MessageEvent) => {
       if (ev.data?.type === "gmail-oauth") {
         window.removeEventListener("message", handler);
@@ -83,9 +82,24 @@ export default function EmailPage() {
       }
     };
     window.addEventListener("message", handler);
-    // Fallback poll: if popup closes without message
-    // With noopener the opener can't inspect the popup; refresh channels shortly
-    setTimeout(() => loadChannels(), 5000);
+
+    const { data, error } = await supabase.functions.invoke("email-oauth-start");
+    if (error || !data?.auth_url) {
+      window.removeEventListener("message", handler);
+      popup.close();
+      toast.error(error?.message ?? "falha ao iniciar OAuth");
+      return;
+    }
+
+    popup.location.href = data.auth_url;
+
+    const poll = window.setInterval(() => {
+      if (popup.closed) {
+        window.clearInterval(poll);
+        window.removeEventListener("message", handler);
+        loadChannels();
+      }
+    }, 1000);
   }
 
   async function sync() {
