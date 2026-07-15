@@ -61,6 +61,14 @@ project_id = "fgbenetdksqnvwkgnips"
     verify_jwt = true
   [functions.elevenlabs-tts]
     verify_jwt = false
+  [functions.email-oauth-start]
+    verify_jwt = true
+  [functions.email-oauth-callback]
+    verify_jwt = false
+  [functions.email-send]
+    verify_jwt = true
+  [functions.email-sync]
+    verify_jwt = false
   [functions.execute-chatbot-flow]
     verify_jwt = false
   [functions.extract-pdf-content]
