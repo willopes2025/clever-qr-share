@@ -299,9 +299,9 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
       // Insert recipients in batches of 500
       for (let i = 0; i < recipients.length; i += 500) {
         const slice = recipients.slice(i, i + 500).map(r => ({
-          campaign_id: campaign.id, organization_id: orgId, email: r.email,
+          campaign_id: campaign.id, organization_id: orgId as string, email: r.email,
           name: r.name ?? null, contact_id: r.contact_id ?? null,
-          variables: r.variables ?? {}, status: "pending",
+          variables: (r.variables ?? {}) as never, status: "pending",
         }));
         const { error: rErr } = await supabase.from("email_campaign_recipients").insert(slice);
         if (rErr) throw rErr;
