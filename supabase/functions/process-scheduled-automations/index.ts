@@ -151,7 +151,7 @@ Deno.serve(async (req: Request) => {
         const config = (auto.trigger_config as Record<string, unknown>) || {};
         const dateFieldKey = config.date_field_key as string;
         const hoursBefore = config.hours_before as number;
-        if (!dateFieldKey || !hoursBefore) continue;
+        if (!dateFieldKey || hoursBefore === undefined || hoursBefore === null) continue;
 
         const deals = await getDeals(supabase, auto);
         for (const deal of deals) {
@@ -193,7 +193,7 @@ Deno.serve(async (req: Request) => {
         const config = (auto.trigger_config as Record<string, unknown>) || {};
         const dateFieldKey = config.date_field_key as string;
         const hoursAfter = config.hours_after as number;
-        if (!dateFieldKey || !hoursAfter) continue;
+        if (!dateFieldKey || hoursAfter === undefined || hoursAfter === null) continue;
 
         const deals = await getDeals(supabase, auto);
         for (const deal of deals) {
