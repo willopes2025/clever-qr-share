@@ -480,10 +480,11 @@ Deno.serve(async (req: Request) => {
 
 
 
-    // Check if a static contact_id was provided (trackable form link from inbox)
+    // Static contact_id in short link is treated as REFERRER only (see utm_referrer_contact_id).
+    // Reusing the original contact is opt-in via static_params.update_existing_contact === 'true'.
     const staticContactId = staticParams.contact_id;
-    if (staticContactId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(staticContactId)) {
-      // Verify the contact exists and belongs to this form's user
+    const shouldReuseContact = String(staticParams.update_existing_contact || '').toLowerCase() === 'true';
+    if (shouldReuseContact && staticContactId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(staticContactId)) {
       const { data: existingContact } = await supabase
         .from('contacts')
         .select('id, custom_fields')
@@ -493,15 +494,13 @@ Deno.serve(async (req: Request) => {
 
       if (existingContact) {
         contactId = existingContact.id;
-        console.log(`Using static contact_id: ${contactId}`);
+        console.log(`Using static contact_id (opt-in): ${contactId}`);
 
-        // Update contact data if provided
         const updateData: Record<string, any> = {};
         if (contactData.name) updateData.name = contactData.name;
         if (contactData.email) updateData.email = contactData.email;
         if (contactData.phone) updateData.phone = contactData.phone;
-        
-        // Merge custom fields
+
         if (contactData.custom_fields && Object.keys(contactData.custom_fields).length > 0) {
           updateData.custom_fields = {
             ...(existingContact.custom_fields || {}),
