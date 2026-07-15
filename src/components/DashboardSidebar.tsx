@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, FileBarChart, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit, Glasses, Instagram, Webhook, MessagesSquare, CheckSquare, GraduationCap } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, FileBarChart, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit, Glasses, Instagram, Webhook, MessagesSquare, CheckSquare, GraduationCap, Mail } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -61,6 +61,7 @@ const navGroups: NavGroup[] = [
     label: "Atendimento e Vendas",
     items: [
       { icon: MessageSquare, label: "Inbox", path: "/inbox", permission: "view_inbox", showBadge: true },
+      { icon: Mail, label: "E-mail", path: "/email" },
       { icon: Target, label: "Funis", path: "/funnels", permission: "view_funnels" },
       { icon: CalendarDays, label: "Calendário", path: "/calendar", permission: "view_calendar" },
       { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
