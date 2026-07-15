@@ -84,9 +84,8 @@ export default function EmailPage() {
     };
     window.addEventListener("message", handler);
     // Fallback poll: if popup closes without message
-    const timer = setInterval(() => {
-      if (popup?.closed) { clearInterval(timer); loadChannels(); }
-    }, 1000);
+    // With noopener the opener can't inspect the popup; refresh channels shortly
+    setTimeout(() => loadChannels(), 5000);
   }
 
   async function sync() {
