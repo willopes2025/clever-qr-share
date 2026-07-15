@@ -47,9 +47,11 @@ Deno.serve(async (req) => {
 async function syncGmailChannel(admin: any, channel: EmailChannel) {
   const accessToken = await ensureFreshGmailToken(admin, channel);
 
-  // Fetch recent messages (max 20). Phase 1: simple polling, not History API.
+  // Fetch recent messages (max 50). Include inbox AND sent so outbound emails
+  // sent from Gmail directly (outside our app) also sync into the CRM.
   const listRes = await fetch(
-    'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=in:inbox',
+    'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50&q=' +
+      encodeURIComponent('in:inbox OR in:sent'),
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
   if (!listRes.ok) throw new Error(`gmail list [${listRes.status}]: ${await listRes.text()}`);
