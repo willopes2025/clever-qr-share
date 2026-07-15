@@ -15,10 +15,12 @@ import { buildFormPreviewShareUrl } from "@/lib/form-share-links";
 interface FormLinkButtonProps {
   contactId: string;
   conversationId: string;
+  contactName?: string | null;
+  contactDisplayId?: string | null;
   onInsertMessage: (message: string) => void;
 }
 
-export const FormLinkButton = ({ contactId, conversationId, onInsertMessage }: FormLinkButtonProps) => {
+export const FormLinkButton = ({ contactId, conversationId, contactName, contactDisplayId, onInsertMessage }: FormLinkButtonProps) => {
   const { forms, isLoading } = useForms();
   const [open, setOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -27,10 +29,19 @@ export const FormLinkButton = ({ contactId, conversationId, onInsertMessage }: F
   const publishedForms = forms?.filter(f => f.status === 'published') || [];
 
   const generateShortLink = async (form: { id: string; slug: string }): Promise<string> => {
+    const campaignTag = contactDisplayId || (contactId ? contactId.slice(0, 8) : "inbox");
+    const staticParams: Record<string, string> = {
+      utm_source: "indicacao",
+      utm_medium: "inbox",
+      utm_campaign: `lead-${campaignTag}`,
+      utm_referrer_contact_id: contactId,
+      utm_referrer_conversation_id: conversationId,
+    };
+    if (contactName) staticParams.utm_referrer_name = contactName;
     return buildFormPreviewShareUrl({
       formId: form.id,
       slug: form.slug,
-      staticParams: { contact_id: contactId, conversation_id: conversationId },
+      staticParams,
     });
   };
 

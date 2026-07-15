@@ -24,11 +24,15 @@ const LABELS: Record<string, string> = {
   ad_ctwa_clid: "CTWA Click ID",
   origin_channel: "Canal de origem",
   form_id: "Formulário",
+  utm_referrer_contact_id: "Indicado por (ID)",
+  utm_referrer_name: "Indicado por",
+  utm_referrer_conversation_id: "Conversa de origem",
 };
 
 const ORDER = [
   "origin_channel",
   "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
+  "utm_referrer_name", "utm_referrer_contact_id", "utm_referrer_conversation_id",
   "ad_source", "ad_headline", "ad_source_url", "ad_source_id", "ad_ctwa_clid",
   "gclid", "fbclid", "referrer", "landing_url", "form_id",
 ];
