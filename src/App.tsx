@@ -112,6 +112,11 @@ const App = () => (
                         </PermissionGate>
                       </ProtectedRoute>
                     } />
+                    <Route path="/email" element={
+                      <ProtectedRoute>
+                        <Email />
+                      </ProtectedRoute>
+                    } />
                     <Route path="/campaigns" element={
                       <ProtectedRoute>
                         <PermissionGate permission="view_campaigns">
