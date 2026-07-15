@@ -131,7 +131,7 @@ export default function EmailPage() {
     const { error } = await supabase.functions.invoke("email-sync", { body: { channel_id: activeChannel.id } });
     setSyncing(false);
     if (error) toast.error(error.message);
-    else { toast.success("Sincronizado"); loadThreads(activeChannel.id); }
+    else { toast.success("Sincronizado"); loadThreads(activeChannel.id, folder); }
   }
 
   async function disconnect(id: string) {
@@ -204,7 +204,7 @@ export default function EmailPage() {
             <div className="overflow-hidden">
               {selectedThreadId ? (
                 <ThreadView messages={messages} channel={activeChannel!} threadId={selectedThreadId}
-                  onReplySent={() => { loadMessages(selectedThreadId); loadThreads(activeChannel!.id); }} />
+                  onReplySent={() => { loadMessages(selectedThreadId); loadThreads(activeChannel!.id, folder); }} />
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
                   Selecione uma conversa
@@ -236,7 +236,7 @@ export default function EmailPage() {
       </div>
 
       <ComposeDialog open={composeOpen} onOpenChange={setComposeOpen}
-        channel={activeChannel} onSent={() => { setComposeOpen(false); if (activeChannel) loadThreads(activeChannel.id); }} />
+        channel={activeChannel} onSent={() => { setComposeOpen(false); if (activeChannel) loadThreads(activeChannel.id, folder); }} />
     </DashboardLayout>
   );
 }
