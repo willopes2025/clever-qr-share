@@ -72,7 +72,9 @@ export default function EmailPage() {
   async function connectGmail() {
     const { data, error } = await supabase.functions.invoke("email-oauth-start");
     if (error || !data?.auth_url) { toast.error(error?.message ?? "falha ao iniciar OAuth"); return; }
-    const popup = window.open(data.auth_url, "gmail-oauth", "width=500,height=650");
+    // Open in a top-level tab (Google blocks OAuth inside iframes/preview popups)
+    const popup = window.open(data.auth_url, "_blank", "noopener,noreferrer");
+    if (!popup) { toast.error("Permita pop-ups para conectar o Gmail"); return; }
     const handler = (ev: MessageEvent) => {
       if (ev.data?.type === "gmail-oauth") {
         window.removeEventListener("message", handler);
