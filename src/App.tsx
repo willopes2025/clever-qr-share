@@ -48,6 +48,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const MetaAuthCallback = lazy(() => import("./pages/MetaAuthCallback"));
 const MetaMessengerCallback = lazy(() => import("./pages/MetaMessengerCallback"));
 const Email = lazy(() => import("./pages/Email"));
+const EmailCampaigns = lazy(() => import("./pages/EmailCampaigns"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Forms = lazy(() => import("./pages/Forms"));
 const FormBuilder = lazy(() => import("./pages/FormBuilder"));
@@ -115,6 +116,11 @@ const App = () => (
                     <Route path="/email" element={
                       <ProtectedRoute>
                         <Email />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/email/campaigns" element={
+                      <ProtectedRoute>
+                        <EmailCampaigns />
                       </ProtectedRoute>
                     } />
                     <Route path="/campaigns" element={
