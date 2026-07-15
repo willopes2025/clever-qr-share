@@ -176,32 +176,48 @@ export default function EmailPage() {
         ) : channels.length === 0 ? (
           <ConnectCard onConnect={connectGmail} />
         ) : (
-          <div className="grid flex-1 grid-cols-[320px_1fr] overflow-hidden">
+          <div className="grid flex-1 grid-cols-[200px_320px_1fr] overflow-hidden min-h-0">
+            {/* Folder sidebar */}
+            <div className="border-r border-border bg-muted/20 min-h-0 overflow-y-auto">
+              <div className="p-2 space-y-1">
+                {FOLDERS.map(f => {
+                  const Icon = f.icon;
+                  const active = folder === f.key;
+                  return (
+                    <button key={f.key}
+                      onClick={() => { setFolder(f.key); setSelectedThreadId(null); }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition ${active ? "bg-accent text-accent-foreground font-medium" : "hover:bg-accent/50 text-muted-foreground"}`}>
+                      <Icon className="h-4 w-4" />
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Thread list */}
-            <div className="border-r border-border">
-              <ScrollArea className="h-full">
-                {threads.length === 0 ? (
-                  <div className="p-6 text-center text-sm text-muted-foreground">
-                    Nenhuma conversa. Clique em Sincronizar para buscar da caixa de entrada.
+            <div className="border-r border-border min-h-0 overflow-y-auto">
+              {threads.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  Nenhuma conversa nesta pasta. Clique em Sincronizar.
+                </div>
+              ) : threads.map(t => (
+                <button key={t.id}
+                  onClick={() => setSelectedThreadId(t.id)}
+                  className={`w-full text-left border-b border-border/50 p-3 hover:bg-accent/50 transition ${selectedThreadId === t.id ? "bg-accent" : ""}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="truncate text-sm font-medium">{t.subject || "(sem assunto)"}</div>
+                    {t.unread_count > 0 && <Badge variant="default" className="h-5 min-w-5 px-1.5">{t.unread_count}</Badge>}
                   </div>
-                ) : threads.map(t => (
-                  <button key={t.id}
-                    onClick={() => setSelectedThreadId(t.id)}
-                    className={`w-full text-left border-b border-border/50 p-3 hover:bg-accent/50 transition ${selectedThreadId === t.id ? "bg-accent" : ""}`}>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="truncate text-sm font-medium">{t.subject || "(sem assunto)"}</div>
-                      {t.unread_count > 0 && <Badge variant="default" className="h-5 min-w-5 px-1.5">{t.unread_count}</Badge>}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {t.last_message_at ? formatDistanceToNow(new Date(t.last_message_at), { addSuffix: true, locale: ptBR }) : ""}
-                    </div>
-                  </button>
-                ))}
-              </ScrollArea>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {t.last_message_at ? formatDistanceToNow(new Date(t.last_message_at), { addSuffix: true, locale: ptBR }) : ""}
+                  </div>
+                </button>
+              ))}
             </div>
 
             {/* Thread viewer */}
-            <div className="overflow-hidden">
+            <div className="min-h-0 overflow-hidden">
               {selectedThreadId ? (
                 <ThreadView messages={messages} channel={activeChannel!} threadId={selectedThreadId}
                   onReplySent={() => { loadMessages(selectedThreadId); loadThreads(activeChannel!.id, folder); }} />
