@@ -126,15 +126,15 @@ Deno.serve(async (req: Request) => {
         .single();
 
       if (subscription) {
-        const maxLeads = subscription.max_leads || 50;
+        const maxLeads = subscription.max_leads; // null = unlimited
         const leadsUsed = subscription.leads_used || 0;
-        
+
         console.log('Lead limit check:', { maxLeads, leadsUsed, plan: subscription.plan });
-        
-        if (leadsUsed >= maxLeads) {
+
+        if (maxLeads !== null && maxLeads !== undefined && leadsUsed >= maxLeads) {
           return new Response(
-            JSON.stringify({ 
-              success: false, 
+            JSON.stringify({
+              success: false,
               error: `Limite de leads atingido (${leadsUsed}/${maxLeads}). Faça upgrade do seu plano para continuar.`,
               limit_reached: true,
               leads_used: leadsUsed,
