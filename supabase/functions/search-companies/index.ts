@@ -160,15 +160,26 @@ Deno.serve(async (req: Request) => {
       searchBody.uf = filters.uf.map((u: string) => u.toLowerCase());
     }
 
+    // Normaliza texto: remove acentos e coloca em MAIÚSCULAS (formato exigido pela API v5)
+    const normalizeText = (s: string) =>
+      (s ?? '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toUpperCase();
+
     // Município filter
     if (filters.municipio && filters.municipio.length > 0) {
-      searchBody.municipio = filters.municipio.map((m: string) => m.toLowerCase());
+      searchBody.municipio = filters.municipio
+        .map(normalizeText)
+        .filter((m: string) => m.length > 0);
     }
 
-    // Bairro filter - normalizar para lowercase conforme API exige
+    // Bairro filter
     if (filters.bairro && filters.bairro.length > 0) {
       searchBody.bairro = filters.bairro
-        .map((b: string) => (b ?? '').toString().trim().toLowerCase())
+        .map(normalizeText)
         .filter((b: string) => b.length > 0);
     }
 
