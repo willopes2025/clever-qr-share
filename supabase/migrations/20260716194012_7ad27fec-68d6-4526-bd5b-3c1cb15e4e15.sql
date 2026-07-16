@@ -1,0 +1,1 @@
+UPDATE public.subscriptions SET max_leads = NULL, leads_used = 0 WHERE user_id = '84004259-0047-438b-a127-b598cbaa65ea';
