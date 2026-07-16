@@ -115,14 +115,15 @@ export const useGlobalRealtime = () => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'funnel_deals' },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
-          queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
-          queryClient.invalidateQueries({ queryKey: ['stage-deal-counts'] });
-          queryClient.invalidateQueries({ queryKey: ['funnel-metrics'] });
-          // Kanban (Funis) lê a query 'funnels' com deals embutidos.
-          // Sem invalidar aqui, o card não reflete novos custom_fields/stage_id
-          // até o usuário recarregar a página.
-          queryClient.invalidateQueries({ queryKey: ['funnels'] });
+          // Só invalida queries realmente ativas em tela — refetchType:'active'
+          // evita disparar a listagem pesada de contatos/kanban quando o
+          // usuário nem está nessas telas. As queries de contatos/inbox NÃO
+          // dependem de funnel_deals para renderizar, então não invalidamos.
+          queryClient.invalidateQueries({ queryKey: ['contact-deal'], refetchType: 'active' });
+          queryClient.invalidateQueries({ queryKey: ['funnel-deals'], refetchType: 'active' });
+          queryClient.invalidateQueries({ queryKey: ['stage-deal-counts'], refetchType: 'active' });
+          queryClient.invalidateQueries({ queryKey: ['funnel-metrics'], refetchType: 'active' });
+          queryClient.invalidateQueries({ queryKey: ['funnels'], refetchType: 'active' });
         }
       )
       .on(
