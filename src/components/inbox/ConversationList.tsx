@@ -749,7 +749,13 @@ export const ConversationList = ({
 
           const hasSearch = debouncedSearch.trim().length >= 1;
           if (!hasSearch) {
-            return <div className="p-2">{filteredConversations.map(renderCard)}</div>;
+            return (
+              <VirtualList
+                items={filteredConversations}
+                parentRef={parentRef}
+                renderItem={renderCard}
+              />
+            );
           }
 
           const normalizedSearch = normalizeText(debouncedSearch.trim());
