@@ -1,51 +1,50 @@
-## Problema
+# Plano de Otimização de Performance — Faseado
 
-O link curto gerado no inbox de um lead (ex.: Rotary Club) está sendo tratado como se identificasse o próprio remetente:
+Objetivo: reduzir latência percebida no frontend e carga no banco. Executamos uma fase por vez, medimos e seguimos.
 
-- `FormLinkButton` envia `contact_id` e `conversation_id` como `static_params` do short link.
-- `submit-form` ao detectar `static_params.contact_id` reusa o contato existente (linhas 483-519 de `supabase/functions/submit-form/index.ts`), atualiza os dados dele com o que a outra pessoa preencheu e dispara a automação para o número original.
+## Fase 1 — Ganhos rápidos no banco (baixo risco, alto impacto)
+1. Rodar `supabase--slow_queries` e `supabase--linter` para identificar as 10 queries mais custosas e políticas RLS ineficientes.
+2. Adicionar índices faltantes nas colunas mais filtradas/ordenadas:
+   - `inbox_messages(conversation_id, created_at DESC)` — já existe? confirmar.
+   - `funnel_deals(user_id, stage_id)`, `funnel_deals(contact_id)`.
+   - `billing_reminders(scheduled_for, status)` parcial `WHERE status='pending'`.
+   - `email_messages(thread_id, created_at)`.
+3. `ANALYZE` nas tabelas grandes após criar índices.
+4. Consolidar policies RLS duplicadas usando `(select auth.uid())` para cache InitPlan onde ainda não foi feito.
 
-Resultado: quem preenche não vira lead novo, e o lead do Rotary é sobrescrito.
+## Fase 2 — Reduzir round-trips no Inbox
+1. Converter `useUnreadCount` de fetch multi-etapa (conversations → contacts chunked → warming) para uma única RPC `get_unread_count()` SECURITY DEFINER que devolve o número final.
+2. Mesclar `notification-only` + `warming phones` num único fetch cacheado por 5 min via `staleTime`.
+3. Deduplicar realtime: hoje `useGlobalRealtime` já otimiza, mas `funnel_deals` invalida 5 chaves — restringir a mudanças que realmente afetam a tela atual.
 
-## Objetivo
+## Fase 3 — Paginação e virtualização
+1. Trocar carregamentos "top 200" (Inbox) por paginação infinita real com `useInfiniteQuery`.
+2. Virtualizar listas longas (Inbox, Contatos, Broadcast) com `@tanstack/react-virtual` — só renderizar linhas visíveis.
+3. Aplicar `React.memo` + `useMemo` em `ConversationListItem` e `ContactCard`.
 
-Ao compartilhar o link do inbox com outra pessoa:
-1. Sempre criar um novo contato/lead a partir do telefone/email preenchido (não reutilizar o contato de origem).
-2. Registrar no `tracking` do novo deal os dados do lead que originou o compartilhamento (referrer), aparecendo nos campos de UTM/origem do lead novo.
+## Fase 4 — Bundle e carregamento inicial
+1. Auditar `dist` com `rollup-plugin-visualizer` e identificar libs pesadas.
+2. Lazy-load rotas ainda carregadas eager (Analysis, Warming, Chatbots, AIAgents, Ssotica, Financeiro).
+3. Code-split de bibliotecas pesadas (recharts, editor rich text, mapas) via `import()` dinâmico.
+4. Pré-carregar apenas a rota "/" e Inbox; resto sob demanda.
 
-## Mudanças
+## Fase 5 — Realtime e assinaturas
+1. Auditar todos `supabase.channel(...)` para garantir cleanup e evitar duplicações.
+2. Consolidar canais por página em vez de por componente.
+3. Debounce de invalidações do React Query (agrupar bursts de eventos em 250 ms).
 
-### 1. `src/components/inbox/FormLinkButton.tsx`
-Trocar os `staticParams` enviados ao criar o short link. Em vez de:
-```
-{ contact_id, conversation_id }
-```
-enviar chaves de rastreamento (que o `submit-form` já mescla em `tracking`):
-```
-{
-  utm_source: 'indicacao',
-  utm_medium: 'inbox',
-  utm_campaign: 'lead-<contact_display_id ou id curto>',
-  utm_referrer_contact_id: contactId,
-  utm_referrer_conversation_id: conversationId,
-  utm_referrer_name: <nome do contato de origem>,
-}
-```
-Isso exige receber `contactName` (e opcionalmente `contactDisplayId`) via props — a chamada em `MessageInput`/afins passa a repassar esses dados.
+## Fase 6 — Cache e prefetch
+1. Aumentar `staleTime` de queries estáveis (funnels, tags, custom fields, task types) para 5–10 min.
+2. `prefetchQuery` de dados prováveis (ex.: ao passar mouse em conversa, pré-buscar mensagens).
+3. Persistir cache do React Query em `localStorage` para navegação entre sessões.
 
-### 2. `supabase/functions/submit-form/index.ts`
-- Remover (ou tornar opt-in por outra chave, ex.: `static_params.update_existing_contact === 'true'`) o bloco das linhas 483-519 que reutiliza `staticContactId`. Sem isso, o fluxo natural (linhas 521-575) já busca por telefone/email e cria um contato novo quando não existe.
-- Garantir que as chaves `utm_referrer_contact_id`, `utm_referrer_conversation_id`, `utm_referrer_name` sejam incluídas na lista `trackingKeys` (linha 79) para que entrem no `tracking` do deal criado.
-- Manter o `shared_by` já existente (atribuição do usuário que compartilhou).
+## Fase 7 — Edge Functions
+1. Revisar funções chamadas por request do usuário — mover trabalho pesado para `EdgeRuntime.waitUntil`.
+2. Cache HTTP (`Cache-Control`) em endpoints idempotentes de leitura.
+3. Reduzir cold-starts consolidando funções pouco usadas.
 
-### 3. `src/components/funnels/DealTrackingSection.tsx`
-Adicionar labels amigáveis para as novas chaves em `LABELS` e `ORDER`:
-- `utm_referrer_contact_id` → "Indicado por (ID)"
-- `utm_referrer_name` → "Indicado por"
-- `utm_referrer_conversation_id` → "Conversa de origem"
+## Fase 8 — Compute / infra (último recurso)
+Só depois das fases 1–7: avaliar `db_health`; se memória/conexões seguirem saturadas, propor resize via `resize_compute`.
 
-## Fora de escopo
-
-- Não mexer no `create-form-short-link` (ele só persiste o que vier em `static_params`).
-- Não mexer no fluxo `/s/:code` — o `ShortLinkRedirect` continua propagando `static_params` como query, então as novas chaves UTM já viajam para o formulário e para o `submit-form`.
-- Nenhuma migração de banco: `funnel_deals.tracking` é `jsonb` livre.
+## Execução
+Fazemos uma fase por turno: eu implemento, você valida percepção de velocidade, e passamos para a próxima. Começo pela Fase 1 assim que aprovar.
