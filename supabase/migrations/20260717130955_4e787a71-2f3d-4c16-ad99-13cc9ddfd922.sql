@@ -1,0 +1,1 @@
+ANALYZE public.form_submissions;
