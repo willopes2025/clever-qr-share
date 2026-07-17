@@ -1,0 +1,1 @@
+ANALYZE public.campaign_messages; ANALYZE public.whatsapp_instances;

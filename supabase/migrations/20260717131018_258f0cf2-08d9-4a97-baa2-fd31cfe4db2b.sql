@@ -1,0 +1,1 @@
+ANALYZE public.contacts; ANALYZE public.conversations;
