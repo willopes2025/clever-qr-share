@@ -799,7 +799,7 @@ export const ConversationList = ({
           );
         })()}
 
-      </ScrollArea>
+      </div>
     </div>
   );
 };
