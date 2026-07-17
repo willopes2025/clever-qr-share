@@ -518,25 +518,7 @@ export const ConversationList = ({
       </div>
 
       {/* Conversation List */}
-      <VirtualizedConversationList
-        isLoading={isLoading}
-        filteredConversations={filteredConversations}
-        selectedId={selectedId}
-        onSelect={onSelect}
-        renderCardProps={{
-          getMetaLabel,
-          getMemberName,
-          getSLAStatus,
-          searchSnippets,
-          debouncedSearch,
-        }}
-        searchTerm={searchTerm}
-        activeTab={activeTab}
-        debouncedSearch={debouncedSearch}
-        matchingContactConvIds={matchingContactConvIds}
-      />
-      {false && (
-      <ScrollArea className="flex-1">
+      <div ref={parentRef} className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="p-4 space-y-3">
             {[...Array(5)].map((_, i) => (
