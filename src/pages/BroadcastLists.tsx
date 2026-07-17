@@ -20,6 +20,17 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
 
 const BroadcastLists = () => {
+  // UI State
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<string>("grid");
+  const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [editingList, setEditingList] = useState<BroadcastListWithContacts | null>(null);
+  const [viewingList, setViewingList] = useState<BroadcastListWithContacts | null>(null);
+  const [historyList, setHistoryList] = useState<BroadcastListWithContacts | null>(null);
+  const [addContactsOpen, setAddContactsOpen] = useState(false);
+  const [deleteConfirmList, setDeleteConfirmList] = useState<BroadcastListWithContacts | null>(null);
+
   const {
     lists,
     isLoading,
@@ -32,20 +43,9 @@ const BroadcastLists = () => {
     removeContactsFromList,
   } = useBroadcastLists();
   
-  const { contacts, tags } = useContacts();
+  const { contacts, tags } = useContacts({ includeContacts: addContactsOpen, includeDeals: false });
   const { funnels } = useFunnels({ includeDeals: false });
   const { fieldDefinitions } = useCustomFields();
-
-  // UI State
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<string>("grid");
-  const [formDialogOpen, setFormDialogOpen] = useState(false);
-  const [editingList, setEditingList] = useState<BroadcastListWithContacts | null>(null);
-  const [viewingList, setViewingList] = useState<BroadcastListWithContacts | null>(null);
-  const [historyList, setHistoryList] = useState<BroadcastListWithContacts | null>(null);
-  const [addContactsOpen, setAddContactsOpen] = useState(false);
-  const [deleteConfirmList, setDeleteConfirmList] = useState<BroadcastListWithContacts | null>(null);
 
   // Queries for viewing list
   const { data: listContacts = [], isLoading: contactsLoading } = useListContacts(

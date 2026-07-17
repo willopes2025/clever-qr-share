@@ -60,7 +60,7 @@ export const OpportunityBroadcastDialog = ({
   // Filter meta templates by the user's active WABA IDs only
   const userWabaIds = activeMetaNumbers.map(n => n.waba_id).filter(Boolean);
   const { templates: metaTemplates } = useMetaTemplates(userWabaIds.length === 1 ? userWabaIds[0] : undefined);
-  const { createTag } = useContacts();
+  const { createTag } = useContacts({ includeContacts: false });
   const { createCampaign, startCampaign } = useCampaignMutations();
   const { linkConfigToCampaign } = useAgentConfigMutations();
   const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();

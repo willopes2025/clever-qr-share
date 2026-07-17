@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useContacts } from "@/hooks/useContacts";
 import { useCampaigns } from "@/hooks/useCampaigns";
 import { Download, Trash2, Database, AlertTriangle, ArrowLeftRight } from "lucide-react";
 import { TransferFieldDataDialog } from "./TransferFieldDataDialog";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,13 +19,36 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export const DataSettings = () => {
-  const { contacts } = useContacts();
   const { data: campaigns } = useCampaigns();
   const [exporting, setExporting] = useState<string | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [contactsCount, setContactsCount] = useState<number>(0);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadContactsCount = async () => {
+      const { count, error } = await supabase
+        .from('contacts')
+        .select('id', { count: 'exact', head: true });
+
+      if (!mounted) return;
+      if (error) {
+        console.error('Erro ao contar contatos:', error);
+        return;
+      }
+      setContactsCount(count || 0);
+    };
+
+    loadContactsCount();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const exportContacts = async () => {
-    if (!contacts || contacts.length === 0) {
+    if (contactsCount === 0) {
       toast.error("Nenhum contato para exportar");
       return;
     }
@@ -33,14 +56,33 @@ export const DataSettings = () => {
     setExporting('contacts');
     try {
       const headers = ['telefone', 'nome', 'email', 'notas', 'status', 'criado_em'];
-      const rows = contacts.map(c => [
-        c.phone,
-        c.name || '',
-        c.email || '',
-        c.notes || '',
-        c.status,
-        c.created_at
-      ]);
+      const rows: Array<Array<string | null>> = [];
+      const PAGE_SIZE = 1000;
+      let from = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('contacts')
+          .select('phone, name, email, notes, status, created_at')
+          .order('created_at', { ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (error) throw error;
+
+        const batch = data || [];
+        rows.push(...batch.map(c => [
+          c.phone,
+          c.name || '',
+          c.email || '',
+          c.notes || '',
+          c.status,
+          c.created_at
+        ]));
+
+        hasMore = batch.length === PAGE_SIZE;
+        from += PAGE_SIZE;
+      }
       
       const csvContent = [headers, ...rows]
         .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
@@ -54,7 +96,7 @@ export const DataSettings = () => {
       link.click();
       URL.revokeObjectURL(url);
 
-      toast.success(`${contacts.length} contatos exportados com sucesso!`);
+      toast.success(`${rows.length} contatos exportados com sucesso!`);
     } catch (error) {
       toast.error("Erro ao exportar contatos");
     } finally {
@@ -118,7 +160,7 @@ export const DataSettings = () => {
             <div>
               <p className="font-medium">Exportar Contatos</p>
               <p className="text-sm text-muted-foreground">
-                {contacts?.length || 0} contatos disponíveis
+                {contactsCount} contatos disponíveis
               </p>
             </div>
             <Button 
@@ -191,7 +233,7 @@ export const DataSettings = () => {
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div className="p-4 bg-muted/50 rounded-lg text-center">
-              <p className="text-2xl font-bold">{contacts?.length || 0}</p>
+              <p className="text-2xl font-bold">{contactsCount}</p>
               <p className="text-sm text-muted-foreground">Contatos</p>
             </div>
             <div className="p-4 bg-muted/50 rounded-lg text-center">

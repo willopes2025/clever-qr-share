@@ -351,7 +351,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
   const { members } = useTeamMembers();
   const { data: agentConfigs } = useAllAgentConfigs();
   const { forms } = useForms();
-  const { tags, createTag } = useContacts();
+  const { tags, createTag } = useContacts({ includeContacts: false });
   
   const [name, setName] = useState('');
   const [selectedFunnelId, setSelectedFunnelId] = useState(funnelId || '');

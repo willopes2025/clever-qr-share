@@ -106,7 +106,7 @@ export const ImportLeadsDialog = ({
   companies,
   onSuccess,
 }: ImportLeadsDialogProps) => {
-  const { tags, importContacts, createTag, importProgress } = useContacts();
+  const { tags, importContacts, createTag, importProgress } = useContacts({ includeContacts: false });
   const { fieldDefinitions } = useCustomFields();
   
   const [step, setStep] = useState<ImportStep>("summary");
