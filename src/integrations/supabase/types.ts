@@ -8195,6 +8195,7 @@ export type Database = {
           won_deals_value: number
         }[]
       }
+      get_inbox_unread_count: { Args: never; Returns: number }
       get_login_history: {
         Args: { _days?: number }
         Returns: {
