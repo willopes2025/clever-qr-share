@@ -1,0 +1,1 @@
+ANALYZE public.funnel_deals;
