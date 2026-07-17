@@ -150,6 +150,13 @@ export const useContacts = (options: UseContactsOptions = {}) => {
     queryKey: ["contacts", includeDeals ? "with-deals" : "light"],
     queryFn: fetchAllContacts,
     enabled: includeContacts,
+    // Fase 1 — a listagem completa de contatos com embeds pesados era a
+    // query mais custosa do banco (2.6M ms acumulados). Manter fresco por
+    // 5 min corta drasticamente o número de chamadas repetidas quando o
+    // usuário abre/fecha diálogos e páginas.
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: tags = [], isLoading: tagsLoading } = useQuery({
@@ -163,6 +170,9 @@ export const useContacts = (options: UseContactsOptions = {}) => {
       if (error) throw error;
       return data as Tag[];
     },
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const createContact = useMutation({
