@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Conversation } from "@/hooks/useConversations";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { VirtualList } from "./VirtualConversationList";
 import { useConversationSearch } from "@/hooks/useConversationSearch";
 import { useContactSearch } from "@/hooks/useContactSearch";
 import { ConversationContextMenu } from "./ConversationContextMenu";
