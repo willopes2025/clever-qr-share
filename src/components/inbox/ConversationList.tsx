@@ -98,6 +98,7 @@ export const ConversationList = ({
   onSelect, 
   isLoading 
 }: ConversationListProps) => {
+  const parentRef = useRef<HTMLDivElement>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
