@@ -10,7 +10,9 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Conversation } from "@/hooks/useConversations";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { VirtualList } from "./VirtualConversationList";
 import { useConversationSearch } from "@/hooks/useConversationSearch";
 import { useContactSearch } from "@/hooks/useContactSearch";
 import { ConversationContextMenu } from "./ConversationContextMenu";
@@ -97,6 +99,7 @@ export const ConversationList = ({
   onSelect, 
   isLoading 
 }: ConversationListProps) => {
+  const parentRef = useRef<HTMLDivElement>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
@@ -517,7 +520,7 @@ export const ConversationList = ({
       </div>
 
       {/* Conversation List */}
-      <ScrollArea className="flex-1">
+      <div ref={parentRef} className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="p-4 space-y-3">
             {[...Array(5)].map((_, i) => (
@@ -747,7 +750,13 @@ export const ConversationList = ({
 
           const hasSearch = debouncedSearch.trim().length >= 1;
           if (!hasSearch) {
-            return <div className="p-2">{filteredConversations.map(renderCard)}</div>;
+            return (
+              <VirtualList
+                items={filteredConversations}
+                parentRef={parentRef}
+                renderItem={renderCard}
+              />
+            );
           }
 
           const normalizedSearch = normalizeText(debouncedSearch.trim());
@@ -798,7 +807,7 @@ export const ConversationList = ({
           );
         })()}
 
-      </ScrollArea>
+      </div>
     </div>
   );
 };
