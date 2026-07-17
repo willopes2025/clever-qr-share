@@ -36,7 +36,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
   const [newPhone, setNewPhone] = useState("");
   const [countryCode, setCountryCode] = useState("55");
   const [isCreatingNew, setIsCreatingNew] = useState(false);
-  const { contacts, isLoading, createContact } = useContacts();
+  const { contacts, isLoading, createContact } = useContacts({ includeContacts: open, includeDeals: false });
   const createConversation = useCreateConversation();
   const { instances, isLoading: isLoadingInstances } = useWhatsAppInstances();
 

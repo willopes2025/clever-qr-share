@@ -50,7 +50,7 @@ export const DealFormDialog = ({
   conversationId 
 }: DealFormDialogProps) => {
   const { funnels, createDeal, updateDeal } = useFunnels();
-  const { contacts } = useContacts();
+  const { contacts } = useContacts({ includeContacts: open && !deal && !initialContactId, includeDeals: false });
   const { user } = useAuth();
   
   const [title, setTitle] = useState(deal?.title || '');

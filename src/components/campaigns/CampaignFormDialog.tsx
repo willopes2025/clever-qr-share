@@ -134,7 +134,7 @@ export const CampaignFormDialog = ({
   const { metaNumbers } = useMetaWhatsAppNumbers();
   const { lists } = useBroadcastLists();
   const { user } = useAuth();
-  const { createTag } = useContacts();
+  const { createTag } = useContacts({ includeContacts: false });
   const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
   const { flows: chatbotFlows } = useChatbotFlows();
   const activeChatbotFlows = chatbotFlows?.filter(f => f.is_active) || [];

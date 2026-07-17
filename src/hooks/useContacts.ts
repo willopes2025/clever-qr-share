@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -62,7 +62,13 @@ export interface ContactWithDeals extends ContactWithTags {
   contact_number?: number;
 }
 
-export const useContacts = () => {
+interface UseContactsOptions {
+  includeContacts?: boolean;
+  includeDeals?: boolean;
+}
+
+export const useContacts = (options: UseContactsOptions = {}) => {
+  const { includeContacts = true, includeDeals = true } = options;
   const queryClient = useQueryClient();
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
 
@@ -77,36 +83,59 @@ export const useContacts = () => {
       const from = page * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      const { data, error } = await supabase
-        .from("contacts")
-        .select(`
-          *,
-          contact_tags (
-            tag_id,
-            tags (*)
-          ),
-          funnel_deals (
+      const selectColumns = includeDeals
+        ? `
+            *,
+            contact_tags (
+              tag_id,
+              tags (*)
+            ),
+            funnel_deals (
+              id,
+              funnel_id,
+              stage_id,
+              value,
+              expected_close_date,
+              entered_stage_at,
+              custom_fields,
+              closed_at,
+              created_at,
+              updated_at,
+              funnels (name),
+              funnel_stages (name, color)
+            )
+          `
+        : `
             id,
-            funnel_id,
-            stage_id,
-            value,
-            expected_close_date,
-            entered_stage_at,
+            user_id,
+            phone,
+            name,
+            email,
+            notes,
             custom_fields,
-            closed_at,
+            status,
+            opted_out,
+            opted_out_at,
+            last_message_at,
             created_at,
             updated_at,
-            funnels (name),
-            funnel_stages (name, color)
-          )
-        `)
+            contact_display_id,
+            contact_tags (
+              tag_id,
+              tags (*)
+            )
+          `;
+
+      const { data, error } = await supabase
+        .from("contacts")
+        .select(selectColumns)
         .order("created_at", { ascending: false })
         .range(from, to);
 
       if (error) throw error;
 
       if (data && data.length > 0) {
-        allContacts = [...allContacts, ...data as ContactWithDeals[]];
+        allContacts = [...allContacts, ...(data as unknown as ContactWithDeals[])];
         hasMore = data.length === PAGE_SIZE;
         page++;
       } else {
@@ -118,8 +147,9 @@ export const useContacts = () => {
   };
 
   const { data: contacts = [], isLoading, refetch } = useQuery({
-    queryKey: ["contacts"],
+    queryKey: ["contacts", includeDeals ? "with-deals" : "light"],
     queryFn: fetchAllContacts,
+    enabled: includeContacts,
   });
 
   const { data: tags = [], isLoading: tagsLoading } = useQuery({

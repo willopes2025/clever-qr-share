@@ -70,6 +70,12 @@ import { useCustomFields } from "@/hooks/useCustomFields";
 import { useSubscription } from "@/hooks/useSubscription";
 
 const Contacts = () => {
+  // Columns configuration state
+  const DEFAULT_VISIBLE_COLUMNS = ['contact_display_id', 'phone', 'name', 'tags', 'status', 'created_at'];
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS);
+  const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS);
+  const needsDealData = visibleColumns.some((column) => column.startsWith('deal_') || column.startsWith('custom_deal_'));
+
   const {
     contacts,
     tags,
@@ -89,7 +95,7 @@ const Contacts = () => {
     bulkRemoveTags,
     bulkOptOut,
     bulkUpdateContacts,
-  } = useContacts();
+  } = useContacts({ includeDeals: needsDealData });
 
   const { fieldDefinitions } = useCustomFields();
   const { subscription } = useSubscription();
@@ -109,11 +115,6 @@ const Contacts = () => {
   const [editingContact, setEditingContact] = useState<ContactWithDeals | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
-
-  // Columns configuration state
-  const DEFAULT_VISIBLE_COLUMNS = ['contact_display_id', 'phone', 'name', 'tags', 'status', 'created_at'];
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS);
-  const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS);
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);

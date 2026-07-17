@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export const DataSettings = () => {
-  const { contacts } = useContacts();
+  const { contacts } = useContacts({ includeDeals: false });
   const { data: campaigns } = useCampaigns();
   const [exporting, setExporting] = useState<string | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
