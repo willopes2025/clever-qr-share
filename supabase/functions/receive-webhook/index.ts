@@ -1297,7 +1297,8 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
 
     // Generate preview for conversation list
     let preview = content?.substring(0, 100) || '';
-    if (!preview) {
+    if (messageType === 'location') preview = '📍 Localização';
+    else if (!preview) {
       if (messageType === 'image') preview = '📷 Imagem';
       else if (messageType === 'audio' || messageType === 'voice') preview = '🎵 Áudio';
       else if (messageType === 'video') preview = '🎬 Vídeo';
@@ -1305,6 +1306,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       else if (messageType === 'sticker') preview = '🏷️ Figurinha';
       else if (messageType === 'contact') preview = '👤 Contato compartilhado';
     }
+
 
     if (!conversation) {
       // Try to get assigned_to via round-robin distribution
