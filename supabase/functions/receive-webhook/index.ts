@@ -814,6 +814,29 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       console.log('Detected STICKER message, url:', mediaUrl);
     }
 
+    // Location message (static or live)
+    const locMsg = message?.locationMessage || message?.liveLocationMessage;
+    if (locMsg) {
+      messageType = 'location';
+      const lat = locMsg.degreesLatitude ?? locMsg.latitude;
+      const lng = locMsg.degreesLongitude ?? locMsg.longitude;
+      const locName = locMsg.name || null;
+      const locAddress = locMsg.address || null;
+      if (typeof lat === 'number' && typeof lng === 'number') {
+        content = JSON.stringify({
+          type: 'location',
+          latitude: lat,
+          longitude: lng,
+          name: locName,
+          address: locAddress,
+        });
+      } else {
+        content = '📍 Localização';
+      }
+    }
+
+
+
     // Contact/vCard message
     if (message?.contactMessage || message?.contactsMessage) {
       messageType = 'contact';
