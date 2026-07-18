@@ -34,19 +34,22 @@ export const LocationMessage = ({ content }: LocationMessageProps) => {
   if (!location) return <p className="text-[14.2px] leading-[19px]">{content}</p>;
 
   const { latitude, longitude, name, address } = location;
-  const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${latitude},${longitude}&zoom=15&size=300x200&markers=${latitude},${longitude},red-pushpin`;
+  const delta = 0.005;
+  const bbox = `${longitude - delta},${latitude - delta},${longitude + delta},${latitude + delta}`;
+  const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latitude},${longitude}`;
   const googleMapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
 
   return (
     <div className="space-y-1.5 min-w-[220px]">
-      <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="block">
-        <img
+      <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="block relative">
+        <iframe
           src={mapUrl}
-          alt="Localização no mapa"
-          className="rounded-md w-full max-w-[300px] h-[150px] object-cover"
+          title="Localização no mapa"
+          className="rounded-md w-full max-w-[300px] h-[150px] border-0 pointer-events-none"
           loading="lazy"
         />
       </a>
+
       {(name || address) && (
         <div className="px-0.5">
           {name && <p className="text-[13px] font-medium leading-tight">{name}</p>}
