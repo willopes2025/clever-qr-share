@@ -814,6 +814,29 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       console.log('Detected STICKER message, url:', mediaUrl);
     }
 
+    // Location message (static or live)
+    const locMsg = message?.locationMessage || message?.liveLocationMessage;
+    if (locMsg) {
+      messageType = 'location';
+      const lat = locMsg.degreesLatitude ?? locMsg.latitude;
+      const lng = locMsg.degreesLongitude ?? locMsg.longitude;
+      const locName = locMsg.name || null;
+      const locAddress = locMsg.address || null;
+      if (typeof lat === 'number' && typeof lng === 'number') {
+        content = JSON.stringify({
+          type: 'location',
+          latitude: lat,
+          longitude: lng,
+          name: locName,
+          address: locAddress,
+        });
+      } else {
+        content = '📍 Localização';
+      }
+    }
+
+
+
     // Contact/vCard message
     if (message?.contactMessage || message?.contactsMessage) {
       messageType = 'contact';
@@ -1274,7 +1297,8 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
 
     // Generate preview for conversation list
     let preview = content?.substring(0, 100) || '';
-    if (!preview) {
+    if (messageType === 'location') preview = '📍 Localização';
+    else if (!preview) {
       if (messageType === 'image') preview = '📷 Imagem';
       else if (messageType === 'audio' || messageType === 'voice') preview = '🎵 Áudio';
       else if (messageType === 'video') preview = '🎬 Vídeo';
@@ -1282,6 +1306,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       else if (messageType === 'sticker') preview = '🏷️ Figurinha';
       else if (messageType === 'contact') preview = '👤 Contato compartilhado';
     }
+
 
     if (!conversation) {
       // Try to get assigned_to via round-robin distribution
