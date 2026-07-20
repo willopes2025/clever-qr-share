@@ -126,15 +126,8 @@ export function ConnectEmailDialog({ open, onOpenChange, onConnected }: Props) {
                 </div>
               </div>
             </Card>
-            <Card className="p-4 cursor-pointer hover:bg-accent transition" onClick={() => startOAuth("email-oauth-start-microsoft", "Microsoft")}>
-              <div className="flex items-center gap-3">
-                <Mail className="h-6 w-6 text-blue-500" />
-                <div>
-                  <div className="font-medium">Microsoft / Outlook / Office 365</div>
-                  <div className="text-xs text-muted-foreground">Login via conta Microsoft</div>
-                </div>
-              </div>
-            </Card>
+            {/* Microsoft OAuth desabilitado até haver credenciais do Azure AD.
+                Outlook/Office 365 funciona via IMAP/SMTP abaixo (com senha de app). */}
             <Card className="p-4 cursor-pointer hover:bg-accent transition" onClick={() => setStep("imap")}>
               <div className="flex items-center gap-3">
                 <Mail className="h-6 w-6 text-primary" />
