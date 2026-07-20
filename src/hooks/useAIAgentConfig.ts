@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useOrganizationMemberIds } from '@/hooks/useOrganizationMemberIds';
 import { toast } from 'sonner';
 
 export interface AIAgentConfig {
@@ -58,48 +59,50 @@ export interface AgentVariable {
   updated_at: string;
 }
 
-// Fetch all AI agent configs for the current user (for central management)
+// Fetch all AI agent configs for the current organization (for central management)
 export const useAllAgentConfigs = () => {
   const { user } = useAuth();
+  const { data: orgMemberIds } = useOrganizationMemberIds();
 
   return useQuery({
-    queryKey: ['all-agent-configs', user?.id],
+    queryKey: ['all-agent-configs', user?.id, orgMemberIds],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user || !orgMemberIds?.length) return [];
 
       const { data, error } = await supabase
         .from('ai_agent_configs')
         .select('*')
-        .eq('user_id', user.id)
+        .in('user_id', orgMemberIds)
         .order('agent_name', { ascending: true });
 
       if (error) throw error;
       return data as AIAgentConfig[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgMemberIds?.length,
   });
 };
 
 // Fetch agent config by campaign ID
 export const useAgentConfig = (campaignId: string | null) => {
   const { user } = useAuth();
+  const { data: orgMemberIds } = useOrganizationMemberIds();
 
   return useQuery({
-    queryKey: ['agent-config', campaignId],
+    queryKey: ['agent-config', campaignId, orgMemberIds],
     queryFn: async () => {
-      if (!campaignId || !user) return null;
+      if (!campaignId || !user || !orgMemberIds?.length) return null;
 
       const { data, error } = await supabase
         .from('ai_agent_configs')
         .select('*')
         .eq('campaign_id', campaignId)
-        .eq('user_id', user.id)
+        .in('user_id', orgMemberIds)
         .maybeSingle();
 
       if (error) throw error;
       return data as AIAgentConfig | null;
     },
-    enabled: !!campaignId && !!user,
+    enabled: !!campaignId && !!user && !!orgMemberIds?.length,
   });
 };
 
@@ -116,7 +119,6 @@ export const useKnowledgeItems = (agentConfigId: string | null) => {
         .from('ai_agent_knowledge_items')
         .select('*')
         .eq('agent_config_id', agentConfigId)
-        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -139,7 +141,6 @@ export const useAgentVariables = (agentConfigId: string | null) => {
         .from('ai_agent_variables')
         .select('*')
         .eq('agent_config_id', agentConfigId)
-        .eq('user_id', user.id)
         .order('is_system', { ascending: false })
         .order('variable_key', { ascending: true });
 
