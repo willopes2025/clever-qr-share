@@ -45,12 +45,19 @@ Deno.serve(async (req) => {
       secure: !!imap_secure,
       auth: { user: email, pass: password },
       logger: false,
-    });
+      tls: { servername: imap_host, rejectUnauthorized: false },
+      disableAutoIdle: true,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 30000,
+    } as any);
     try {
       await imap.connect();
-      await imap.logout();
-    } catch (e) {
-      return new Response(JSON.stringify({ error: `IMAP login falhou: ${String(e)}` }), {
+      try { await imap.logout(); } catch { /* ignore */ }
+    } catch (e: any) {
+      const msg = e?.responseText || e?.authenticationFailed ? 'Credenciais IMAP inválidas (verifique e-mail/senha; se a conta usa 2FA, gere uma senha de app).'
+        : `IMAP falhou ao conectar em ${imap_host}:${imap_port} (${e?.code || e?.message || String(e)}). Confirme host/porta/SSL e se o provedor permite IMAP.`;
+      return new Response(JSON.stringify({ error: msg }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
