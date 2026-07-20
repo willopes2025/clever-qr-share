@@ -115,6 +115,7 @@ const AIAgents = () => {
                   agent={agent}
                   onEdit={() => handleEditAgent(agent.id)}
                   onRefresh={refetch}
+                  canManage={canManage}
                 />
               ))}
             </div>
