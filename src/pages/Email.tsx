@@ -109,9 +109,20 @@ export default function EmailPage() {
 
   async function disconnect(id: string) {
     if (!confirm("Desconectar esta conta de e-mail?")) return;
-    const { error } = await supabase.from("email_channels").delete().eq("id", id);
-    if (error) toast.error(error.message); else { toast.success("Desconectado"); loadChannels(); }
+    const { data, error } = await supabase
+      .from("email_channels")
+      .delete()
+      .eq("id", id)
+      .select("id");
+    if (error) return toast.error(error.message);
+    if (!data || data.length === 0) {
+      return toast.error("Você não tem permissão para excluir este canal. Peça a um administrador.");
+    }
+    toast.success("Desconectado");
+    if (activeChannel?.id === id) setActiveChannel(null);
+    loadChannels();
   }
+
 
   return (
     <DashboardLayout>
