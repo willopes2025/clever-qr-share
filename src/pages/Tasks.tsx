@@ -244,18 +244,6 @@ const Tasks = () => {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
-            <SelectTrigger className="w-[160px]">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="pending">Pendentes</SelectItem>
-              <SelectItem value="overdue">Atrasadas</SelectItem>
-              <SelectItem value="completed">Concluídas</SelectItem>
-            </SelectContent>
-          </Select>
 
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
             <SelectTrigger className="w-[160px]">
