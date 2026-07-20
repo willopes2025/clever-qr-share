@@ -135,33 +135,42 @@ async function syncMicrosoft(admin: any, channel: MsChannel & any) {
 
 // ---------- IMAP ----------
 async function syncImap(admin: any, channel: any) {
-  const client = new ImapFlow({
+  const client = new NativeImap({
     host: channel.imap_host,
-    port: channel.imap_port,
+    port: Number(channel.imap_port),
     secure: !!channel.imap_secure,
-    auth: { user: channel.auth_username, pass: channel.auth_password },
-    logger: false,
+    user: channel.auth_username,
+    pass: channel.auth_password,
   });
   await client.connect();
   let imported = 0;
   try {
-    for (const mailbox of ['INBOX', 'Sent', '[Gmail]/Enviados']) {
-      let lock;
+    for (const mailbox of ['INBOX', 'Sent', 'INBOX.Sent', 'Sent Items', '[Gmail]/Enviados']) {
       try {
-        lock = await client.getMailboxLock(mailbox);
+        await client.command(`SELECT "${mailbox.replace(/"/g, '\\"')}"`);
       } catch { continue; }
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      let uids: number[] = [];
       try {
-        const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const uids = await client.search({ since }, { uid: true }) as number[];
-        const recent = uids.slice(-50);
-        for (const uid of recent) {
-          const providerId = `${mailbox}:${uid}`;
-          const { data: existing } = await admin.from('email_messages')
-            .select('id').eq('channel_id', channel.id).eq('provider_message_id', providerId).maybeSingle();
-          if (existing) continue;
-          const msg = await client.fetchOne(uid, { source: true, envelope: true }, { uid: true });
-          if (!msg?.source) continue;
-          const parsed = await simpleParser(msg.source);
+        const searchResp = await client.command(`UID SEARCH SINCE ${imapDate(since)}`);
+        uids = parseSearchUids(searchResp);
+      } catch { continue; }
+      const recent = uids.slice(-50);
+      if (recent.length === 0) continue;
+
+      // Filter out uids already stored, then fetch in one batch.
+      const providerIds = recent.map((u) => `${mailbox}:${u}`);
+      const { data: existingRows } = await admin.from('email_messages')
+        .select('provider_message_id').eq('channel_id', channel.id).in('provider_message_id', providerIds);
+      const existingSet = new Set((existingRows ?? []).map((r: any) => r.provider_message_id));
+      const missing = recent.filter((u) => !existingSet.has(`${mailbox}:${u}`));
+      if (missing.length === 0) continue;
+
+      const fetched = await client.fetchRawByUids(missing);
+      for (const { uid, raw } of fetched) {
+        const providerId = `${mailbox}:${uid}`;
+        try {
+          const parsed = await simpleParser(raw);
           const fromEmail = parsed.from?.value?.[0]?.address ?? '';
           const fromName = parsed.from?.value?.[0]?.name ?? null;
           const toList = (parsed.to as any)?.value?.map((v: any) => v.address).filter(Boolean) ?? [];
@@ -182,13 +191,15 @@ async function syncImap(admin: any, channel: any) {
             status: 'delivered',
           });
           imported++;
+        } catch (e) {
+          console.error('parse/insert failed', providerId, e);
         }
-      } finally { lock.release(); }
+      }
     }
   } finally {
     await client.logout();
   }
-  await admin.from('email_channels').update({ last_synced_at: new Date().toISOString() }).eq('id', channel.id);
+  await admin.from('email_channels').update({ last_synced_at: new Date().toISOString(), status: 'active', last_error: null }).eq('id', channel.id);
   return { imported };
 }
 
