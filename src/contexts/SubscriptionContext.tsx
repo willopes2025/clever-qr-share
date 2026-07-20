@@ -64,6 +64,21 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
         currentSession = refreshData.session;
       }
 
+      // Validate JWT server-side before hitting edge function; avoids 401 blank-screen loops
+      const { data: userCheck, error: userCheckError } = await supabase.auth.getUser(currentSession.access_token);
+      if (userCheckError || !userCheck?.user) {
+        const { data: refreshData } = await supabase.auth.refreshSession();
+        if (!refreshData?.session) {
+          console.warn('[SubscriptionContext] JWT invalid and refresh failed, signing out');
+          await supabase.auth.signOut();
+          setSubscription(null);
+          setLoading(false);
+          checkInFlightRef.current = false;
+          return;
+        }
+        currentSession = refreshData.session;
+      }
+
       const { data, error } = await supabase.functions.invoke('check-subscription', {
         headers: {
           Authorization: `Bearer ${currentSession.access_token}`,
