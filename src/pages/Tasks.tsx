@@ -38,7 +38,11 @@ const Tasks = () => {
   const { tasks, pendingTasks, completedTasks, isLoading, isOrgAdmin, assigneeIds } = useAllTasks();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "overdue" | "completed">("pending");
+  type StatusKey = "pending" | "overdue" | "completed";
+  const [statusFilters, setStatusFilters] = useState<StatusKey[]>(["pending"]);
+  const toggleStatusFilter = (key: StatusKey, checked: boolean) => {
+    setStatusFilters(prev => checked ? Array.from(new Set([...prev, key])) : prev.filter(k => k !== key));
+  };
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
