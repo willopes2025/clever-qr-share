@@ -109,6 +109,7 @@ const Tasks = () => {
   }, [tasks, statusFilters, priorityFilter, assigneeFilter]);
 
   const overdueTasks = useMemo(() => tasks.filter(t => isOverdue(t)), [tasks]);
+  const pendingNotOverdueCount = useMemo(() => tasks.filter(t => !t.completed_at && !isOverdue(t)).length, [tasks]);
 
   const handleToggleComplete = (task: AllTaskItem) => {
     if (task.completed_at) {
