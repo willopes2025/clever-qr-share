@@ -119,7 +119,7 @@ export default function EmailPage() {
       return toast.error("Você não tem permissão para excluir este canal. Peça a um administrador.");
     }
     toast.success("Desconectado");
-    if (activeChannel?.id === id) setActiveChannel(null);
+    if (selectedThreadId) setSelectedThreadId(null);
     loadChannels();
   }
 
