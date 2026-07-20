@@ -51,6 +51,7 @@ export default function EmailPage() {
   const [syncing, setSyncing] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [folder, setFolder] = useState<FolderKey>("inbox");
+  const [connectOpen, setConnectOpen] = useState(false);
 
   const activeChannel = useMemo(() => channels.find(c => c.status === "active") ?? null, [channels]);
 
@@ -93,37 +94,8 @@ export default function EmailPage() {
     await supabase.from("email_threads").update({ unread_count: 0 }).eq("id", threadId);
   }
 
-  async function connectGmail() {
-    // Open synchronously from the click event so browsers do not block it.
-    const popup = window.open("about:blank", "gmail-oauth", "width=520,height=720");
-    if (!popup) { toast.error("Permita pop-ups para conectar o Gmail"); return; }
-
-    const handler = (ev: MessageEvent) => {
-      if (ev.data?.type === "gmail-oauth") {
-        window.removeEventListener("message", handler);
-        setTimeout(() => { loadChannels(); }, 800);
-        if (ev.data.ok) toast.success("Gmail conectado!");
-      }
-    };
-    window.addEventListener("message", handler);
-
-    const { data, error } = await supabase.functions.invoke("email-oauth-start");
-    if (error || !data?.auth_url) {
-      window.removeEventListener("message", handler);
-      popup.close();
-      toast.error(error?.message ?? "falha ao iniciar OAuth");
-      return;
-    }
-
-    popup.location.href = data.auth_url;
-
-    const poll = window.setInterval(() => {
-      if (popup.closed) {
-        window.clearInterval(poll);
-        window.removeEventListener("message", handler);
-        loadChannels();
-      }
-    }, 1000);
+  function openConnect() {
+    setConnectOpen(true);
   }
 
   async function sync() {
