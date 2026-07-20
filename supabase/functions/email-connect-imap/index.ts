@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
         display_name: display_name ?? email,
         auth_username: email,
         auth_password: password,
-        imap_host, imap_port: Number(imap_port), imap_secure: !!imap_secure,
+        imap_host: finalHost, imap_port: finalPort, imap_secure: finalSecure,
         smtp_host, smtp_port: Number(smtp_port), smtp_secure: !!smtp_secure,
         status: 'active',
         last_error: null,
