@@ -9,6 +9,7 @@ import { CheckCircle2, Circle, Calendar, AlertTriangle, Filter, ListTodo, CheckS
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,7 +38,11 @@ const Tasks = () => {
   const { tasks, pendingTasks, completedTasks, isLoading, isOrgAdmin, assigneeIds } = useAllTasks();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "overdue" | "completed">("pending");
+  type StatusKey = "pending" | "overdue" | "completed";
+  const [statusFilters, setStatusFilters] = useState<StatusKey[]>(["pending"]);
+  const toggleStatusFilter = (key: StatusKey, checked: boolean) => {
+    setStatusFilters(prev => checked ? Array.from(new Set([...prev, key])) : prev.filter(k => k !== key));
+  };
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
@@ -86,15 +91,25 @@ const Tasks = () => {
 
   const filteredTasks = useMemo(() => {
     let result = tasks;
-    if (statusFilter === "pending") result = result.filter(t => !t.completed_at);
-    if (statusFilter === "overdue") result = result.filter(t => isOverdue(t));
-    if (statusFilter === "completed") result = result.filter(t => !!t.completed_at);
+    if (statusFilters.length > 0) {
+      result = result.filter(t => {
+        const overdue = isOverdue(t);
+        const completed = !!t.completed_at;
+        const pending = !completed && !overdue;
+        return (
+          (statusFilters.includes("pending") && pending) ||
+          (statusFilters.includes("overdue") && overdue) ||
+          (statusFilters.includes("completed") && completed)
+        );
+      });
+    }
     if (priorityFilter !== "all") result = result.filter(t => (t.priority || 'medium') === priorityFilter);
     if (assigneeFilter !== "all") result = result.filter(t => t.assigned_to === assigneeFilter);
     return result;
-  }, [tasks, statusFilter, priorityFilter, assigneeFilter]);
+  }, [tasks, statusFilters, priorityFilter, assigneeFilter]);
 
   const overdueTasks = useMemo(() => tasks.filter(t => isOverdue(t)), [tasks]);
+  const pendingNotOverdueCount = useMemo(() => tasks.filter(t => !t.completed_at && !isOverdue(t)).length, [tasks]);
 
   const handleToggleComplete = (task: AllTaskItem) => {
     if (task.completed_at) {
@@ -168,7 +183,7 @@ const Tasks = () => {
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <ListTodo className="h-4 w-4" />
-            <span>{pendingTasks.length} pendentes</span>
+            <span>{pendingNotOverdueCount} pendentes</span>
             {overdueTasks.length > 0 && (
               <>
                 <AlertTriangle className="h-4 w-4 ml-2 text-destructive" />
@@ -182,18 +197,54 @@ const Tasks = () => {
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3">
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
-            <SelectTrigger className="w-[160px]">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="pending">Pendentes</SelectItem>
-              <SelectItem value="overdue">Atrasadas</SelectItem>
-              <SelectItem value="completed">Concluídas</SelectItem>
-            </SelectContent>
-          </Select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-[180px] justify-start">
+                <Filter className="h-4 w-4 mr-2" />
+                {statusFilters.length === 0
+                  ? "Status: Todas"
+                  : `Status (${statusFilters.length})`}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[200px]">
+              <DropdownMenuLabel>Filtrar por status</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={statusFilters.includes("pending")}
+                onCheckedChange={(c) => toggleStatusFilter("pending", !!c)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                Pendentes
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={statusFilters.includes("overdue")}
+                onCheckedChange={(c) => toggleStatusFilter("overdue", !!c)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                Atrasadas
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={statusFilters.includes("completed")}
+                onCheckedChange={(c) => toggleStatusFilter("completed", !!c)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                Concluídas
+              </DropdownMenuCheckboxItem>
+              {statusFilters.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => setStatusFilters([])}
+                  >
+                    Limpar (mostrar todas)
+                  </Button>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
             <SelectTrigger className="w-[160px]">
