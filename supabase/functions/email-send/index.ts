@@ -1,6 +1,8 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { ensureFreshGmailToken, buildRawMime, EmailChannel } from '../_shared/gmail.ts';
+import { ensureFreshMsToken, MsChannel } from '../_shared/microsoft.ts';
+import { SMTPClient } from 'npm:emailjs@4.0.3';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -32,7 +34,6 @@ Deno.serve(async (req) => {
       .from('email_channels').select('*').eq('id', channel_id).maybeSingle();
     if (chErr || !channel) throw new Error('channel not found');
 
-    // Access check: user must be in same org
     const { data: orgId } = await admin.rpc('resolve_user_organization_id', { _user_id: user.id });
     if (orgId !== channel.organization_id) {
       return new Response(JSON.stringify({ error: 'forbidden' }), {
@@ -40,58 +41,102 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (channel.provider !== 'gmail') {
-      return new Response(JSON.stringify({ error: 'only gmail supported in phase 1' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const accessToken = await ensureFreshGmailToken(admin, channel as EmailChannel);
-    const raw = buildRawMime({
-      fromName: channel.display_name, fromEmail: channel.email_address,
-      to, cc, bcc, subject, html, text, inReplyTo: in_reply_to ?? null,
-    });
-
-    // Gmail expects threadId at top level of the JSON, not in the raw MIME.
-    // Look up the provider_thread_id when a local thread_id was passed.
+    let providerMessageId = '';
     let providerThreadId: string | undefined;
+
     if (thread_id) {
       const { data: th } = await admin
         .from('email_threads').select('provider_thread_id').eq('id', thread_id).maybeSingle();
       providerThreadId = th?.provider_thread_id ?? undefined;
     }
 
-    const sendRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ raw, ...(providerThreadId ? { threadId: providerThreadId } : {}) }),
-    });
-    if (!sendRes.ok) {
-      const errBody = await sendRes.text();
-      console.error('gmail send failed', sendRes.status, errBody);
-      return new Response(JSON.stringify({ error: 'gmail send failed', status: sendRes.status, details: errBody }), {
-        status: sendRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    if (channel.provider === 'gmail') {
+      const accessToken = await ensureFreshGmailToken(admin, channel as EmailChannel);
+      const raw = buildRawMime({
+        fromName: channel.display_name, fromEmail: channel.email_address,
+        to, cc, bcc, subject, html, text, inReplyTo: in_reply_to ?? null,
+      });
+      const sendRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw, ...(providerThreadId ? { threadId: providerThreadId } : {}) }),
+      });
+      if (!sendRes.ok) {
+        const errBody = await sendRes.text();
+        return new Response(JSON.stringify({ error: 'gmail send failed', status: sendRes.status, details: errBody }), {
+          status: sendRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const sent = await sendRes.json();
+      providerThreadId = sent.threadId;
+      providerMessageId = sent.id;
+    } else if (channel.provider === 'microsoft') {
+      const accessToken = await ensureFreshMsToken(admin, channel as MsChannel);
+      const msg: any = {
+        subject,
+        body: { contentType: html ? 'HTML' : 'Text', content: html ?? text ?? '' },
+        toRecipients: (to as string[]).map(a => ({ emailAddress: { address: a } })),
+        ccRecipients: (cc ?? []).map((a: string) => ({ emailAddress: { address: a } })),
+        bccRecipients: (bcc ?? []).map((a: string) => ({ emailAddress: { address: a } })),
+      };
+      const sendRes = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, saveToSentItems: true }),
+      });
+      if (!sendRes.ok) {
+        const errBody = await sendRes.text();
+        return new Response(JSON.stringify({ error: 'microsoft send failed', status: sendRes.status, details: errBody }), {
+          status: sendRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      providerMessageId = crypto.randomUUID(); // Graph sendMail returns no id
+    } else if (channel.provider === 'imap') {
+      if (!channel.smtp_host || !channel.smtp_port || !channel.auth_username || !channel.auth_password) {
+        throw new Error('SMTP não configurado');
+      }
+      const smtp = new SMTPClient({
+        user: channel.auth_username,
+        password: channel.auth_password,
+        host: channel.smtp_host,
+        port: Number(channel.smtp_port),
+        ssl: !!channel.smtp_secure && Number(channel.smtp_port) === 465,
+        tls: !!channel.smtp_secure && Number(channel.smtp_port) !== 465,
+      });
+      await new Promise<void>((resolve, reject) => {
+        smtp.send({
+          from: channel.display_name ? `${channel.display_name} <${channel.email_address}>` : channel.email_address,
+          to: (to as string[]).join(', '),
+          cc: cc?.join(', '),
+          bcc: bcc?.join(', '),
+          subject,
+          text: text ?? (html ? html.replace(/<[^>]+>/g, '') : ''),
+          attachment: html ? [{ data: html, alternative: true }] : undefined,
+        } as any, (err: any) => err ? reject(err) : resolve());
+      });
+      providerMessageId = `imap-${Date.now()}-${crypto.randomUUID()}`;
+    } else {
+      return new Response(JSON.stringify({ error: `provider ${channel.provider} not supported` }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    const sent = await sendRes.json();
-    const gmailThreadId = sent.threadId as string;
-    const gmailMessageId = sent.id as string;
 
     // Upsert thread
     let localThreadId = thread_id as string | undefined;
     if (!localThreadId) {
-      const { data: existing } = await admin
-        .from('email_threads').select('id')
-        .eq('channel_id', channel.id).eq('provider_thread_id', gmailThreadId).maybeSingle();
-      if (existing) {
-        localThreadId = existing.id;
-      } else {
+      if (providerThreadId) {
+        const { data: existing } = await admin
+          .from('email_threads').select('id')
+          .eq('channel_id', channel.id).eq('provider_thread_id', providerThreadId).maybeSingle();
+        if (existing) localThreadId = existing.id;
+      }
+      if (!localThreadId) {
         const { data: created, error: thErr } = await admin
           .from('email_threads').insert({
             organization_id: channel.organization_id,
             channel_id: channel.id,
             contact_id: contact_id ?? null,
-            subject, provider_thread_id: gmailThreadId,
+            subject, provider_thread_id: providerThreadId ?? null,
             last_message_at: new Date().toISOString(),
           }).select('id').single();
         if (thErr) throw thErr;
@@ -109,7 +154,7 @@ Deno.serve(async (req) => {
       thread_id: localThreadId!,
       contact_id: contact_id ?? null,
       direction: 'outbound',
-      provider_message_id: gmailMessageId,
+      provider_message_id: providerMessageId,
       in_reply_to: in_reply_to ?? null,
       from_address: channel.email_address,
       from_name: channel.display_name,

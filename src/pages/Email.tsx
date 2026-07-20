@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
+import { ConnectEmailDialog } from "@/components/email/ConnectEmailDialog";
 
 interface EmailChannel {
   id: string; email_address: string; display_name: string | null;
@@ -50,6 +51,7 @@ export default function EmailPage() {
   const [syncing, setSyncing] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [folder, setFolder] = useState<FolderKey>("inbox");
+  const [connectOpen, setConnectOpen] = useState(false);
 
   const activeChannel = useMemo(() => channels.find(c => c.status === "active") ?? null, [channels]);
 
@@ -92,37 +94,8 @@ export default function EmailPage() {
     await supabase.from("email_threads").update({ unread_count: 0 }).eq("id", threadId);
   }
 
-  async function connectGmail() {
-    // Open synchronously from the click event so browsers do not block it.
-    const popup = window.open("about:blank", "gmail-oauth", "width=520,height=720");
-    if (!popup) { toast.error("Permita pop-ups para conectar o Gmail"); return; }
-
-    const handler = (ev: MessageEvent) => {
-      if (ev.data?.type === "gmail-oauth") {
-        window.removeEventListener("message", handler);
-        setTimeout(() => { loadChannels(); }, 800);
-        if (ev.data.ok) toast.success("Gmail conectado!");
-      }
-    };
-    window.addEventListener("message", handler);
-
-    const { data, error } = await supabase.functions.invoke("email-oauth-start");
-    if (error || !data?.auth_url) {
-      window.removeEventListener("message", handler);
-      popup.close();
-      toast.error(error?.message ?? "falha ao iniciar OAuth");
-      return;
-    }
-
-    popup.location.href = data.auth_url;
-
-    const poll = window.setInterval(() => {
-      if (popup.closed) {
-        window.clearInterval(poll);
-        window.removeEventListener("message", handler);
-        loadChannels();
-      }
-    }, 1000);
+  function openConnect() {
+    setConnectOpen(true);
   }
 
   async function sync() {
@@ -174,7 +147,7 @@ export default function EmailPage() {
         {loading ? (
           <div className="flex flex-1 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : channels.length === 0 ? (
-          <ConnectCard onConnect={connectGmail} />
+          <ConnectCard onConnect={openConnect} />
         ) : (
           <div className="grid flex-1 grid-cols-[200px_320px_1fr] overflow-hidden min-h-0">
             {/* Folder sidebar */}
@@ -244,7 +217,7 @@ export default function EmailPage() {
                 </Badge>
               </div>
             ))}
-            <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto" onClick={connectGmail}>
+            <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto" onClick={openConnect}>
               <Plus className="h-3 w-3 mr-1" />Adicionar conta
             </Button>
           </div>
@@ -253,6 +226,8 @@ export default function EmailPage() {
 
       <ComposeDialog open={composeOpen} onOpenChange={setComposeOpen}
         channel={activeChannel} onSent={() => { setComposeOpen(false); if (activeChannel) loadThreads(activeChannel.id, folder); }} />
+      <ConnectEmailDialog open={connectOpen} onOpenChange={setConnectOpen}
+        onConnected={() => loadChannels()} />
     </DashboardLayout>
   );
 }
@@ -264,11 +239,11 @@ function ConnectCard({ onConnect }: { onConnect: () => void }) {
         <Mail className="h-12 w-12 mx-auto mb-4 text-primary" />
         <h2 className="text-xl font-semibold mb-2">Conecte seu e-mail</h2>
         <p className="text-sm text-muted-foreground mb-6">
-          Conecte uma conta Gmail para enviar e receber e-mails direto pelo Widezap.
+          Conecte Gmail, Outlook/Office 365, Yahoo, iCloud ou qualquer conta IMAP/SMTP para enviar e receber e-mails direto pelo Widezap.
           A conta fica disponível para toda a organização.
         </p>
         <Button onClick={onConnect} className="w-full">
-          <Mail className="h-4 w-4 mr-2" />Conectar com Google
+          <Mail className="h-4 w-4 mr-2" />Conectar conta de e-mail
         </Button>
       </Card>
     </div>

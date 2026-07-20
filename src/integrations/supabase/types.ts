@@ -3260,6 +3260,8 @@ export type Database = {
       }
       email_channels: {
         Row: {
+          auth_password: string | null
+          auth_username: string | null
           created_at: string
           created_by: string | null
           display_name: string | null
@@ -3269,10 +3271,12 @@ export type Database = {
           imap_host: string | null
           imap_password: string | null
           imap_port: number | null
+          imap_secure: boolean | null
           imap_use_ssl: boolean | null
           imap_username: string | null
           last_error: string | null
           last_synced_at: string | null
+          last_uid: number | null
           oauth_access_token: string | null
           oauth_refresh_token: string | null
           oauth_scope: string | null
@@ -3282,12 +3286,15 @@ export type Database = {
           smtp_host: string | null
           smtp_password: string | null
           smtp_port: number | null
+          smtp_secure: boolean | null
           smtp_use_tls: boolean | null
           smtp_username: string | null
           status: string
           updated_at: string
         }
         Insert: {
+          auth_password?: string | null
+          auth_username?: string | null
           created_at?: string
           created_by?: string | null
           display_name?: string | null
@@ -3297,10 +3304,12 @@ export type Database = {
           imap_host?: string | null
           imap_password?: string | null
           imap_port?: number | null
+          imap_secure?: boolean | null
           imap_use_ssl?: boolean | null
           imap_username?: string | null
           last_error?: string | null
           last_synced_at?: string | null
+          last_uid?: number | null
           oauth_access_token?: string | null
           oauth_refresh_token?: string | null
           oauth_scope?: string | null
@@ -3310,12 +3319,15 @@ export type Database = {
           smtp_host?: string | null
           smtp_password?: string | null
           smtp_port?: number | null
+          smtp_secure?: boolean | null
           smtp_use_tls?: boolean | null
           smtp_username?: string | null
           status?: string
           updated_at?: string
         }
         Update: {
+          auth_password?: string | null
+          auth_username?: string | null
           created_at?: string
           created_by?: string | null
           display_name?: string | null
@@ -3325,10 +3337,12 @@ export type Database = {
           imap_host?: string | null
           imap_password?: string | null
           imap_port?: number | null
+          imap_secure?: boolean | null
           imap_use_ssl?: boolean | null
           imap_username?: string | null
           last_error?: string | null
           last_synced_at?: string | null
+          last_uid?: number | null
           oauth_access_token?: string | null
           oauth_refresh_token?: string | null
           oauth_scope?: string | null
@@ -3338,6 +3352,7 @@ export type Database = {
           smtp_host?: string | null
           smtp_password?: string | null
           smtp_port?: number | null
+          smtp_secure?: boolean | null
           smtp_use_tls?: boolean | null
           smtp_username?: string | null
           status?: string
