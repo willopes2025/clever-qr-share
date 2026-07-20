@@ -51,6 +51,7 @@ const TRIGGER_LABELS: Record<string, string> = {
 const ACTION_LABELS: Record<string, string> = {
   send_message: 'Enviar mensagem',
   send_template: 'Enviar template',
+  send_meta_template: 'Enviar template Meta (oficial)',
   add_tag: 'Adicionar tag',
   remove_tag: 'Remover tag',
   notify_user: 'Notificar usuário',
