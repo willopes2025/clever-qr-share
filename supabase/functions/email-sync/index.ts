@@ -171,7 +171,7 @@ async function syncImap(admin: any, channel: any) {
       for (const { uid, raw } of fetched) {
         const providerId = `${mailbox}:${uid}`;
         try {
-          const parsed = await simpleParser(raw);
+          const parsed = await simpleParser(Buffer.from(raw));
           const fromEmail = parsed.from?.value?.[0]?.address ?? '';
           const fromName = parsed.from?.value?.[0]?.name ?? null;
           const toList = (parsed.to as any)?.value?.map((v: any) => v.address).filter(Boolean) ?? [];
