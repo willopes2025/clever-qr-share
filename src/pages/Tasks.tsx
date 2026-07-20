@@ -91,13 +91,22 @@ const Tasks = () => {
 
   const filteredTasks = useMemo(() => {
     let result = tasks;
-    if (statusFilter === "pending") result = result.filter(t => !t.completed_at);
-    if (statusFilter === "overdue") result = result.filter(t => isOverdue(t));
-    if (statusFilter === "completed") result = result.filter(t => !!t.completed_at);
+    if (statusFilters.length > 0) {
+      result = result.filter(t => {
+        const overdue = isOverdue(t);
+        const completed = !!t.completed_at;
+        const pending = !completed && !overdue;
+        return (
+          (statusFilters.includes("pending") && pending) ||
+          (statusFilters.includes("overdue") && overdue) ||
+          (statusFilters.includes("completed") && completed)
+        );
+      });
+    }
     if (priorityFilter !== "all") result = result.filter(t => (t.priority || 'medium') === priorityFilter);
     if (assigneeFilter !== "all") result = result.filter(t => t.assigned_to === assigneeFilter);
     return result;
-  }, [tasks, statusFilter, priorityFilter, assigneeFilter]);
+  }, [tasks, statusFilters, priorityFilter, assigneeFilter]);
 
   const overdueTasks = useMemo(() => tasks.filter(t => isOverdue(t)), [tasks]);
 
