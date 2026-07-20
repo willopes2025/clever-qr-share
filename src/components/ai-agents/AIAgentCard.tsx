@@ -38,9 +38,10 @@ interface AIAgentCardProps {
   };
   onEdit: () => void;
   onRefresh: () => void;
+  canManage?: boolean;
 }
 
-export const AIAgentCard = ({ agent, onEdit, onRefresh }: AIAgentCardProps) => {
+export const AIAgentCard = ({ agent, onEdit, onRefresh, canManage = true }: AIAgentCardProps) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -146,37 +147,39 @@ export const AIAgentCard = ({ agent, onEdit, onRefresh }: AIAgentCardProps) => {
               <Switch
                 checked={agent.is_active ?? false}
                 onCheckedChange={handleToggleActive}
-                disabled={isTogglingActive}
+                disabled={isTogglingActive || !canManage}
               />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={onEdit}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Editar
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleDuplicate}>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Duplicar
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowExportDialog(true)}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Exportar
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => setShowDeleteDialog(true)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Excluir
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {canManage && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={onEdit}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Editar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDuplicate}>
+                      <Copy className="h-4 w-4 mr-2" />
+                      Duplicar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowExportDialog(true)}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Exportar
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -206,14 +209,14 @@ export const AIAgentCard = ({ agent, onEdit, onRefresh }: AIAgentCardProps) => {
             )}
           </div>
 
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             className="w-full"
             onClick={onEdit}
           >
             <Pencil className="h-4 w-4 mr-2" />
-            Configurar Agente
+            {canManage ? 'Configurar Agente' : 'Visualizar Agente'}
           </Button>
         </CardContent>
       </Card>

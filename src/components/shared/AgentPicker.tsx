@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useOrganizationMemberIds } from '@/hooks/useOrganizationMemberIds';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,23 +34,24 @@ export const AgentPicker = ({
   showLinkedInfo = true,
 }: AgentPickerProps) => {
   const { user } = useAuth();
+  const { data: orgMemberIds } = useOrganizationMemberIds();
   const navigate = useNavigate();
 
   const { data: agents = [], isLoading } = useQuery({
-    queryKey: ['available-agents-picker', user?.id],
+    queryKey: ['available-agents-picker', user?.id, orgMemberIds],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user || !orgMemberIds?.length) return [];
 
       const { data, error } = await supabase
         .from('ai_agent_configs')
         .select('id, agent_name, is_active, template_type, funnel_id, campaign_id')
-        .eq('user_id', user.id)
+        .in('user_id', orgMemberIds)
         .order('agent_name', { ascending: true });
 
       if (error) throw error;
       return data as AgentOption[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgMemberIds?.length,
   });
 
   // Filter available agents (not linked to funnel/campaign or is the currently selected one)
