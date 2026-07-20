@@ -1,7 +1,59 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { ImapFlow } from 'npm:imapflow@1.0.164';
 import { SMTPClient } from 'npm:emailjs@4.0.3';
+
+// Native Deno IMAP LOGIN test — more reliable than npm:imapflow in edge runtime.
+async function testImapLogin(host: string, port: number, secure: boolean, user: string, pass: string): Promise<void> {
+  let conn: Deno.Conn;
+  const connectPromise = secure
+    ? Deno.connectTls({ hostname: host, port, alpnProtocols: undefined })
+    : Deno.connect({ hostname: host, port });
+  conn = await Promise.race([
+    connectPromise,
+    new Promise<never>((_, rej) => setTimeout(() => rej(new Error('CONNECT_TIMEOUT')), 15000)),
+  ]) as Deno.Conn;
+
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const buf = new Uint8Array(4096);
+
+  async function readOnce(timeoutMs = 10000): Promise<string> {
+    const n = await Promise.race([
+      conn.read(buf),
+      new Promise<null>((_, rej) => setTimeout(() => rej(new Error('READ_TIMEOUT')), timeoutMs)),
+    ]);
+    if (!n) throw new Error('CONNECTION_CLOSED');
+    return decoder.decode(buf.subarray(0, n as number));
+  }
+  async function readUntil(tag: string, timeoutMs = 15000): Promise<string> {
+    const deadline = Date.now() + timeoutMs;
+    let acc = '';
+    while (Date.now() < deadline) {
+      acc += await readOnce(Math.max(500, deadline - Date.now()));
+      if (acc.includes(`${tag} OK`) || acc.includes(`${tag} NO`) || acc.includes(`${tag} BAD`)) return acc;
+    }
+    throw new Error('READ_TIMEOUT');
+  }
+
+  try {
+    const greeting = await readOnce(10000);
+    if (!/\*\s*OK/i.test(greeting)) throw new Error(`BAD_GREETING: ${greeting.slice(0, 120)}`);
+    const escaped = pass.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    await conn.write(encoder.encode(`a1 LOGIN "${user}" "${escaped}"\r\n`));
+    const resp = await readUntil('a1', 15000);
+    if (/a1 OK/i.test(resp)) {
+      try { await conn.write(encoder.encode('a2 LOGOUT\r\n')); } catch { /* ignore */ }
+      return;
+    }
+    if (/a1 (NO|BAD)/i.test(resp)) {
+      const m = resp.match(/a1 (?:NO|BAD)\s+(.+)/i);
+      throw new Error(`AUTH_FAILED: ${m?.[1]?.trim() ?? 'login rejeitado'}`);
+    }
+    throw new Error(`UNEXPECTED: ${resp.slice(0, 160)}`);
+  } finally {
+    try { conn.close(); } catch { /* ignore */ }
+  }
+}
 
 // Connect a generic IMAP/SMTP mailbox. Body: {
 //   email, password, display_name?,
