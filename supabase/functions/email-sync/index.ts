@@ -4,6 +4,7 @@ import { ensureFreshGmailToken, EmailChannel } from '../_shared/gmail.ts';
 import { ensureFreshMsToken, MsChannel } from '../_shared/microsoft.ts';
 import { NativeImap, parseSearchUids, imapDate } from '../_shared/imap-native.ts';
 import { simpleParser } from 'npm:mailparser@3.7.1';
+import { Buffer } from 'node:buffer';
 
 // Body: { channel_id? } — if omitted, syncs all active channels.
 
