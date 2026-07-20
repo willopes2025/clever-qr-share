@@ -2,7 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { ensureFreshGmailToken, EmailChannel } from '../_shared/gmail.ts';
 import { ensureFreshMsToken, MsChannel } from '../_shared/microsoft.ts';
-import { ImapFlow } from 'npm:imapflow@1.0.164';
+import { NativeImap, parseSearchUids, imapDate } from '../_shared/imap-native.ts';
 import { simpleParser } from 'npm:mailparser@3.7.1';
 
 // Body: { channel_id? } — if omitted, syncs all active channels.
