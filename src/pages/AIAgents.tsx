@@ -128,15 +128,19 @@ const AIAgents = () => {
                 <p className="text-muted-foreground mb-4 max-w-md">
                   Crie seu primeiro agente de IA usando um de nossos templates prontos ou comece do zero.
                 </p>
-                <Button onClick={() => setIsTemplateSelectorOpen(true)} className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Criar Primeiro Agente
-                </Button>
+                {canCreate && (
+                  <Button onClick={() => setIsTemplateSelectorOpen(true)} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Criar Primeiro Agente
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}
         </div>
+        )}
       </div>
+
 
       {/* Template Selector Dialog */}
       <AIAgentTemplateSelector
