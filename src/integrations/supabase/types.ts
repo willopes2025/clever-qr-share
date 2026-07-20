@@ -8403,6 +8403,7 @@ export type Database = {
         | "activate_ai"
         | "generate_asaas_pix"
         | "send_email"
+        | "send_meta_template"
       funnel_trigger_type:
         | "on_stage_enter"
         | "on_stage_exit"
@@ -8585,6 +8586,7 @@ export const Constants = {
         "activate_ai",
         "generate_asaas_pix",
         "send_email",
+        "send_meta_template",
       ],
       funnel_trigger_type: [
         "on_stage_enter",
