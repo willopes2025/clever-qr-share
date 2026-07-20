@@ -1,50 +1,93 @@
-# Plano de Otimização de Performance — Faseado
 
-Objetivo: reduzir latência percebida no frontend e carga no banco. Executamos uma fase por vez, medimos e seguimos.
+# Suporte a Múltiplos Provedores de E-mail
 
-## Fase 1 — Ganhos rápidos no banco (baixo risco, alto impacto)
-1. Rodar `supabase--slow_queries` e `supabase--linter` para identificar as 10 queries mais custosas e políticas RLS ineficientes.
-2. Adicionar índices faltantes nas colunas mais filtradas/ordenadas:
-   - `inbox_messages(conversation_id, created_at DESC)` — já existe? confirmar.
-   - `funnel_deals(user_id, stage_id)`, `funnel_deals(contact_id)`.
-   - `billing_reminders(scheduled_for, status)` parcial `WHERE status='pending'`.
-   - `email_messages(thread_id, created_at)`.
-3. `ANALYZE` nas tabelas grandes após criar índices.
-4. Consolidar policies RLS duplicadas usando `(select auth.uid())` para cache InitPlan onde ainda não foi feito.
+Hoje só o Gmail (OAuth Google) pode ser conectado. Vou adicionar dois novos caminhos que cobrem 95% dos casos:
 
-## Fase 2 — Reduzir round-trips no Inbox
-1. Converter `useUnreadCount` de fetch multi-etapa (conversations → contacts chunked → warming) para uma única RPC `get_unread_count()` SECURITY DEFINER que devolve o número final.
-2. Mesclar `notification-only` + `warming phones` num único fetch cacheado por 5 min via `staleTime`.
-3. Deduplicar realtime: hoje `useGlobalRealtime` já otimiza, mas `funnel_deals` invalida 5 chaves — restringir a mudanças que realmente afetam a tela atual.
+1. **Microsoft / Outlook / Office 365** via OAuth (Microsoft Graph API)
+2. **IMAP/SMTP genérico** (Outlook, Yahoo, iCloud, Zoho, domínios próprios, cPanel, etc.) via usuário + senha de app
 
-## Fase 3 — Paginação e virtualização
-1. Trocar carregamentos "top 200" (Inbox) por paginação infinita real com `useInfiniteQuery`.
-2. Virtualizar listas longas (Inbox, Contatos, Broadcast) com `@tanstack/react-virtual` — só renderizar linhas visíveis.
-3. Aplicar `React.memo` + `useMemo` em `ConversationListItem` e `ContactCard`.
+Todos aparecem lado a lado como "contas conectadas", com envio, recebimento e sincronização.
 
-## Fase 4 — Bundle e carregamento inicial
-1. Auditar `dist` com `rollup-plugin-visualizer` e identificar libs pesadas.
-2. Lazy-load rotas ainda carregadas eager (Analysis, Warming, Chatbots, AIAgents, Ssotica, Financeiro).
-3. Code-split de bibliotecas pesadas (recharts, editor rich text, mapas) via `import()` dinâmico.
-4. Pré-carregar apenas a rota "/" e Inbox; resto sob demanda.
+---
 
-## Fase 5 — Realtime e assinaturas
-1. Auditar todos `supabase.channel(...)` para garantir cleanup e evitar duplicações.
-2. Consolidar canais por página em vez de por componente.
-3. Debounce de invalidações do React Query (agrupar bursts de eventos em 250 ms).
+## 1. Banco de dados (`email_channels`)
 
-## Fase 6 — Cache e prefetch
-1. Aumentar `staleTime` de queries estáveis (funnels, tags, custom fields, task types) para 5–10 min.
-2. `prefetchQuery` de dados prováveis (ex.: ao passar mouse em conversa, pré-buscar mensagens).
-3. Persistir cache do React Query em `localStorage` para navegação entre sessões.
+Adicionar colunas para suportar IMAP/SMTP (o `provider` já existe):
 
-## Fase 7 — Edge Functions
-1. Revisar funções chamadas por request do usuário — mover trabalho pesado para `EdgeRuntime.waitUntil`.
-2. Cache HTTP (`Cache-Control`) em endpoints idempotentes de leitura.
-3. Reduzir cold-starts consolidando funções pouco usadas.
+- `imap_host`, `imap_port`, `imap_secure` (bool)
+- `smtp_host`, `smtp_port`, `smtp_secure` (bool)
+- `auth_username`, `auth_password_encrypted` (usa `vault` do Supabase)
+- `last_uid` (para sincronização incremental IMAP)
 
-## Fase 8 — Compute / infra (último recurso)
-Só depois das fases 1–7: avaliar `db_health`; se memória/conexões seguirem saturadas, propor resize via `resize_compute`.
+Providers válidos: `gmail`, `microsoft`, `imap`.
 
-## Execução
-Fazemos uma fase por turno: eu implemento, você valida percepção de velocidade, e passamos para a próxima. Começo pela Fase 1 assim que aprovar.
+## 2. Microsoft OAuth (Outlook / Office 365 / Hotmail)
+
+Nova edge function `email-oauth-start-microsoft` e reuso do callback (unificado).
+
+- Escopos: `Mail.ReadWrite Mail.Send offline_access User.Read`
+- Endpoint auth: `login.microsoftonline.com/common/oauth2/v2.0/authorize`
+- Redirect: `email-oauth-callback` (detecta provider pelo `state`)
+- Secrets novos: `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET`
+- Refresh token no shared helper (novo `_shared/microsoft.ts`)
+
+Sync via Microsoft Graph: `GET /me/mailFolders/inbox/messages` + `/sentitems/messages`. Envio: `POST /me/sendMail`.
+
+## 3. IMAP/SMTP genérico
+
+Nova edge function `email-connect-imap` que aceita:
+```
+{ email, password, imap_host, imap_port, smtp_host, smtp_port, display_name }
+```
+
+- Testa login IMAP e SMTP antes de salvar
+- Salva senha criptografada via `vault.create_secret`
+- Presets pré-carregados na UI para: Outlook (`outlook.office365.com`/`smtp.office365.com`), Yahoo, iCloud, Zoho, UOL, Locaweb, HostGator
+
+Bibliotecas Deno:
+- IMAP: `npm:imapflow`
+- SMTP: `npm:nodemailer` (envio) ou `denomailer`
+
+Novas edge functions:
+- `email-sync` estendida — despacha para Gmail/Microsoft/IMAP conforme `provider`
+- `email-send` estendida — mesma lógica
+
+## 4. Frontend
+
+Substituir o `ConnectCard` atual (só Gmail) por um seletor:
+
+```
+┌── Conectar conta de e-mail ──┐
+│  [Google/Gmail]              │
+│  [Microsoft/Outlook]         │
+│  [Outro (IMAP/SMTP)]         │
+└──────────────────────────────┘
+```
+
+- Google e Microsoft: fluxo popup OAuth (igual ao atual)
+- IMAP: abre `Dialog` com campos (e-mail, senha, host, portas) + botões de preset
+
+O botão "Adicionar conta" no rodapé abre o mesmo seletor.
+
+Sem mudança no viewer de threads — a estrutura de `email_threads`/`email_messages` é agnóstica ao provider.
+
+## 5. Detalhes técnicos
+
+- Migração criando as novas colunas + índices em `provider`
+- `provider_message_id` continua único por canal
+- Ao sincronizar IMAP, usar `UID SEARCH SINCE` para incrementar via `last_uid`
+- Senhas IMAP: gravar em `vault.secrets` e guardar apenas o `secret_id` em `email_channels`
+- Erros de auth marcam `status='error'` e `last_error` (padrão já existente)
+
+## 6. Ordem de entrega
+
+1. Migração de banco
+2. Edge functions Microsoft (start + integração no callback + sync + send)
+3. Edge functions IMAP (connect + sync + send)
+4. Refatorar `email-sync`/`email-send` para roteamento por provider
+5. UI: seletor de provedor + diálogo IMAP + presets
+6. Secrets Microsoft (pedir via `add_secret` ao chegar nessa etapa)
+
+## Perguntas antes de começar
+
+- Você já tem um **app registrado no Microsoft Entra/Azure** (para OAuth Outlook)? Se não, posso implementar só IMAP primeiro (que já cobre Outlook via `outlook.office365.com` com senha de app) e o OAuth Microsoft fica opcional.
