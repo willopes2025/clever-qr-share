@@ -1,93 +1,46 @@
+# Correção: Acesso de agentes de IA por organização (com permissões)
 
-# Suporte a Múltiplos Provedores de E-mail
+## Objetivo
+Permitir que membros da organização com **permissão concedida** visualizem/gerenciem os agentes de IA criados por outros membros. Membros sem permissão continuam sem acesso, exatamente como hoje.
 
-Hoje só o Gmail (OAuth Google) pode ser conectado. Vou adicionar dois novos caminhos que cobrem 95% dos casos:
+## Modelo de permissões (já existente em `src/config/permissions.ts`)
+- `view_ai_agents` → listar, abrir e visualizar agentes da organização
+- `create_ai_agents` → criar novos agentes
+- `manage_ai_agents` → editar, apagar, gerenciar knowledge/variables/stages/media
 
-1. **Microsoft / Outlook / Office 365** via OAuth (Microsoft Graph API)
-2. **IMAP/SMTP genérico** (Outlook, Yahoo, iCloud, Zoho, domínios próprios, cPanel, etc.) via usuário + senha de app
+O owner da organização e o role `admin` recebem essas permissões por padrão; membros comuns só têm se o owner conceder explicitamente em Configurações → Equipe.
 
-Todos aparecem lado a lado como "contas conectadas", com envio, recebimento e sincronização.
+## Causa raiz (confirmada)
+Policies RLS já autorizam acesso por organização via `get_organization_member_ids`. O frontend anula esse compartilhamento adicionando `.eq('user_id', auth.uid())` em todas as queries de agentes.
 
----
+## Mudanças
 
-## 1. Banco de dados (`email_channels`)
+### 1. Novo hook `src/hooks/useOrganizationMemberIds.ts`
+- Chama a RPC `get_organization_member_ids(auth.uid())` via React Query, cache alto.
+- Retorna `string[]` para uso em filtros `.in('user_id', ids)`.
 
-Adicionar colunas para suportar IMAP/SMTP (o `provider` já existe):
+### 2. `src/hooks/useAIAgentConfig.ts`
+- Substituir `.eq('user_id', user.id)` por `.in('user_id', orgMemberIds)` nas leituras:
+  - `useAllAgentConfigs`, `useAgentConfigByCampaign`
+  - Queries de `ai_agent_knowledge_items`, `ai_agent_variables`, `ai_agent_stages`, `ai_agent_media_library`, `ai_agent_stage_media`
+- Nos hooks de UPDATE/DELETE: remover `.eq('user_id', user.id)` — RLS já valida organização.
+- INSERTs continuam gravando `user_id = auth.uid()` (dono/criador).
+- Query fica `enabled: !!orgMemberIds?.length` para evitar flash vazio.
 
-- `imap_host`, `imap_port`, `imap_secure` (bool)
-- `smtp_host`, `smtp_port`, `smtp_secure` (bool)
-- `auth_username`, `auth_password_encrypted` (usa `vault` do Supabase)
-- `last_uid` (para sincronização incremental IMAP)
+### 3. `src/components/shared/AgentPicker.tsx`
+- Mesma troca para o dropdown listar agentes da organização inteira (respeitando permissão via gating na tela que o usa, quando aplicável).
 
-Providers válidos: `gmail`, `microsoft`, `imap`.
+### 4. Gating de UI por permissão (NÃO remove nada do que já existe; formaliza)
+- `src/pages/AIAgents.tsx`: usar `useOrganization().hasPermission('view_ai_agents')` — se falso, mostrar estado "Sem permissão para visualizar agentes" em vez de lista vazia.
+- Botão "Criar agente" só aparece com `create_ai_agents`.
+- Botões editar/apagar/gerenciar (knowledge, variáveis, stages, mídia) só aparecem com `manage_ai_agents`.
+- Owner e admin continuam com tudo por padrão.
 
-## 2. Microsoft OAuth (Outlook / Office 365 / Hotmail)
+### 5. Verificação de RLS antes de codar
+- Rodar `supabase--read_query` conferindo as policies de `ai_agent_configs`, `ai_agent_knowledge_items`, `ai_agent_variables`, `ai_agent_stages`, `ai_agent_media_library`, `ai_agent_stage_media`.
+- Se alguma policy de SELECT/UPDATE/DELETE ainda estiver restrita a `user_id = auth.uid()`, incluir migração para escopo organizacional (INSERT permanece restrito ao criador).
 
-Nova edge function `email-oauth-start-microsoft` e reuso do callback (unificado).
-
-- Escopos: `Mail.ReadWrite Mail.Send offline_access User.Read`
-- Endpoint auth: `login.microsoftonline.com/common/oauth2/v2.0/authorize`
-- Redirect: `email-oauth-callback` (detecta provider pelo `state`)
-- Secrets novos: `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET`
-- Refresh token no shared helper (novo `_shared/microsoft.ts`)
-
-Sync via Microsoft Graph: `GET /me/mailFolders/inbox/messages` + `/sentitems/messages`. Envio: `POST /me/sendMail`.
-
-## 3. IMAP/SMTP genérico
-
-Nova edge function `email-connect-imap` que aceita:
-```
-{ email, password, imap_host, imap_port, smtp_host, smtp_port, display_name }
-```
-
-- Testa login IMAP e SMTP antes de salvar
-- Salva senha criptografada via `vault.create_secret`
-- Presets pré-carregados na UI para: Outlook (`outlook.office365.com`/`smtp.office365.com`), Yahoo, iCloud, Zoho, UOL, Locaweb, HostGator
-
-Bibliotecas Deno:
-- IMAP: `npm:imapflow`
-- SMTP: `npm:nodemailer` (envio) ou `denomailer`
-
-Novas edge functions:
-- `email-sync` estendida — despacha para Gmail/Microsoft/IMAP conforme `provider`
-- `email-send` estendida — mesma lógica
-
-## 4. Frontend
-
-Substituir o `ConnectCard` atual (só Gmail) por um seletor:
-
-```
-┌── Conectar conta de e-mail ──┐
-│  [Google/Gmail]              │
-│  [Microsoft/Outlook]         │
-│  [Outro (IMAP/SMTP)]         │
-└──────────────────────────────┘
-```
-
-- Google e Microsoft: fluxo popup OAuth (igual ao atual)
-- IMAP: abre `Dialog` com campos (e-mail, senha, host, portas) + botões de preset
-
-O botão "Adicionar conta" no rodapé abre o mesmo seletor.
-
-Sem mudança no viewer de threads — a estrutura de `email_threads`/`email_messages` é agnóstica ao provider.
-
-## 5. Detalhes técnicos
-
-- Migração criando as novas colunas + índices em `provider`
-- `provider_message_id` continua único por canal
-- Ao sincronizar IMAP, usar `UID SEARCH SINCE` para incrementar via `last_uid`
-- Senhas IMAP: gravar em `vault.secrets` e guardar apenas o `secret_id` em `email_channels`
-- Erros de auth marcam `status='error'` e `last_error` (padrão já existente)
-
-## 6. Ordem de entrega
-
-1. Migração de banco
-2. Edge functions Microsoft (start + integração no callback + sync + send)
-3. Edge functions IMAP (connect + sync + send)
-4. Refatorar `email-sync`/`email-send` para roteamento por provider
-5. UI: seletor de provedor + diálogo IMAP + presets
-6. Secrets Microsoft (pedir via `add_secret` ao chegar nessa etapa)
-
-## Perguntas antes de começar
-
-- Você já tem um **app registrado no Microsoft Entra/Azure** (para OAuth Outlook)? Se não, posso implementar só IMAP primeiro (que já cobre Outlook via `outlook.office365.com` com senha de app) e o OAuth Microsoft fica opcional.
+## Fora de escopo
+- Não criar novas chaves de permissão (as três existentes cobrem o caso).
+- Não mudar o "dono" (`user_id`) de agentes já criados.
+- Sem alteração de comportamento para usuários que trabalham sozinhos.
