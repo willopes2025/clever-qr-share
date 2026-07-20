@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
+import { ConnectEmailDialog } from "@/components/email/ConnectEmailDialog";
 
 interface EmailChannel {
   id: string; email_address: string; display_name: string | null;
