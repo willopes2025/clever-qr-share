@@ -141,6 +141,38 @@ Deno.serve(async (req: Request) => {
 
     const results: { automationId: string; success: boolean; error?: string }[] = [];
 
+    // Resolve Meta WhatsApp access token from integrations (self, then org members),
+    // then fall back to system env var META_WHATSAPP_ACCESS_TOKEN.
+    const resolveMetaAccessToken = async (uid: string): Promise<string | null> => {
+      const { data: own } = await supabase
+        .from('integrations')
+        .select('credentials')
+        .eq('user_id', uid)
+        .eq('provider', 'meta_whatsapp')
+        .eq('is_active', true)
+        .maybeSingle();
+      const ownToken = (own?.credentials as any)?.access_token;
+      if (ownToken) return ownToken;
+
+      const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: uid });
+      if (orgMemberIds && Array.isArray(orgMemberIds)) {
+        for (const memberId of orgMemberIds) {
+          if (memberId === uid) continue;
+          const { data: memberInt } = await supabase
+            .from('integrations')
+            .select('credentials')
+            .eq('user_id', memberId)
+            .eq('provider', 'meta_whatsapp')
+            .eq('is_active', true)
+            .maybeSingle();
+          const t = (memberInt?.credentials as any)?.access_token;
+          if (t) return t;
+        }
+      }
+      return Deno.env.get('META_WHATSAPP_ACCESS_TOKEN') || null;
+    };
+
+
     // Helper function to replace variables
     const replaceVariables = (text: string): string => {
       const now = new Date();
