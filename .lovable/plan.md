@@ -1,46 +1,47 @@
-# Correção: Acesso de agentes de IA por organização (com permissões)
+## Problemas
 
-## Objetivo
-Permitir que membros da organização com **permissão concedida** visualizem/gerenciem os agentes de IA criados por outros membros. Membros sem permissão continuam sem acesso, exatamente como hoje.
+1. **"Pendentes" inclui atrasadas.** Em `src/pages/Tasks.tsx` (linha 89), o filtro aplica apenas `!t.completed_at`, e como toda tarefa atrasada também é não-concluída, ela aparece tanto em "Pendentes" quanto em "Atrasadas". Correto: as duas categorias devem ser mutuamente exclusivas.
+2. **Filtro de status é single-select.** Hoje o `Select` (linha ~190) só aceita um status por vez ("Pendentes" OU "Atrasadas" OU "Concluídas" OU "Todas"). O usuário quer poder marcar **0, 1 ou N** status simultaneamente (ex.: Pendentes + Atrasadas).
 
-## Modelo de permissões (já existente em `src/config/permissions.ts`)
-- `view_ai_agents` → listar, abrir e visualizar agentes da organização
-- `create_ai_agents` → criar novos agentes
-- `manage_ai_agents` → editar, apagar, gerenciar knowledge/variables/stages/media
+## Correção
 
-O owner da organização e o role `admin` recebem essas permissões por padrão; membros comuns só têm se o owner conceder explicitamente em Configurações → Equipe.
+### 1. `src/pages/Tasks.tsx` — trocar single-select por multi-select
 
-## Causa raiz (confirmada)
-Policies RLS já autorizam acesso por organização via `get_organization_member_ids`. O frontend anula esse compartilhamento adicionando `.eq('user_id', auth.uid())` em todas as queries de agentes.
+- Substituir o state `statusFilter: "all" | "pending" | "overdue" | "completed"` por:
+  ```
+  const [statusFilters, setStatusFilters] = useState<Array<"pending" | "overdue" | "completed">>(["pending"]);
+  ```
+  Padrão inicial: `["pending"]` (mantém a experiência atual ao abrir a página). Array vazio = sem restrição de status (equivalente ao antigo "Todas").
 
-## Mudanças
+- Trocar o componente `Select` de status por um **dropdown multi-select com checkboxes**, usando `DropdownMenu` + `DropdownMenuCheckboxItem` do shadcn (padrão já usado em outros filtros do projeto). Itens: Pendentes, Atrasadas, Concluídas. Botão trigger mostra "Status" + badge com contagem de selecionados (ou "Todas" quando vazio).
 
-### 1. Novo hook `src/hooks/useOrganizationMemberIds.ts`
-- Chama a RPC `get_organization_member_ids(auth.uid())` via React Query, cache alto.
-- Retorna `string[]` para uso em filtros `.in('user_id', ids)`.
+- Reescrever `filteredTasks` para aplicar união dos status escolhidos, garantindo exclusividade entre pending/overdue:
+  ```
+  if (statusFilters.length > 0) {
+    result = result.filter(t => {
+      const overdue = isOverdue(t);
+      const completed = !!t.completed_at;
+      const pending = !completed && !overdue;
+      return (
+        (statusFilters.includes("pending")  && pending)  ||
+        (statusFilters.includes("overdue")  && overdue)  ||
+        (statusFilters.includes("completed") && completed)
+      );
+    });
+  }
+  ```
+  Isso já resolve o problema 1 (pending exclui overdue) e o problema 2 (múltiplos status simultâneos).
 
-### 2. `src/hooks/useAIAgentConfig.ts`
-- Substituir `.eq('user_id', user.id)` por `.in('user_id', orgMemberIds)` nas leituras:
-  - `useAllAgentConfigs`, `useAgentConfigByCampaign`
-  - Queries de `ai_agent_knowledge_items`, `ai_agent_variables`, `ai_agent_stages`, `ai_agent_media_library`, `ai_agent_stage_media`
-- Nos hooks de UPDATE/DELETE: remover `.eq('user_id', user.id)` — RLS já valida organização.
-- INSERTs continuam gravando `user_id = auth.uid()` (dono/criador).
-- Query fica `enabled: !!orgMemberIds?.length` para evitar flash vazio.
+- Ajustar o contador do header ("X pendentes / Y atrasadas", linhas ~171–175) para usar listas derivadas coerentes:
+  - `pendingNotOverdue = tasks.filter(t => !t.completed_at && !isOverdue(t))` para "pendentes";
+  - `overdueTasks` continua como já é.
 
-### 3. `src/components/shared/AgentPicker.tsx`
-- Mesma troca para o dropdown listar agentes da organização inteira (respeitando permissão via gating na tela que o usa, quando aplicável).
+### 2. Sem alterações fora da UI
+- Nada muda em `useAllTasks`, RLS, banco ou edge functions. `pendingTasks` retornado pelo hook segue como está (para não impactar outros consumidores); a página passa a derivar sua própria contagem.
 
-### 4. Gating de UI por permissão (NÃO remove nada do que já existe; formaliza)
-- `src/pages/AIAgents.tsx`: usar `useOrganization().hasPermission('view_ai_agents')` — se falso, mostrar estado "Sem permissão para visualizar agentes" em vez de lista vazia.
-- Botão "Criar agente" só aparece com `create_ai_agents`.
-- Botões editar/apagar/gerenciar (knowledge, variáveis, stages, mídia) só aparecem com `manage_ai_agents`.
-- Owner e admin continuam com tudo por padrão.
-
-### 5. Verificação de RLS antes de codar
-- Rodar `supabase--read_query` conferindo as policies de `ai_agent_configs`, `ai_agent_knowledge_items`, `ai_agent_variables`, `ai_agent_stages`, `ai_agent_media_library`, `ai_agent_stage_media`.
-- Se alguma policy de SELECT/UPDATE/DELETE ainda estiver restrita a `user_id = auth.uid()`, incluir migração para escopo organizacional (INSERT permanece restrito ao criador).
-
-## Fora de escopo
-- Não criar novas chaves de permissão (as três existentes cobrem o caso).
-- Não mudar o "dono" (`user_id`) de agentes já criados.
-- Sem alteração de comportamento para usuários que trabalham sozinhos.
+### 3. Verificação
+- Abrir `/tasks`: por padrão só "Pendentes" marcado; lista não mostra atrasadas nem concluídas.
+- Marcar também "Atrasadas": lista passa a mostrar pendentes + atrasadas, sem duplicar.
+- Desmarcar tudo: lista mostra todas (equivalente ao antigo "Todas").
+- Marcar só "Concluídas": lista mostra apenas concluídas.
+- Contadores do header refletem as novas categorias exclusivas.
