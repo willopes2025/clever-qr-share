@@ -38,26 +38,50 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Test IMAP
-    const imap = new ImapFlow({
-      host: imap_host,
-      port: Number(imap_port),
-      secure: !!imap_secure,
-      auth: { user: email, pass: password },
-      logger: false,
-      tls: { servername: imap_host, rejectUnauthorized: false },
-      disableAutoIdle: true,
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 30000,
-    } as any);
-    try {
-      await imap.connect();
-      try { await imap.logout(); } catch { /* ignore */ }
-    } catch (e: any) {
-      const msg = e?.responseText || e?.authenticationFailed ? 'Credenciais IMAP inválidas (verifique e-mail/senha; se a conta usa 2FA, gere uma senha de app).'
-        : `IMAP falhou ao conectar em ${imap_host}:${imap_port} (${e?.code || e?.message || String(e)}). Confirme host/porta/SSL e se o provedor permite IMAP.`;
-      return new Response(JSON.stringify({ error: msg }), {
+    // Test IMAP — try requested config, then fall back to STARTTLS on 143 if TLS fails.
+    const attempts: Array<{ host: string; port: number; secure: boolean; label: string }> = [
+      { host: imap_host, port: Number(imap_port), secure: !!imap_secure, label: `${imap_host}:${imap_port} ${imap_secure ? 'SSL' : 'plain'}` },
+    ];
+    if (imap_secure && Number(imap_port) === 993) {
+      attempts.push({ host: imap_host, port: 143, secure: false, label: `${imap_host}:143 STARTTLS` });
+    }
+    let lastErr: any = null;
+    let connected = false;
+    let finalHost = imap_host, finalPort = Number(imap_port), finalSecure = !!imap_secure;
+    for (const a of attempts) {
+      const imap = new ImapFlow({
+        host: a.host,
+        port: a.port,
+        secure: a.secure,
+        auth: { user: email, pass: password },
+        logger: false,
+        tls: { servername: a.host, rejectUnauthorized: false, minVersion: 'TLSv1.2' },
+        disableAutoIdle: true,
+        connectionTimeout: 20000,
+        greetingTimeout: 20000,
+        socketTimeout: 30000,
+      } as any);
+      try {
+        await imap.connect();
+        try { await imap.logout(); } catch { /* ignore */ }
+        connected = true;
+        finalHost = a.host; finalPort = a.port; finalSecure = a.secure;
+        break;
+      } catch (e: any) {
+        lastErr = e;
+        if (e?.authenticationFailed || /AUTHENTICATIONFAILED|Invalid credentials|LOGIN failed/i.test(e?.responseText || e?.message || '')) {
+          return new Response(JSON.stringify({ error: 'Credenciais IMAP inválidas. Verifique e-mail/senha; se a conta usa 2FA, gere uma senha de app.' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    }
+    if (!connected) {
+      const code = lastErr?.code || lastErr?.message || String(lastErr);
+      const hint = /ClosedAfterConnectTLS|ECONNRESET|EHOSTUNREACH|ETIMEDOUT/i.test(code)
+        ? ' Possível bloqueio do provedor a IPs de datacenter (comum em Hostinger/cPanel) — habilite acesso IMAP externo no painel do provedor ou libere o IP.'
+        : ' Confirme host/porta/SSL e se o provedor permite IMAP.';
+      return new Response(JSON.stringify({ error: `IMAP falhou ao conectar em ${imap_host}:${imap_port} (${code}).${hint}` }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -103,7 +127,7 @@ Deno.serve(async (req) => {
         display_name: display_name ?? email,
         auth_username: email,
         auth_password: password,
-        imap_host, imap_port: Number(imap_port), imap_secure: !!imap_secure,
+        imap_host: finalHost, imap_port: finalPort, imap_secure: finalSecure,
         smtp_host, smtp_port: Number(smtp_port), smtp_secure: !!smtp_secure,
         status: 'active',
         last_error: null,
