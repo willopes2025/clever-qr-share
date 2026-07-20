@@ -182,7 +182,7 @@ const Tasks = () => {
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <ListTodo className="h-4 w-4" />
-            <span>{pendingTasks.length} pendentes</span>
+            <span>{pendingNotOverdueCount} pendentes</span>
             {overdueTasks.length > 0 && (
               <>
                 <AlertTriangle className="h-4 w-4 ml-2 text-destructive" />
@@ -196,6 +196,54 @@ const Tasks = () => {
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-[180px] justify-start">
+                <Filter className="h-4 w-4 mr-2" />
+                {statusFilters.length === 0
+                  ? "Status: Todas"
+                  : `Status (${statusFilters.length})`}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[200px]">
+              <DropdownMenuLabel>Filtrar por status</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={statusFilters.includes("pending")}
+                onCheckedChange={(c) => toggleStatusFilter("pending", !!c)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                Pendentes
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={statusFilters.includes("overdue")}
+                onCheckedChange={(c) => toggleStatusFilter("overdue", !!c)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                Atrasadas
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={statusFilters.includes("completed")}
+                onCheckedChange={(c) => toggleStatusFilter("completed", !!c)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                Concluídas
+              </DropdownMenuCheckboxItem>
+              {statusFilters.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => setStatusFilters([])}
+                  >
+                    Limpar (mostrar todas)
+                  </Button>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
             <SelectTrigger className="w-[160px]">
               <Filter className="h-4 w-4 mr-2" />
