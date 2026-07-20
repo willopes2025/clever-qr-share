@@ -104,22 +104,42 @@ Deno.serve(async (req: Request) => {
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
     const existingData = await existingResp.json();
-    const existing = new Map<string, string>();
+    const existing = new Map<string, { status: string; id?: string }>();
     for (const t of existingData?.data ?? []) {
-      if (t.language === 'pt_BR') existing.set(t.name, t.status);
+      if (t.language === 'pt_BR') existing.set(t.name, { status: t.status, id: t.id });
     }
 
     const results: Array<Record<string, unknown>> = [];
 
     for (const tpl of PS_TEMPLATES) {
       const prev = existing.get(tpl.name);
-      if (prev && prev !== 'REJECTED') {
-        results.push({ name: tpl.name, skipped: true, status: prev });
+      const varCount = (tpl.body.match(/\{\{\d+\}\}/g) || []).length;
+      const example = tpl.example.slice(0, varCount);
+
+      if (prev && prev.status !== 'REJECTED') {
+        // Já existe: apenas sincroniza para meta_templates local
+        await supabase.from('meta_templates').upsert(
+          {
+            user_id: OWNER_USER_ID,
+            waba_id: WABA_ID,
+            meta_template_id: prev.id ?? null,
+            name: tpl.name,
+            language: 'pt_BR',
+            category: 'UTILITY',
+            status: prev.status.toLowerCase(),
+            body_text: tpl.body,
+            body_examples: example,
+            footer_text: tpl.footer ?? null,
+            header_type: 'NONE',
+            buttons: [],
+            submitted_at: new Date().toISOString(),
+          },
+          { onConflict: 'waba_id,name,language' },
+        );
+        results.push({ name: tpl.name, skipped: true, status: prev.status, synced: true });
         continue;
       }
 
-      const varCount = (tpl.body.match(/\{\{\d+\}\}/g) || []).length;
-      const example = tpl.example.slice(0, varCount);
 
       const components: any[] = [
         {

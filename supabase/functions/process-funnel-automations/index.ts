@@ -141,6 +141,38 @@ Deno.serve(async (req: Request) => {
 
     const results: { automationId: string; success: boolean; error?: string }[] = [];
 
+    // Resolve Meta WhatsApp access token from integrations (self, then org members),
+    // then fall back to system env var META_WHATSAPP_ACCESS_TOKEN.
+    const resolveMetaAccessToken = async (uid: string): Promise<string | null> => {
+      const { data: own } = await supabase
+        .from('integrations')
+        .select('credentials')
+        .eq('user_id', uid)
+        .eq('provider', 'meta_whatsapp')
+        .eq('is_active', true)
+        .maybeSingle();
+      const ownToken = (own?.credentials as any)?.access_token;
+      if (ownToken) return ownToken;
+
+      const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: uid });
+      if (orgMemberIds && Array.isArray(orgMemberIds)) {
+        for (const memberId of orgMemberIds) {
+          if (memberId === uid) continue;
+          const { data: memberInt } = await supabase
+            .from('integrations')
+            .select('credentials')
+            .eq('user_id', memberId)
+            .eq('provider', 'meta_whatsapp')
+            .eq('is_active', true)
+            .maybeSingle();
+          const t = (memberInt?.credentials as any)?.access_token;
+          if (t) return t;
+        }
+      }
+      return Deno.env.get('META_WHATSAPP_ACCESS_TOKEN') || null;
+    };
+
+
     // Helper function to replace variables
     const replaceVariables = (text: string): string => {
       const now = new Date();
@@ -706,6 +738,186 @@ Deno.serve(async (req: Request) => {
             }
             break;
           }
+
+          case 'send_meta_template': {
+            const metaTemplateId = actionConfig.meta_template_id as string;
+            const metaPhoneNumberId = actionConfig.meta_phone_number_id as string | undefined;
+            const nodeMappings = Array.isArray(actionConfig.variable_mappings)
+              ? (actionConfig.variable_mappings as any[])
+              : null;
+
+            if (!metaTemplateId) {
+              results.push({ automationId: automation.id, success: false, error: 'No Meta template selected' });
+              break;
+            }
+            if (!deal.contact?.phone) {
+              results.push({ automationId: automation.id, success: false, error: 'Contact has no phone' });
+              break;
+            }
+
+            const { data: metaTemplate } = await supabase
+              .from('meta_templates')
+              .select('*')
+              .eq('id', metaTemplateId)
+              .maybeSingle();
+
+            if (!metaTemplate) {
+              results.push({ automationId: automation.id, success: false, error: 'Meta template not found' });
+              break;
+            }
+
+            // Resolve phone_number_id: prefer action config, else conversation's, else first active number of WABA
+            let phoneNumberId = metaPhoneNumberId || null;
+            if (!phoneNumberId && deal.conversation_id) {
+              const { data: conv } = await supabase
+                .from('conversations')
+                .select('meta_phone_number_id')
+                .eq('id', deal.conversation_id)
+                .maybeSingle();
+              phoneNumberId = (conv as any)?.meta_phone_number_id || null;
+            }
+            if (!phoneNumberId) {
+              const { data: num } = await supabase
+                .from('meta_whatsapp_numbers')
+                .select('phone_number_id')
+                .eq('waba_id', metaTemplate.waba_id)
+                .eq('is_active', true)
+                .limit(1)
+                .maybeSingle();
+              phoneNumberId = num?.phone_number_id || null;
+            }
+            if (!phoneNumberId) {
+              results.push({ automationId: automation.id, success: false, error: 'No Meta phone number available' });
+              break;
+            }
+
+            const accessToken = await resolveMetaAccessToken(deal.user_id);
+            if (!accessToken) {
+              results.push({ automationId: automation.id, success: false, error: 'Meta access token not found' });
+              break;
+            }
+
+            const bodyText: string = metaTemplate.body_text || '';
+            const detected = [...new Set((bodyText.match(/\{\{(\d+)\}\}/g) || [])
+              .map((m: string) => parseInt(m.replace(/[{}]/g, ''))))]
+              .sort((a, b) => a - b);
+
+            const tplMappings = Array.isArray(metaTemplate.variable_mappings)
+              ? (metaTemplate.variable_mappings as any[])
+              : null;
+            const mappings: any[] | null = (nodeMappings && nodeMappings.length > 0)
+              ? nodeMappings
+              : (tplMappings && tplMappings.length > 0 ? tplMappings : null);
+
+            const fullName = (deal.contact?.name || '').trim();
+            const isValidName = !!fullName && !/^\+?\d+$/.test(fullName);
+            const dealCustom = (deal.custom_fields || {}) as Record<string, any>;
+            const contactCustom = (deal.contact?.custom_fields || {}) as Record<string, any>;
+            const fmt = (v: any) => (v === null || v === undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+
+            const resolveVar = (idx: number): string => {
+              const m = mappings?.find((mm: any) => mm.variable_index === idx);
+              if (m) {
+                switch (m.source) {
+                  case 'contact_name': return isValidName ? fullName : ' ';
+                  case 'contact_phone': return deal.contact?.phone || '';
+                  case 'contact_email': return deal.contact?.email || '';
+                  case 'contact_custom_field': return fmt(contactCustom?.[m.field_key]);
+                  case 'lead_custom_field': return fmt(dealCustom?.[m.field_key]);
+                  case 'deal_value': return deal.value != null ? String(deal.value) : '';
+                  case 'deal_name': return deal.title || '';
+                  case 'fixed_text': return m.fixed_value || '';
+                }
+              }
+              if (idx === 1) return isValidName ? fullName : ' ';
+              if (idx === 2) return deal.contact?.phone || '';
+              return ' ';
+            };
+
+            const resolvedVars = detected.map((i) => resolveVar(i) || ' ');
+            const components: any[] = [];
+            if (resolvedVars.length > 0) {
+              components.push({
+                type: 'body',
+                parameters: resolvedVars.map(v => ({ type: 'text', text: String(v) || ' ' })),
+              });
+            }
+
+            const formattedPhone = deal.contact.phone.replace(/[^0-9]/g, '');
+            const payload: any = {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: formattedPhone,
+              type: 'template',
+              template: {
+                name: metaTemplate.name,
+                language: { code: metaTemplate.language || 'pt_BR' },
+              },
+            };
+            if (components.length > 0) payload.template.components = components;
+
+            const META_API_URL = 'https://graph.facebook.com/v21.0';
+            let previewText = bodyText || `[Template: ${metaTemplate.name}]`;
+            detected.forEach((i, idx) => { previewText = previewText.replaceAll(`{{${i}}}`, resolvedVars[idx] ?? ''); });
+
+            try {
+              const resp = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+              const result = await resp.json();
+              const ok = resp.ok && !result?.error;
+
+              // Ensure a conversation exists for logging
+              let convId = deal.conversation_id;
+              if (!convId) {
+                const { data: existingConv } = await supabase
+                  .from('conversations')
+                  .select('id')
+                  .eq('contact_id', deal.contact_id)
+                  .eq('user_id', deal.user_id)
+                  .order('last_message_at', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                convId = existingConv?.id || null;
+              }
+              if (convId) {
+                await supabase.from('inbox_messages').insert({
+                  conversation_id: convId,
+                  user_id: deal.user_id,
+                  content: previewText,
+                  direction: 'outbound',
+                  status: ok ? 'sent' : 'failed',
+                  message_type: 'template',
+                  sent_at: new Date().toISOString(),
+                  sent_via_meta_number_id: phoneNumberId,
+                  sent_via_meta_template_id: metaTemplateId,
+                  whatsapp_message_id: result?.messages?.[0]?.id || null,
+                  error_message: result?.error ? (result.error?.message || JSON.stringify(result.error)) : null,
+                });
+                await supabase.from('conversations').update({
+                  last_message_at: new Date().toISOString(),
+                  last_message_preview: previewText.substring(0, 100),
+                  last_message_direction: 'outbound',
+                }).eq('id', convId);
+              }
+
+              if (ok) {
+                console.log(`[FUNNEL-AUTOMATIONS] Meta template "${metaTemplate.name}" sent OK`);
+                results.push({ automationId: automation.id, success: true });
+              } else {
+                console.error(`[FUNNEL-AUTOMATIONS] Meta template send FAILED:`, JSON.stringify(result));
+                results.push({ automationId: automation.id, success: false, error: result?.error?.message || 'Meta send failed' });
+              }
+            } catch (err) {
+              console.error(`[FUNNEL-AUTOMATIONS] Error sending Meta template:`, err);
+              results.push({ automationId: automation.id, success: false, error: err instanceof Error ? err.message : 'Meta send error' });
+            }
+            break;
+          }
+
+
 
           case 'send_form_link': {
             const formId = actionConfig.form_id as string;
