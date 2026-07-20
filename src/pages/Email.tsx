@@ -147,7 +147,7 @@ export default function EmailPage() {
         {loading ? (
           <div className="flex flex-1 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : channels.length === 0 ? (
-          <ConnectCard onConnect={connectGmail} />
+          <ConnectCard onConnect={openConnect} />
         ) : (
           <div className="grid flex-1 grid-cols-[200px_320px_1fr] overflow-hidden min-h-0">
             {/* Folder sidebar */}
@@ -217,7 +217,7 @@ export default function EmailPage() {
                 </Badge>
               </div>
             ))}
-            <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto" onClick={connectGmail}>
+            <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto" onClick={openConnect}>
               <Plus className="h-3 w-3 mr-1" />Adicionar conta
             </Button>
           </div>
@@ -226,6 +226,8 @@ export default function EmailPage() {
 
       <ComposeDialog open={composeOpen} onOpenChange={setComposeOpen}
         channel={activeChannel} onSent={() => { setComposeOpen(false); if (activeChannel) loadThreads(activeChannel.id, folder); }} />
+      <ConnectEmailDialog open={connectOpen} onOpenChange={setConnectOpen}
+        onConnected={() => loadChannels()} />
     </DashboardLayout>
   );
 }
