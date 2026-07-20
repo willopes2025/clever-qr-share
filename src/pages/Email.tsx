@@ -239,11 +239,11 @@ function ConnectCard({ onConnect }: { onConnect: () => void }) {
         <Mail className="h-12 w-12 mx-auto mb-4 text-primary" />
         <h2 className="text-xl font-semibold mb-2">Conecte seu e-mail</h2>
         <p className="text-sm text-muted-foreground mb-6">
-          Conecte uma conta Gmail para enviar e receber e-mails direto pelo Widezap.
+          Conecte Gmail, Outlook/Office 365, Yahoo, iCloud ou qualquer conta IMAP/SMTP para enviar e receber e-mails direto pelo Widezap.
           A conta fica disponível para toda a organização.
         </p>
         <Button onClick={onConnect} className="w-full">
-          <Mail className="h-4 w-4 mr-2" />Conectar com Google
+          <Mail className="h-4 w-4 mr-2" />Conectar conta de e-mail
         </Button>
       </Card>
     </div>
