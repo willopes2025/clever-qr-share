@@ -2,7 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { ensureFreshGmailToken, buildRawMime, EmailChannel } from '../_shared/gmail.ts';
 import { ensureFreshMsToken, MsChannel } from '../_shared/microsoft.ts';
-import { SMTPClient } from 'npm:emailjs@4.0.3';
+import { sendMailSmtp, buildSimpleMime } from '../_shared/smtp-native.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -95,25 +95,35 @@ Deno.serve(async (req) => {
       if (!channel.smtp_host || !channel.smtp_port || !channel.auth_username || !channel.auth_password) {
         throw new Error('SMTP não configurado');
       }
-      const smtp = new SMTPClient({
-        user: channel.auth_username,
-        password: channel.auth_password,
-        host: channel.smtp_host,
-        port: Number(channel.smtp_port),
-        ssl: !!channel.smtp_secure && Number(channel.smtp_port) === 465,
-        tls: !!channel.smtp_secure && Number(channel.smtp_port) !== 465,
+      const port = Number(channel.smtp_port);
+      const raw = buildSimpleMime({
+        fromName: channel.display_name,
+        fromEmail: channel.email_address,
+        to, cc: cc ?? [], subject, html, text, inReplyTo: in_reply_to ?? null,
       });
-      await new Promise<void>((resolve, reject) => {
-        smtp.send({
-          from: channel.display_name ? `${channel.display_name} <${channel.email_address}>` : channel.email_address,
-          to: (to as string[]).join(', '),
-          cc: cc?.join(', '),
-          bcc: bcc?.join(', '),
-          subject,
-          text: text ?? (html ? html.replace(/<[^>]+>/g, '') : ''),
-          attachment: html ? [{ data: html, alternative: true }] : undefined,
-        } as any, (err: any) => err ? reject(err) : resolve());
-      });
+      const recipients = [
+        ...(to as string[]),
+        ...((cc as string[] | undefined) ?? []),
+        ...((bcc as string[] | undefined) ?? []),
+      ];
+      try {
+        await sendMailSmtp(
+          {
+            host: channel.smtp_host,
+            port,
+            // Implicit TLS only on 465. 587/25 use STARTTLS.
+            secure: port === 465,
+            username: channel.auth_username,
+            password: channel.auth_password,
+          },
+          { from: channel.email_address, to: recipients, raw },
+        );
+      } catch (smtpErr) {
+        const msg = smtpErr instanceof Error ? smtpErr.message : String(smtpErr);
+        return new Response(JSON.stringify({ error: `SMTP falhou: ${msg}` }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       providerMessageId = `imap-${Date.now()}-${crypto.randomUUID()}`;
     } else {
       return new Response(JSON.stringify({ error: `provider ${channel.provider} not supported` }), {
