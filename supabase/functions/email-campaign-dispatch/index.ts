@@ -86,8 +86,15 @@ Deno.serve(async (req) => {
 
         const vars = { name: rec.name ?? '', email: rec.email, ...(rec.variables as Record<string, unknown> ?? {}) };
         const subject = renderVars(campaign.subject, vars);
-        const html = renderVars(campaign.body_html, vars);
-        const text = campaign.body_text ? renderVars(campaign.body_text, vars) : undefined;
+        let html = renderVars(campaign.body_html, vars);
+        let text = campaign.body_text ? renderVars(campaign.body_text, vars) : undefined;
+
+        const sig = (channel as { signature_html?: string | null }).signature_html;
+        if (sig && sig.trim()) {
+          html = `${html}<br/><br/>${sig}`;
+          const sigText = sig.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+          if (sigText) text = `${text ?? ''}\n\n${sigText}`;
+        }
 
         try {
           const raw = buildRawMime({
