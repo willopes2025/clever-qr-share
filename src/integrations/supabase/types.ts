@@ -3170,6 +3170,7 @@ export type Database = {
       }
       email_campaigns: {
         Row: {
+          attachments: Json
           batch_interval_seconds: number
           batch_size: number
           body_html: string
@@ -3177,6 +3178,7 @@ export type Database = {
           channel_id: string
           completed_at: string | null
           created_at: string
+          design_json: Json | null
           id: string
           last_dispatch_at: string | null
           name: string
@@ -3194,6 +3196,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          attachments?: Json
           batch_interval_seconds?: number
           batch_size?: number
           body_html: string
@@ -3201,6 +3204,7 @@ export type Database = {
           channel_id: string
           completed_at?: string | null
           created_at?: string
+          design_json?: Json | null
           id?: string
           last_dispatch_at?: string | null
           name: string
@@ -3218,6 +3222,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          attachments?: Json
           batch_interval_seconds?: number
           batch_size?: number
           body_html?: string
@@ -3225,6 +3230,7 @@ export type Database = {
           channel_id?: string
           completed_at?: string | null
           created_at?: string
+          design_json?: Json | null
           id?: string
           last_dispatch_at?: string | null
           name?: string
@@ -3370,6 +3376,7 @@ export type Database = {
       }
       email_messages: {
         Row: {
+          attachments: Json
           bcc_addresses: string[]
           body_html: string | null
           body_text: string | null
@@ -3396,6 +3403,7 @@ export type Database = {
           to_addresses: string[]
         }
         Insert: {
+          attachments?: Json
           bcc_addresses?: string[]
           body_html?: string | null
           body_text?: string | null
@@ -3422,6 +3430,7 @@ export type Database = {
           to_addresses?: string[]
         }
         Update: {
+          attachments?: Json
           bcc_addresses?: string[]
           body_html?: string | null
           body_text?: string | null
@@ -3543,9 +3552,11 @@ export type Database = {
       }
       email_templates: {
         Row: {
+          attachments: Json
           body_html: string
           created_at: string
           created_by: string | null
+          design_json: Json | null
           id: string
           name: string
           organization_id: string
@@ -3554,9 +3565,11 @@ export type Database = {
           variables: string[]
         }
         Insert: {
+          attachments?: Json
           body_html: string
           created_at?: string
           created_by?: string | null
+          design_json?: Json | null
           id?: string
           name: string
           organization_id: string
@@ -3565,9 +3578,11 @@ export type Database = {
           variables?: string[]
         }
         Update: {
+          attachments?: Json
           body_html?: string
           created_at?: string
           created_by?: string | null
+          design_json?: Json | null
           id?: string
           name?: string
           organization_id?: string

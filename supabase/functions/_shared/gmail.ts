@@ -1,5 +1,6 @@
 // Shared: refresh Gmail access token when expired
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { chunkBase64, PreparedAttachment } from './email-attachments.ts';
 
 export interface EmailChannel {
   id: string;
@@ -56,6 +57,7 @@ export function buildRawMime(opts: {
   to: string[]; cc?: string[]; bcc?: string[];
   subject: string; html?: string; text?: string;
   inReplyTo?: string | null;
+  attachments?: PreparedAttachment[];
 }): string {
   const fromHeader = opts.fromName ? `"${opts.fromName}" <${opts.fromEmail}>` : opts.fromEmail;
   const headers = [
@@ -72,21 +74,40 @@ export function buildRawMime(opts: {
   }
   const html = opts.html ?? (opts.text ? `<pre>${escapeHtml(opts.text)}</pre>` : '');
   const text = opts.text ?? stripHtml(html);
-  const boundary = `bnd_${crypto.randomUUID().replace(/-/g, '')}`;
-  headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
-  const body = [
+  const altBoundary = `alt_${crypto.randomUUID().replace(/-/g, '')}`;
+  const alternativePart = [
+    `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
     '',
-    `--${boundary}`,
+    `--${altBoundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
     'Content-Transfer-Encoding: 7bit',
     '', text,
-    `--${boundary}`,
+    `--${altBoundary}`,
     'Content-Type: text/html; charset="UTF-8"',
     'Content-Transfer-Encoding: 7bit',
     '', html,
-    `--${boundary}--`,
+    `--${altBoundary}--`,
   ].join('\r\n');
-  const raw = headers.join('\r\n') + '\r\n' + body;
+
+  const attachments = opts.attachments ?? [];
+  let raw: string;
+  if (attachments.length === 0) {
+    raw = headers.join('\r\n') + '\r\n' + alternativePart;
+  } else {
+    const mixedBoundary = `mixed_${crypto.randomUUID().replace(/-/g, '')}`;
+    headers.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
+    const parts: string[] = ['', `--${mixedBoundary}`, alternativePart];
+    for (const a of attachments) {
+      parts.push(`--${mixedBoundary}`);
+      parts.push(`Content-Type: ${a.contentType}; name="${a.filename}"`);
+      parts.push(`Content-Transfer-Encoding: base64`);
+      parts.push(`Content-Disposition: attachment; filename="${a.filename}"`);
+      parts.push('');
+      parts.push(chunkBase64(a.base64));
+    }
+    parts.push(`--${mixedBoundary}--`);
+    raw = headers.join('\r\n') + '\r\n' + parts.join('\r\n');
+  }
   // base64url
   return btoa(unescape(encodeURIComponent(raw))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }

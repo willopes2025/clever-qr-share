@@ -110,6 +110,8 @@ export async function sendMailSmtp(opts: SmtpOptions, msg: SendOptions): Promise
   }
 }
 
+import { chunkBase64, PreparedAttachment } from "./email-attachments.ts";
+
 export function buildSimpleMime(params: {
   fromName?: string | null;
   fromEmail: string;
@@ -120,9 +122,10 @@ export function buildSimpleMime(params: {
   html?: string | null;
   text?: string | null;
   inReplyTo?: string | null;
+  attachments?: PreparedAttachment[];
 }): string {
   const fromHeader = params.fromName ? `${params.fromName} <${params.fromEmail}>` : params.fromEmail;
-  const boundary = `_bnd_${crypto.randomUUID().replace(/-/g, "")}`;
+  const altBoundary = `_alt_${crypto.randomUUID().replace(/-/g, "")}`;
   const msgId = `<${crypto.randomUUID()}@${params.fromEmail.split("@")[1] ?? "widezap.local"}>`;
 
   const headers: string[] = [
@@ -141,32 +144,60 @@ export function buildSimpleMime(params: {
 
   const textPart = params.text ?? (params.html ? params.html.replace(/<[^>]+>/g, "") : "");
   const htmlPart = params.html ?? null;
+  const attachments = params.attachments ?? [];
 
+  // Build the alternative (text+html) block first.
+  let alternative: string;
   if (htmlPart) {
-    headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
-    const body = [
+    alternative = [
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
       ``,
-      `--${boundary}`,
+      `--${altBoundary}`,
       `Content-Type: text/plain; charset=UTF-8`,
       `Content-Transfer-Encoding: 8bit`,
       ``,
       textPart,
       ``,
-      `--${boundary}`,
+      `--${altBoundary}`,
       `Content-Type: text/html; charset=UTF-8`,
       `Content-Transfer-Encoding: 8bit`,
       ``,
       htmlPart,
       ``,
-      `--${boundary}--`,
-      ``,
+      `--${altBoundary}--`,
     ].join("\r\n");
-    return headers.join("\r\n") + "\r\n" + body;
   } else {
-    headers.push(`Content-Type: text/plain; charset=UTF-8`);
-    headers.push(`Content-Transfer-Encoding: 8bit`);
-    return headers.join("\r\n") + "\r\n\r\n" + textPart;
+    alternative = [
+      `Content-Type: text/plain; charset=UTF-8`,
+      `Content-Transfer-Encoding: 8bit`,
+      ``,
+      textPart,
+    ].join("\r\n");
   }
+
+  if (attachments.length === 0) {
+    // top-level content-type = alternative (or plain)
+    // Extract first header line from alternative and merge with global headers.
+    const [ctHeader, ...rest] = alternative.split("\r\n");
+    headers.push(ctHeader);
+    return headers.join("\r\n") + "\r\n" + rest.join("\r\n") + "\r\n";
+  }
+
+  // Wrap in multipart/mixed with attachments.
+  const mixedBoundary = `_mixed_${crypto.randomUUID().replace(/-/g, "")}`;
+  headers.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
+  const parts: string[] = [``, `--${mixedBoundary}`, alternative];
+  for (const a of attachments) {
+    parts.push(`--${mixedBoundary}`);
+    parts.push(`Content-Type: ${a.contentType}; name="${a.filename}"`);
+    parts.push(`Content-Transfer-Encoding: base64`);
+    parts.push(`Content-Disposition: attachment; filename="${a.filename}"`);
+    parts.push(``);
+    parts.push(chunkBase64(a.base64));
+  }
+  parts.push(`--${mixedBoundary}--`);
+  parts.push(``);
+  return headers.join("\r\n") + "\r\n" + parts.join("\r\n");
 }
 
 function encodeSubject(s: string): string {

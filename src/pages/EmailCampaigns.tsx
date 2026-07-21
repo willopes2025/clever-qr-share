@@ -17,14 +17,24 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 
+import { EmailAttachmentsField, type EmailAttachmentMeta } from "@/components/email/EmailAttachmentsField";
+import { VisualEmailDesigner } from "@/components/email/VisualEmailDesigner";
+import type { EmailDesign } from "@/lib/email-design";
+
 interface Channel { id: string; email_address: string; display_name: string | null; status: string; }
-interface Template { id: string; name: string; subject: string; body_html: string; }
+interface Template {
+  id: string; name: string; subject: string; body_html: string;
+  design_json: EmailDesign | null;
+  attachments: EmailAttachmentMeta[] | null;
+}
 interface Campaign {
   id: string; name: string; subject: string; body_html: string; body_text: string | null;
   channel_id: string; template_id: string | null;
   source_type: string; source_config: Record<string, unknown>;
   batch_size: number; batch_interval_seconds: number;
   status: string; stats: Record<string, number>;
+  attachments: EmailAttachmentMeta[] | null;
+  design_json: EmailDesign | null;
   started_at: string | null; completed_at: string | null; created_at: string;
 }
 interface Recipient {
