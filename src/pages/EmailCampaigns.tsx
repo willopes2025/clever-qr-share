@@ -212,6 +212,10 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
   const [templateId, setTemplateId] = useState<string>("");
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
+  const [design, setDesign] = useState<EmailDesign | null>(null);
+  const [attachments, setAttachments] = useState<EmailAttachmentMeta[]>([]);
+  const [editorTab, setEditorTab] = useState<"visual" | "html">("visual");
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [sourceType, setSourceType] = useState<"paste" | "form" | "broadcast" | "contacts_all">("paste");
   const [pastedEmails, setPastedEmails] = useState("");
   const [formId, setFormId] = useState<string>("");
@@ -228,12 +232,23 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
       .then(({ data }) => setForms((data ?? []) as { id: string; name: string }[]));
     supabase.from("broadcast_lists").select("id,name").order("name")
       .then(({ data }) => setLists((data ?? []) as { id: string; name: string }[]));
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: o } = await supabase.rpc("resolve_user_organization_id", { _user_id: data.user.id });
+      setOrgId(o as string | null);
+    });
   }, [open]);
 
   useEffect(() => {
     if (!templateId) return;
     const t = templates.find(x => x.id === templateId);
-    if (t) { setSubject(t.subject); setBodyHtml(t.body_html); }
+    if (t) {
+      setSubject(t.subject);
+      setBodyHtml(t.body_html);
+      setDesign((t.design_json as EmailDesign | null) ?? null);
+      setAttachments((t.attachments as EmailAttachmentMeta[] | null) ?? []);
+      setEditorTab(t.design_json ? "visual" : "html");
+    }
   }, [templateId, templates]);
 
   async function collectRecipients(): Promise<{ email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[]> {
