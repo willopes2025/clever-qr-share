@@ -9,13 +9,14 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Mail, RefreshCw, Plus, Loader2, Send, Trash2, Megaphone, Inbox as InboxIcon, SendHorizonal, Archive, Layers } from "lucide-react";
+import { Mail, RefreshCw, Plus, Loader2, Send, Trash2, Megaphone, Inbox as InboxIcon, SendHorizonal, Archive, Layers, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { ConnectEmailDialog } from "@/components/email/ConnectEmailDialog";
 import { EmailAttachmentsField, type EmailAttachmentMeta } from "@/components/email/EmailAttachmentsField";
+import { SignatureDialog } from "@/components/email/SignatureDialog";
 import { Paperclip } from "lucide-react";
 
 interface EmailChannel {
