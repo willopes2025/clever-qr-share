@@ -63,6 +63,16 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Append channel signature (if set) to both HTML and text bodies.
+    const sig = (channel as { signature_html?: string | null }).signature_html;
+    let outHtml = html as string | undefined;
+    let outText = text as string | undefined;
+    if (sig && sig.trim()) {
+      outHtml = `${outHtml ?? ''}<br/><br/>${sig}`;
+      const sigText = sig.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+      if (sigText) outText = `${outText ?? ''}\n\n${sigText}`;
+    }
+
     if (channel.provider === 'gmail') {
       const accessToken = await ensureFreshGmailToken(admin, channel as EmailChannel);
       const raw = buildRawMime({
