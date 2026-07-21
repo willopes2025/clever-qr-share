@@ -325,6 +325,18 @@ function ComposeDialog({ open, onOpenChange, channel, onSent }: {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [attachments, setAttachments] = useState<EmailAttachmentMeta[]>([]);
+  const [orgId, setOrgId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setAttachments([]);
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: o } = await supabase.rpc("resolve_user_organization_id", { _user_id: data.user.id });
+      setOrgId(o as string | null);
+    });
+  }, [open]);
 
   async function send() {
     if (!channel) return;
@@ -332,12 +344,16 @@ function ComposeDialog({ open, onOpenChange, channel, onSent }: {
     if (recipients.length === 0 || !subject.trim()) { toast.error("Preencha destinatário e assunto"); return; }
     setSending(true);
     const { error } = await supabase.functions.invoke("email-send", {
-      body: { channel_id: channel.id, to: recipients, subject, text: body, html: `<p>${body.replace(/\n/g, "<br/>")}</p>` },
+      body: {
+        channel_id: channel.id, to: recipients, subject,
+        text: body, html: `<p>${body.replace(/\n/g, "<br/>")}</p>`,
+        attachments,
+      },
     });
     setSending(false);
     if (error) { toast.error(error.message); return; }
     toast.success("E-mail enviado");
-    setTo(""); setSubject(""); setBody(""); onSent();
+    setTo(""); setSubject(""); setBody(""); setAttachments([]); onSent();
   }
 
   return (
@@ -349,6 +365,9 @@ function ComposeDialog({ open, onOpenChange, channel, onSent }: {
           <div><Label>Para (separe por vírgula)</Label><Input value={to} onChange={e => setTo(e.target.value)} placeholder="alguem@exemplo.com" /></div>
           <div><Label>Assunto</Label><Input value={subject} onChange={e => setSubject(e.target.value)} /></div>
           <div><Label>Mensagem</Label><Textarea rows={8} value={body} onChange={e => setBody(e.target.value)} /></div>
+          <div><Label className="flex items-center gap-2"><Paperclip className="h-4 w-4" />Anexos</Label>
+            <EmailAttachmentsField organizationId={orgId} value={attachments} onChange={setAttachments} />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
