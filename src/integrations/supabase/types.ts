@@ -3289,6 +3289,7 @@ export type Database = {
           oauth_token_expires_at: string | null
           organization_id: string
           provider: string
+          signature_html: string | null
           smtp_host: string | null
           smtp_password: string | null
           smtp_port: number | null
@@ -3322,6 +3323,7 @@ export type Database = {
           oauth_token_expires_at?: string | null
           organization_id: string
           provider: string
+          signature_html?: string | null
           smtp_host?: string | null
           smtp_password?: string | null
           smtp_port?: number | null
@@ -3355,6 +3357,7 @@ export type Database = {
           oauth_token_expires_at?: string | null
           organization_id?: string
           provider?: string
+          signature_html?: string | null
           smtp_host?: string | null
           smtp_password?: string | null
           smtp_port?: number | null

@@ -214,7 +214,8 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
   const [bodyHtml, setBodyHtml] = useState("");
   const [design, setDesign] = useState<EmailDesign | null>(null);
   const [attachments, setAttachments] = useState<EmailAttachmentMeta[]>([]);
-  const [editorTab, setEditorTab] = useState<"visual" | "html">("visual");
+  const [editorTab, setEditorTab] = useState<"simple" | "visual" | "html">("simple");
+  const [simpleText, setSimpleText] = useState("");
   const [orgId, setOrgId] = useState<string | null>(null);
   const [sourceType, setSourceType] = useState<"paste" | "form" | "broadcast" | "contacts_all">("paste");
   const [pastedEmails, setPastedEmails] = useState("");
@@ -369,11 +370,34 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
 
           <div>
             <Label>Conteúdo do e-mail</Label>
-            <Tabs value={editorTab} onValueChange={(v) => setEditorTab(v as "visual" | "html")} className="mt-1">
+            <Tabs value={editorTab} onValueChange={(v) => setEditorTab(v as "simple" | "visual" | "html")} className="mt-1">
               <TabsList>
+                <TabsTrigger value="simple">Mensagem simples</TabsTrigger>
                 <TabsTrigger value="visual">Editor visual (mala direta)</TabsTrigger>
                 <TabsTrigger value="html">HTML</TabsTrigger>
               </TabsList>
+              <TabsContent value="simple" className="mt-3">
+                <Textarea
+                  rows={10}
+                  value={simpleText}
+                  onChange={(e) => {
+                    const t = e.target.value;
+                    setSimpleText(t);
+                    setDesign(null);
+                    const escaped = t
+                      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    const paragraphs = escaped
+                      .split(/\n{2,}/)
+                      .map((p) => `<p style="margin:0 0 12px 0;">${p.replace(/\n/g, "<br/>")}</p>`)
+                      .join("");
+                    setBodyHtml(paragraphs);
+                  }}
+                  placeholder={"Escreva sua mensagem normalmente.\n\nUse quebras de linha e parágrafos como em qualquer mensagem.\n\nOlá {{nome}}, ..."}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Modo mais fácil: apenas texto (com anexo). A assinatura configurada na conta é adicionada automaticamente.
+                </p>
+              </TabsContent>
               <TabsContent value="visual" className="mt-3">
                 <VisualEmailDesigner value={design} subject={subject}
                   onChange={(d, html) => { setDesign(d); setBodyHtml(html); }} />

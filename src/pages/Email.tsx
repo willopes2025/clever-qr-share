@@ -9,18 +9,20 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Mail, RefreshCw, Plus, Loader2, Send, Trash2, Megaphone, Inbox as InboxIcon, SendHorizonal, Archive, Layers } from "lucide-react";
+import { Mail, RefreshCw, Plus, Loader2, Send, Trash2, Megaphone, Inbox as InboxIcon, SendHorizonal, Archive, Layers, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { ConnectEmailDialog } from "@/components/email/ConnectEmailDialog";
 import { EmailAttachmentsField, type EmailAttachmentMeta } from "@/components/email/EmailAttachmentsField";
+import { SignatureDialog } from "@/components/email/SignatureDialog";
 import { Paperclip } from "lucide-react";
 
 interface EmailChannel {
   id: string; email_address: string; display_name: string | null;
   provider: string; status: string; last_synced_at: string | null;
+  signature_html: string | null;
 }
 interface EmailThread {
   id: string; subject: string | null; last_message_at: string | null;
@@ -54,6 +56,7 @@ export default function EmailPage() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [folder, setFolder] = useState<FolderKey>("inbox");
   const [connectOpen, setConnectOpen] = useState(false);
+  const [signatureOpen, setSignatureOpen] = useState(false);
 
   const activeChannel = useMemo(() => channels.find(c => c.status === "active") ?? null, [channels]);
 
@@ -145,6 +148,9 @@ export default function EmailPage() {
             </Link>
             {activeChannel && (
               <>
+                <Button variant="outline" size="sm" onClick={() => setSignatureOpen(true)}>
+                  <PenLine className="h-4 w-4 mr-2" />Assinatura
+                </Button>
                 <Button variant="outline" size="sm" onClick={sync} disabled={syncing}>
                   {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   <span className="ml-2">Sincronizar</span>
@@ -241,6 +247,9 @@ export default function EmailPage() {
         channel={activeChannel} onSent={() => { setComposeOpen(false); if (activeChannel) loadThreads(activeChannel.id, folder); }} />
       <ConnectEmailDialog open={connectOpen} onOpenChange={setConnectOpen}
         onConnected={() => loadChannels()} />
+      <SignatureDialog open={signatureOpen} onOpenChange={setSignatureOpen}
+        channelId={activeChannel?.id ?? null} initialHtml={activeChannel?.signature_html ?? null}
+        onSaved={loadChannels} />
     </DashboardLayout>
   );
 }
