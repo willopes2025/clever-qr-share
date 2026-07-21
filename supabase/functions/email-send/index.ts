@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       const accessToken = await ensureFreshGmailToken(admin, channel as EmailChannel);
       const raw = buildRawMime({
         fromName: channel.display_name, fromEmail: channel.email_address,
-        to, cc, bcc, subject, html, text, inReplyTo: in_reply_to ?? null,
+        to, cc, bcc, subject, html: outHtml, text: outText, inReplyTo: in_reply_to ?? null,
         attachments: preparedAttachments,
       });
       const sendRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
       const accessToken = await ensureFreshMsToken(admin, channel as MsChannel);
       const msg: any = {
         subject,
-        body: { contentType: html ? 'HTML' : 'Text', content: html ?? text ?? '' },
+        body: { contentType: outHtml ? 'HTML' : 'Text', content: outHtml ?? outText ?? '' },
         toRecipients: (to as string[]).map(a => ({ emailAddress: { address: a } })),
         ccRecipients: (cc ?? []).map((a: string) => ({ emailAddress: { address: a } })),
         bccRecipients: (bcc ?? []).map((a: string) => ({ emailAddress: { address: a } })),
@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
       const raw = buildSimpleMime({
         fromName: channel.display_name,
         fromEmail: channel.email_address,
-        to, cc: cc ?? [], subject, html, text, inReplyTo: in_reply_to ?? null,
+        to, cc: cc ?? [], subject, html: outHtml, text: outText, inReplyTo: in_reply_to ?? null,
         attachments: preparedAttachments,
       });
       const recipients = [
