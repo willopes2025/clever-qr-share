@@ -345,7 +345,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Nova campanha de e-mail</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div><Label>Nome da campanha</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
