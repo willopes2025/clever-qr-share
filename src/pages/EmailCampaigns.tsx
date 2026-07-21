@@ -17,14 +17,24 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 
+import { EmailAttachmentsField, type EmailAttachmentMeta } from "@/components/email/EmailAttachmentsField";
+import { VisualEmailDesigner } from "@/components/email/VisualEmailDesigner";
+import type { EmailDesign } from "@/lib/email-design";
+
 interface Channel { id: string; email_address: string; display_name: string | null; status: string; }
-interface Template { id: string; name: string; subject: string; body_html: string; }
+interface Template {
+  id: string; name: string; subject: string; body_html: string;
+  design_json: EmailDesign | null;
+  attachments: EmailAttachmentMeta[] | null;
+}
 interface Campaign {
   id: string; name: string; subject: string; body_html: string; body_text: string | null;
   channel_id: string; template_id: string | null;
   source_type: string; source_config: Record<string, unknown>;
   batch_size: number; batch_interval_seconds: number;
   status: string; stats: Record<string, number>;
+  attachments: EmailAttachmentMeta[] | null;
+  design_json: EmailDesign | null;
   started_at: string | null; completed_at: string | null; created_at: string;
 }
 interface Recipient {
@@ -50,12 +60,12 @@ export default function EmailCampaigns() {
     setLoading(true);
     const [ch, tpl, cmp] = await Promise.all([
       supabase.from("email_channels").select("id,email_address,display_name,status").order("created_at", { ascending: false }),
-      supabase.from("email_templates").select("id,name,subject,body_html").order("updated_at", { ascending: false }),
+      supabase.from("email_templates").select("id,name,subject,body_html,design_json,attachments").order("updated_at", { ascending: false }),
       supabase.from("email_campaigns").select("*").order("created_at", { ascending: false }),
     ]);
     setChannels((ch.data ?? []) as Channel[]);
-    setTemplates((tpl.data ?? []) as Template[]);
-    setCampaigns((cmp.data ?? []) as Campaign[]);
+    setTemplates((tpl.data ?? []) as unknown as Template[]);
+    setCampaigns((cmp.data ?? []) as unknown as Campaign[]);
     setLoading(false);
   }
 
@@ -202,6 +212,10 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
   const [templateId, setTemplateId] = useState<string>("");
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
+  const [design, setDesign] = useState<EmailDesign | null>(null);
+  const [attachments, setAttachments] = useState<EmailAttachmentMeta[]>([]);
+  const [editorTab, setEditorTab] = useState<"visual" | "html">("visual");
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [sourceType, setSourceType] = useState<"paste" | "form" | "broadcast" | "contacts_all">("paste");
   const [pastedEmails, setPastedEmails] = useState("");
   const [formId, setFormId] = useState<string>("");
@@ -218,12 +232,23 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
       .then(({ data }) => setForms((data ?? []) as { id: string; name: string }[]));
     supabase.from("broadcast_lists").select("id,name").order("name")
       .then(({ data }) => setLists((data ?? []) as { id: string; name: string }[]));
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: o } = await supabase.rpc("resolve_user_organization_id", { _user_id: data.user.id });
+      setOrgId(o as string | null);
+    });
   }, [open]);
 
   useEffect(() => {
     if (!templateId) return;
     const t = templates.find(x => x.id === templateId);
-    if (t) { setSubject(t.subject); setBodyHtml(t.body_html); }
+    if (t) {
+      setSubject(t.subject);
+      setBodyHtml(t.body_html);
+      setDesign((t.design_json as EmailDesign | null) ?? null);
+      setAttachments((t.attachments as EmailAttachmentMeta[] | null) ?? []);
+      setEditorTab(t.design_json ? "visual" : "html");
+    }
   }, [templateId, templates]);
 
   async function collectRecipients(): Promise<{ email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[]> {
@@ -283,11 +308,13 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
 
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) { toast.error("Não autenticado"); setSaving(false); return; }
-      const { data: orgId } = await supabase.rpc("resolve_user_organization_id", { _user_id: user.user.id });
+      const { data: campaignOrgId } = await supabase.rpc("resolve_user_organization_id", { _user_id: user.user.id });
 
       const { data: campaign, error: cErr } = await supabase.from("email_campaigns").insert({
-        organization_id: orgId, user_id: user.user.id, name, channel_id: channelId,
+        organization_id: campaignOrgId, user_id: user.user.id, name, channel_id: channelId,
         template_id: templateId || null, subject, body_html: bodyHtml,
+        design_json: design as never,
+        attachments: attachments as never,
         source_type: sourceType, source_config: { formId, listId },
         batch_size: batchSize, batch_interval_seconds: batchInterval,
         status: startNow ? "running" : "draft",
@@ -299,7 +326,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
       // Insert recipients in batches of 500
       for (let i = 0; i < recipients.length; i += 500) {
         const slice = recipients.slice(i, i + 500).map(r => ({
-          campaign_id: campaign.id, organization_id: orgId as string, email: r.email,
+          campaign_id: campaign.id, organization_id: campaignOrgId as string, email: r.email,
           name: r.name ?? null, contact_id: r.contact_id ?? null,
           variables: (r.variables ?? {}) as never, status: "pending",
         }));
@@ -309,7 +336,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
 
       toast.success(`Campanha criada com ${recipients.length} destinatário(s)`);
       onOpenChange(false);
-      setName(""); setSubject(""); setBodyHtml(""); setPastedEmails("");
+      setName(""); setSubject(""); setBodyHtml(""); setPastedEmails(""); setAttachments([]); setDesign(null);
       onCreated();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao criar campanha");
@@ -318,7 +345,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Nova campanha de e-mail</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div><Label>Nome da campanha</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
@@ -339,10 +366,30 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
           <div><Label>Assunto</Label>
             <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Use {{nome}} para variáveis" />
           </div>
-          <div><Label>Corpo (HTML)</Label>
-            <Textarea rows={8} value={bodyHtml} onChange={e => setBodyHtml(e.target.value)} placeholder="Olá {{nome}}, ..." />
+
+          <div>
+            <Label>Conteúdo do e-mail</Label>
+            <Tabs value={editorTab} onValueChange={(v) => setEditorTab(v as "visual" | "html")} className="mt-1">
+              <TabsList>
+                <TabsTrigger value="visual">Editor visual (mala direta)</TabsTrigger>
+                <TabsTrigger value="html">HTML</TabsTrigger>
+              </TabsList>
+              <TabsContent value="visual" className="mt-3">
+                <VisualEmailDesigner value={design} subject={subject}
+                  onChange={(d, html) => { setDesign(d); setBodyHtml(html); }} />
+              </TabsContent>
+              <TabsContent value="html" className="mt-3">
+                <Textarea rows={10} value={bodyHtml} onChange={e => { setBodyHtml(e.target.value); setDesign(null); }} placeholder="<p>Olá {{nome}}, ...</p>" />
+              </TabsContent>
+            </Tabs>
             <p className="text-xs text-muted-foreground mt-1">Variáveis: {"{{nome}}"}, {"{{email}}"} e campos do contato/formulário.</p>
           </div>
+
+          <div>
+            <Label>Anexos</Label>
+            <EmailAttachmentsField organizationId={orgId} value={attachments} onChange={setAttachments} />
+          </div>
+
 
           <div><Label>Origem dos destinatários</Label>
             <Select value={sourceType} onValueChange={(v) => setSourceType(v as typeof sourceType)}>
@@ -504,13 +551,25 @@ function TemplateDialog({ open, onOpenChange, template, onSaved }: {
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
+  const [design, setDesign] = useState<EmailDesign | null>(null);
+  const [attachments, setAttachments] = useState<EmailAttachmentMeta[]>([]);
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editorTab, setEditorTab] = useState<"visual" | "html">("visual");
 
   useEffect(() => {
     if (!open) return;
     setName(template?.name ?? "");
     setSubject(template?.subject ?? "");
     setBodyHtml(template?.body_html ?? "");
+    setDesign((template?.design_json as EmailDesign | null) ?? null);
+    setAttachments((template?.attachments as EmailAttachmentMeta[] | null) ?? []);
+    setEditorTab(template?.design_json ? "visual" : (template?.body_html ? "html" : "visual"));
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: o } = await supabase.rpc("resolve_user_organization_id", { _user_id: data.user.id });
+      setOrgId(o as string | null);
+    });
   }, [open, template]);
 
   async function save() {
@@ -518,12 +577,16 @@ function TemplateDialog({ open, onOpenChange, template, onSaved }: {
     setSaving(true);
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) { setSaving(false); return; }
-    const { data: orgId } = await supabase.rpc("resolve_user_organization_id", { _user_id: user.user.id });
+    const payload = {
+      name, subject, body_html: bodyHtml,
+      design_json: design as never,
+      attachments: attachments as never,
+    };
     if (template) {
-      const { error } = await supabase.from("email_templates").update({ name, subject, body_html: bodyHtml }).eq("id", template.id);
+      const { error } = await supabase.from("email_templates").update(payload).eq("id", template.id);
       if (error) { toast.error(error.message); setSaving(false); return; }
     } else {
-      const { error } = await supabase.from("email_templates").insert({ name, subject, body_html: bodyHtml, organization_id: orgId, created_by: user.user.id });
+      const { error } = await supabase.from("email_templates").insert({ ...payload, organization_id: orgId, created_by: user.user.id });
       if (error) { toast.error(error.message); setSaving(false); return; }
     }
     toast.success("Template salvo");
@@ -539,13 +602,32 @@ function TemplateDialog({ open, onOpenChange, template, onSaved }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{template ? "Editar template" : "Novo template"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div><Label>Nome</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
-          <div><Label>Assunto</Label><Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Use {{nome}} para variáveis" /></div>
-          <div><Label>Corpo (HTML)</Label>
-            <Textarea rows={10} value={bodyHtml} onChange={e => setBodyHtml(e.target.value)} placeholder="<p>Olá {{nome}}...</p>" />
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Nome</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
+            <div><Label>Assunto</Label><Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Use {{nome}} para variáveis" /></div>
+          </div>
+
+          <Tabs value={editorTab} onValueChange={(v) => setEditorTab(v as "visual" | "html")}>
+            <TabsList>
+              <TabsTrigger value="visual">Editor visual (mala direta)</TabsTrigger>
+              <TabsTrigger value="html">HTML</TabsTrigger>
+            </TabsList>
+            <TabsContent value="visual" className="mt-3">
+              <VisualEmailDesigner value={design} subject={subject}
+                onChange={(d, html) => { setDesign(d); setBodyHtml(html); }} />
+            </TabsContent>
+            <TabsContent value="html" className="mt-3">
+              <Textarea rows={14} value={bodyHtml} onChange={e => { setBodyHtml(e.target.value); setDesign(null); }} placeholder="<p>Olá {{nome}}...</p>" />
+              <p className="text-xs text-muted-foreground mt-1">Alterar o HTML manualmente descarta o design visual.</p>
+            </TabsContent>
+          </Tabs>
+
+          <div>
+            <Label>Anexos</Label>
+            <EmailAttachmentsField organizationId={orgId} value={attachments} onChange={setAttachments} />
           </div>
         </div>
         <DialogFooter className="justify-between">

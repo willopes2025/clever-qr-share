@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { ensureFreshGmailToken, buildRawMime, EmailChannel } from '../_shared/gmail.ts';
 import { ensureFreshMsToken, MsChannel } from '../_shared/microsoft.ts';
 import { sendMailSmtp, buildSimpleMime } from '../_shared/smtp-native.ts';
+import { loadAttachments, AttachmentMeta } from '../_shared/email-attachments.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -22,12 +23,13 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { channel_id, to, cc, bcc, subject, html, text, contact_id, thread_id, in_reply_to } = body ?? {};
+    const { channel_id, to, cc, bcc, subject, html, text, contact_id, thread_id, in_reply_to, attachments } = body ?? {};
     if (!channel_id || !Array.isArray(to) || to.length === 0 || !subject) {
       return new Response(JSON.stringify({ error: 'channel_id, to[], subject required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    const attachmentsMeta: AttachmentMeta[] = Array.isArray(attachments) ? attachments : [];
 
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const { data: channel, error: chErr } = await admin
@@ -50,11 +52,23 @@ Deno.serve(async (req) => {
       providerThreadId = th?.provider_thread_id ?? undefined;
     }
 
+    // Load attachments once (used across providers).
+    let preparedAttachments;
+    try {
+      preparedAttachments = await loadAttachments(admin, attachmentsMeta);
+    } catch (attErr) {
+      const msg = attErr instanceof Error ? attErr.message : String(attErr);
+      return new Response(JSON.stringify({ error: msg }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (channel.provider === 'gmail') {
       const accessToken = await ensureFreshGmailToken(admin, channel as EmailChannel);
       const raw = buildRawMime({
         fromName: channel.display_name, fromEmail: channel.email_address,
         to, cc, bcc, subject, html, text, inReplyTo: in_reply_to ?? null,
+        attachments: preparedAttachments,
       });
       const sendRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
         method: 'POST',
@@ -79,6 +93,14 @@ Deno.serve(async (req) => {
         ccRecipients: (cc ?? []).map((a: string) => ({ emailAddress: { address: a } })),
         bccRecipients: (bcc ?? []).map((a: string) => ({ emailAddress: { address: a } })),
       };
+      if (preparedAttachments.length > 0) {
+        msg.attachments = preparedAttachments.map(a => ({
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          name: a.filename,
+          contentType: a.contentType,
+          contentBytes: a.base64,
+        }));
+      }
       const sendRes = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -100,6 +122,7 @@ Deno.serve(async (req) => {
         fromName: channel.display_name,
         fromEmail: channel.email_address,
         to, cc: cc ?? [], subject, html, text, inReplyTo: in_reply_to ?? null,
+        attachments: preparedAttachments,
       });
       const recipients = [
         ...(to as string[]),
@@ -171,6 +194,7 @@ Deno.serve(async (req) => {
       to_addresses: to, cc_addresses: cc ?? [], bcc_addresses: bcc ?? [],
       subject, body_html: html ?? null, body_text: text ?? null,
       snippet: (text ?? html ?? '').replace(/<[^>]+>/g, '').slice(0, 200),
+      attachments: attachmentsMeta,
       is_read: true, sent_at: new Date().toISOString(),
       sent_by: user.id, status: 'delivered',
     }).select().single();

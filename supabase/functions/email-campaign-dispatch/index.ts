@@ -1,6 +1,7 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { ensureFreshGmailToken, buildRawMime, EmailChannel } from '../_shared/gmail.ts';
+import { loadAttachments, AttachmentMeta } from '../_shared/email-attachments.ts';
 
 const MAX_PER_TICK = 200;
 
@@ -45,6 +46,22 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Load campaign attachments once per tick.
+      let campaignAttachments: Awaited<ReturnType<typeof loadAttachments>> = [];
+      const attMeta: AttachmentMeta[] = Array.isArray(campaign.attachments) ? campaign.attachments : [];
+      if (attMeta.length > 0) {
+        try {
+          campaignAttachments = await loadAttachments(admin, attMeta);
+        } catch (attErr) {
+          console.error('campaign attachments failed', campaign.id, attErr);
+          await admin.from('email_campaigns').update({
+            status: 'failed',
+            stats: { ...(campaign.stats ?? {}), last_error: String(attErr).slice(0, 500) },
+          }).eq('id', campaign.id);
+          continue;
+        }
+      }
+
       const { data: batch } = await admin.from('email_campaign_recipients').select('*')
         .eq('campaign_id', campaign.id).eq('status', 'pending')
         .lte('scheduled_at', now.toISOString())
@@ -76,6 +93,7 @@ Deno.serve(async (req) => {
           const raw = buildRawMime({
             fromName: channel.display_name, fromEmail: channel.email_address,
             to: [rec.email], subject, html, text,
+            attachments: campaignAttachments,
           });
           const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
             method: 'POST',
