@@ -366,10 +366,30 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
           <div><Label>Assunto</Label>
             <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Use {{nome}} para variáveis" />
           </div>
-          <div><Label>Corpo (HTML)</Label>
-            <Textarea rows={8} value={bodyHtml} onChange={e => setBodyHtml(e.target.value)} placeholder="Olá {{nome}}, ..." />
+
+          <div>
+            <Label>Conteúdo do e-mail</Label>
+            <Tabs value={editorTab} onValueChange={(v) => setEditorTab(v as "visual" | "html")} className="mt-1">
+              <TabsList>
+                <TabsTrigger value="visual">Editor visual (mala direta)</TabsTrigger>
+                <TabsTrigger value="html">HTML</TabsTrigger>
+              </TabsList>
+              <TabsContent value="visual" className="mt-3">
+                <VisualEmailDesigner value={design} subject={subject}
+                  onChange={(d, html) => { setDesign(d); setBodyHtml(html); }} />
+              </TabsContent>
+              <TabsContent value="html" className="mt-3">
+                <Textarea rows={10} value={bodyHtml} onChange={e => { setBodyHtml(e.target.value); setDesign(null); }} placeholder="<p>Olá {{nome}}, ...</p>" />
+              </TabsContent>
+            </Tabs>
             <p className="text-xs text-muted-foreground mt-1">Variáveis: {"{{nome}}"}, {"{{email}}"} e campos do contato/formulário.</p>
           </div>
+
+          <div>
+            <Label>Anexos</Label>
+            <EmailAttachmentsField organizationId={orgId} value={attachments} onChange={setAttachments} />
+          </div>
+
 
           <div><Label>Origem dos destinatários</Label>
             <Select value={sourceType} onValueChange={(v) => setSourceType(v as typeof sourceType)}>
