@@ -22,6 +22,7 @@ import { Paperclip } from "lucide-react";
 interface EmailChannel {
   id: string; email_address: string; display_name: string | null;
   provider: string; status: string; last_synced_at: string | null;
+  signature_html: string | null;
 }
 interface EmailThread {
   id: string; subject: string | null; last_message_at: string | null;
@@ -55,6 +56,7 @@ export default function EmailPage() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [folder, setFolder] = useState<FolderKey>("inbox");
   const [connectOpen, setConnectOpen] = useState(false);
+  const [signatureOpen, setSignatureOpen] = useState(false);
 
   const activeChannel = useMemo(() => channels.find(c => c.status === "active") ?? null, [channels]);
 
@@ -146,6 +148,9 @@ export default function EmailPage() {
             </Link>
             {activeChannel && (
               <>
+                <Button variant="outline" size="sm" onClick={() => setSignatureOpen(true)}>
+                  <PenLine className="h-4 w-4 mr-2" />Assinatura
+                </Button>
                 <Button variant="outline" size="sm" onClick={sync} disabled={syncing}>
                   {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   <span className="ml-2">Sincronizar</span>
@@ -242,6 +247,9 @@ export default function EmailPage() {
         channel={activeChannel} onSent={() => { setComposeOpen(false); if (activeChannel) loadThreads(activeChannel.id, folder); }} />
       <ConnectEmailDialog open={connectOpen} onOpenChange={setConnectOpen}
         onConnected={() => loadChannels()} />
+      <SignatureDialog open={signatureOpen} onOpenChange={setSignatureOpen}
+        channelId={activeChannel?.id ?? null} initialHtml={activeChannel?.signature_html ?? null}
+        onSaved={loadChannels} />
     </DashboardLayout>
   );
 }
