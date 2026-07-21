@@ -308,11 +308,13 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
 
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) { toast.error("Não autenticado"); setSaving(false); return; }
-      const { data: orgId } = await supabase.rpc("resolve_user_organization_id", { _user_id: user.user.id });
+      const { data: campaignOrgId } = await supabase.rpc("resolve_user_organization_id", { _user_id: user.user.id });
 
       const { data: campaign, error: cErr } = await supabase.from("email_campaigns").insert({
-        organization_id: orgId, user_id: user.user.id, name, channel_id: channelId,
+        organization_id: campaignOrgId, user_id: user.user.id, name, channel_id: channelId,
         template_id: templateId || null, subject, body_html: bodyHtml,
+        design_json: design as never,
+        attachments: attachments as never,
         source_type: sourceType, source_config: { formId, listId },
         batch_size: batchSize, batch_interval_seconds: batchInterval,
         status: startNow ? "running" : "draft",
@@ -324,7 +326,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
       // Insert recipients in batches of 500
       for (let i = 0; i < recipients.length; i += 500) {
         const slice = recipients.slice(i, i + 500).map(r => ({
-          campaign_id: campaign.id, organization_id: orgId as string, email: r.email,
+          campaign_id: campaign.id, organization_id: campaignOrgId as string, email: r.email,
           name: r.name ?? null, contact_id: r.contact_id ?? null,
           variables: (r.variables ?? {}) as never, status: "pending",
         }));
@@ -334,7 +336,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
 
       toast.success(`Campanha criada com ${recipients.length} destinatário(s)`);
       onOpenChange(false);
-      setName(""); setSubject(""); setBodyHtml(""); setPastedEmails("");
+      setName(""); setSubject(""); setBodyHtml(""); setPastedEmails(""); setAttachments([]); setDesign(null);
       onCreated();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao criar campanha");
