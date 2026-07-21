@@ -60,12 +60,12 @@ export default function EmailCampaigns() {
     setLoading(true);
     const [ch, tpl, cmp] = await Promise.all([
       supabase.from("email_channels").select("id,email_address,display_name,status").order("created_at", { ascending: false }),
-      supabase.from("email_templates").select("id,name,subject,body_html").order("updated_at", { ascending: false }),
+      supabase.from("email_templates").select("id,name,subject,body_html,design_json,attachments").order("updated_at", { ascending: false }),
       supabase.from("email_campaigns").select("*").order("created_at", { ascending: false }),
     ]);
     setChannels((ch.data ?? []) as Channel[]);
-    setTemplates((tpl.data ?? []) as Template[]);
-    setCampaigns((cmp.data ?? []) as Campaign[]);
+    setTemplates((tpl.data ?? []) as unknown as Template[]);
+    setCampaigns((cmp.data ?? []) as unknown as Campaign[]);
     setLoading(false);
   }
 
