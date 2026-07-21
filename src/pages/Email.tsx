@@ -15,6 +15,8 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { ConnectEmailDialog } from "@/components/email/ConnectEmailDialog";
+import { EmailAttachmentsField, type EmailAttachmentMeta } from "@/components/email/EmailAttachmentsField";
+import { Paperclip } from "lucide-react";
 
 interface EmailChannel {
   id: string; email_address: string; display_name: string | null;
