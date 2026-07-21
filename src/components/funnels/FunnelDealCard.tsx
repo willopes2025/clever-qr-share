@@ -323,12 +323,18 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging, cardF
                   )}
                 </Badge>
               )}
-              {deal.expected_close_date && (
-                <Badge variant="outline" className="h-5 px-1.5 text-[10px] gap-0.5">
-                  <Calendar className="h-3 w-3" />
-                  {format(new Date(deal.expected_close_date), "dd/MMM", { locale: ptBR })}
-                </Badge>
-              )}
+              {deal.expected_close_date && (() => {
+                // expected_close_date é DATE (YYYY-MM-DD). Evita shift de fuso ao parsear como local.
+                const s = String(deal.expected_close_date).slice(0, 10);
+                const [y, m, d] = s.split('-').map(Number);
+                const localDate = new Date(y, (m || 1) - 1, d || 1);
+                return (
+                  <Badge variant="outline" className="h-5 px-1.5 text-[10px] gap-0.5">
+                    <Calendar className="h-3 w-3" />
+                    {format(localDate, "dd/MMM", { locale: ptBR })}
+                  </Badge>
+                );
+              })()}
               {deal.source && (
                 <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
                   {deal.source}
