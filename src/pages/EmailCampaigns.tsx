@@ -514,13 +514,25 @@ function TemplateDialog({ open, onOpenChange, template, onSaved }: {
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
+  const [design, setDesign] = useState<EmailDesign | null>(null);
+  const [attachments, setAttachments] = useState<EmailAttachmentMeta[]>([]);
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editorTab, setEditorTab] = useState<"visual" | "html">("visual");
 
   useEffect(() => {
     if (!open) return;
     setName(template?.name ?? "");
     setSubject(template?.subject ?? "");
     setBodyHtml(template?.body_html ?? "");
+    setDesign((template?.design_json as EmailDesign | null) ?? null);
+    setAttachments((template?.attachments as EmailAttachmentMeta[] | null) ?? []);
+    setEditorTab(template?.design_json ? "visual" : (template?.body_html ? "html" : "visual"));
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: o } = await supabase.rpc("resolve_user_organization_id", { _user_id: data.user.id });
+      setOrgId(o as string | null);
+    });
   }, [open, template]);
 
   async function save() {
@@ -528,12 +540,16 @@ function TemplateDialog({ open, onOpenChange, template, onSaved }: {
     setSaving(true);
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) { setSaving(false); return; }
-    const { data: orgId } = await supabase.rpc("resolve_user_organization_id", { _user_id: user.user.id });
+    const payload = {
+      name, subject, body_html: bodyHtml,
+      design_json: design as never,
+      attachments: attachments as never,
+    };
     if (template) {
-      const { error } = await supabase.from("email_templates").update({ name, subject, body_html: bodyHtml }).eq("id", template.id);
+      const { error } = await supabase.from("email_templates").update(payload).eq("id", template.id);
       if (error) { toast.error(error.message); setSaving(false); return; }
     } else {
-      const { error } = await supabase.from("email_templates").insert({ name, subject, body_html: bodyHtml, organization_id: orgId, created_by: user.user.id });
+      const { error } = await supabase.from("email_templates").insert({ ...payload, organization_id: orgId, created_by: user.user.id });
       if (error) { toast.error(error.message); setSaving(false); return; }
     }
     toast.success("Template salvo");
@@ -549,13 +565,32 @@ function TemplateDialog({ open, onOpenChange, template, onSaved }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{template ? "Editar template" : "Novo template"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div><Label>Nome</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
-          <div><Label>Assunto</Label><Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Use {{nome}} para variáveis" /></div>
-          <div><Label>Corpo (HTML)</Label>
-            <Textarea rows={10} value={bodyHtml} onChange={e => setBodyHtml(e.target.value)} placeholder="<p>Olá {{nome}}...</p>" />
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Nome</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
+            <div><Label>Assunto</Label><Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Use {{nome}} para variáveis" /></div>
+          </div>
+
+          <Tabs value={editorTab} onValueChange={(v) => setEditorTab(v as "visual" | "html")}>
+            <TabsList>
+              <TabsTrigger value="visual">Editor visual (mala direta)</TabsTrigger>
+              <TabsTrigger value="html">HTML</TabsTrigger>
+            </TabsList>
+            <TabsContent value="visual" className="mt-3">
+              <VisualEmailDesigner value={design} subject={subject}
+                onChange={(d, html) => { setDesign(d); setBodyHtml(html); }} />
+            </TabsContent>
+            <TabsContent value="html" className="mt-3">
+              <Textarea rows={14} value={bodyHtml} onChange={e => { setBodyHtml(e.target.value); setDesign(null); }} placeholder="<p>Olá {{nome}}...</p>" />
+              <p className="text-xs text-muted-foreground mt-1">Alterar o HTML manualmente descarta o design visual.</p>
+            </TabsContent>
+          </Tabs>
+
+          <div>
+            <Label>Anexos</Label>
+            <EmailAttachmentsField organizationId={orgId} value={attachments} onChange={setAttachments} />
           </div>
         </div>
         <DialogFooter className="justify-between">
