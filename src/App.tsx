@@ -124,6 +124,11 @@ const App = () => (
                         <EmailCampaigns />
                       </ProtectedRoute>
                     } />
+                    <Route path="/admin/corrigir-lente" element={
+                      <ProtectedRoute>
+                        <LensFix />
+                      </ProtectedRoute>
+                    } />
                     <Route path="/campaigns" element={
                       <ProtectedRoute>
                         <PermissionGate permission="view_campaigns">
