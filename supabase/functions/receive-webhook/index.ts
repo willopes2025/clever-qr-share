@@ -728,6 +728,44 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
           console.warn('[LID] findContacts lookup failed:', (lookupErr as Error).message);
         }
 
+        // Fallback: query findMessages for this specific LID to get remoteJidAlt
+        if (!isValidPhone(phone)) {
+          try {
+            const mResp = await fetch(
+              `${evolutionApiUrl}/chat/findMessages/${instanceName}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+                body: JSON.stringify({
+                  where: { key: { remoteJid: `${labelId}@lid` } },
+                  limit: 20,
+                }),
+              }
+            );
+            if (mResp.ok) {
+              const mData = await mResp.json();
+              const records: any[] = Array.isArray(mData)
+                ? mData
+                : (mData?.messages?.records ?? mData?.records ?? mData?.messages ?? mData?.data ?? []);
+              for (const rec of records) {
+                const alt: string | undefined = rec?.key?.remoteJidAlt || rec?.remoteJidAlt;
+                if (!alt) continue;
+                if (!(alt.includes('@s.whatsapp.net') || alt.includes('@c.us'))) continue;
+                const candidate = normalizePhone(extractPhone(alt));
+                if (isValidPhone(candidate)) {
+                  phone = candidate;
+                  console.log('[LID] Resolved real phone via findMessages:', phone);
+                  break;
+                }
+              }
+            } else {
+              console.warn('[LID] findMessages lookup status', mResp.status);
+            }
+          } catch (msgErr) {
+            console.warn('[LID] findMessages lookup failed:', (msgErr as Error).message);
+          }
+        }
+
         if (!isValidPhone(phone)) {
           if (existingContactByLid) {
             phone = existingContactByLid.phone;
