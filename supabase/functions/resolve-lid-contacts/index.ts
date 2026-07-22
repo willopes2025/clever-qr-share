@@ -76,6 +76,50 @@ async function fetchInstanceContacts(
   return map;
 }
 
+// Fallback: resolve a single LID by scanning recent messages for remoteJidAlt.
+// Evolution's findContacts doesn't always expose the lid<->real mapping, but
+// findMessages returns the real number in key.remoteJidAlt on inbound messages
+// from LID (Click-to-WhatsApp Ads) contacts.
+async function resolveLidViaMessages(
+  instanceName: string,
+  labelId: string,
+): Promise<string | null> {
+  try {
+    const url = `${EVOLUTION_API_URL}/chat/findMessages/${instanceName}`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY },
+      body: JSON.stringify({
+        where: { key: { remoteJid: `${labelId}@lid` } },
+        limit: 20,
+      }),
+    });
+    if (!resp.ok) {
+      console.warn(`[resolve-lid] findMessages ${instanceName} ${labelId} -> ${resp.status}`);
+      return null;
+    }
+    const data = await resp.json();
+    const records: any[] = Array.isArray(data)
+      ? data
+      : (data?.messages?.records ?? data?.records ?? data?.messages ?? data?.data ?? []);
+    for (const rec of records) {
+      const alt: string | undefined = rec?.key?.remoteJidAlt || rec?.remoteJidAlt;
+      if (!alt) continue;
+      if (!(alt.includes('@s.whatsapp.net') || alt.includes('@c.us'))) continue;
+      const raw = extractPhoneFromJid(String(alt));
+      const normalized = normalizePhone(raw);
+      if (isValidPhone(normalized)) {
+        console.log(`[resolve-lid] via findMessages ${labelId} -> ${normalized}`);
+        return normalized;
+      }
+    }
+    return null;
+  } catch (e) {
+    console.error(`[resolve-lid] findMessages error ${instanceName} ${labelId}:`, (e as Error).message);
+    return null;
+  }
+}
+
 async function mergeContacts(
   supabase: ReturnType<typeof createClient>,
   sourceId: string,
