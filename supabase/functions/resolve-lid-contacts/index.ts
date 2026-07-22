@@ -294,7 +294,18 @@ async function run(mode: 'all' | 'queue'): Promise<ResolveStats> {
     for (const c of userContacts) {
       try {
         const labelId = (c.label_id || c.phone.replace(/^LID_/, '')).trim();
-        const real = lidMap.get(labelId);
+        let real = lidMap.get(labelId);
+        if (!real) {
+          // Fallback: scan messages of each instance for remoteJidAlt
+          for (const name of instanceNames) {
+            const resolved = await resolveLidViaMessages(name, labelId);
+            if (resolved) {
+              real = resolved;
+              lidMap.set(labelId, resolved);
+              break;
+            }
+          }
+        }
         if (real) {
           await processContact(supabase, c, real, stats);
         } else {
