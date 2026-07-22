@@ -49,6 +49,7 @@ const MetaAuthCallback = lazy(() => import("./pages/MetaAuthCallback"));
 const MetaMessengerCallback = lazy(() => import("./pages/MetaMessengerCallback"));
 const Email = lazy(() => import("./pages/Email"));
 const EmailCampaigns = lazy(() => import("./pages/EmailCampaigns"));
+const LensFix = lazy(() => import("./pages/LensFix"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Forms = lazy(() => import("./pages/Forms"));
 const FormBuilder = lazy(() => import("./pages/FormBuilder"));
@@ -121,6 +122,11 @@ const App = () => (
                     <Route path="/email/campaigns" element={
                       <ProtectedRoute>
                         <EmailCampaigns />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/admin/corrigir-lente" element={
+                      <ProtectedRoute>
+                        <LensFix />
                       </ProtectedRoute>
                     } />
                     <Route path="/campaigns" element={
