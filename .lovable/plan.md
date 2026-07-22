@@ -1,83 +1,52 @@
-## Objetivo
+## Diagnóstico
 
-Duas melhorias no módulo de e-mail:
-1. **Anexos** em campanhas, templates e envio avulso (`/email` → Compor).
-2. **Editor visual "mala direta"** com blocos prontos (header, imagem, botão CTA, colunas, rodapé) para gerar HTML responsivo sem escrever código.
+O contato "Coloquei Deus acima de Tudo" (id `00f6b3e8…`) ficou com telefone `LID_1219888197746` porque veio de anúncio Click-to-WhatsApp e o Evolution devolveu apenas o `@lid`, sem o telefone real na primeira mensagem.
 
----
+Investiguei o Evolution da instância **Soul Muscle** e confirmei:
 
-## 1. Anexos
+- `POST /chat/findContacts/Soul Muscle` → devolve o registro do LID **sem** o campo `lid`/`remoteJid` mapeando para o número real. É por isso que tanto o `receive-webhook` quanto o cron `resolve-lid-contacts` (ambos usam `findContacts`) não conseguem resolver.
+- `POST /chat/findMessages/Soul Muscle` com `where.key.remoteJid = "1219888197746@lid"` → devolve as mensagens com `key.remoteJidAlt = "559294418204@s.whatsapp.net"`. **Esse é o telefone real** do lead.
 
-### Storage
-- Novo bucket privado `email-attachments` (via `storage_create_bucket`).
-- RLS em `storage.objects`: leitura/escrita restrita à organização do usuário (path `<org_id>/<uuid>-<filename>`).
-- Limite prático: 10 MB por arquivo, até 5 arquivos por e-mail (limite típico Gmail/SMTP: 25 MB total). Validação no frontend + na edge function.
+Além disso, esse contato específico nunca entrou em `lid_resolution_queue` (a fila está vazia para ele), então mesmo o modo `queue` do resolver nunca tentaria processá-lo — só o modo `all` o pegaria, e ainda assim falharia pelo motivo acima.
 
-### Schema
-Nova tabela `email_campaign_attachments` (e reutilizar `email_attachments` que já existe para mensagens individuais):
-- `id, campaign_id, storage_path, filename, content_type, size_bytes, created_at`
-- GRANT + RLS por organização.
-- Também aceitar anexos em `email_templates` via nova coluna `attachments jsonb` (lista de `{path, filename, content_type, size}`) para que o template já leve os anexos.
+## O que fazer
 
-### UI
-- **Compor (`/email`)**: botão "Anexar arquivo" que faz upload para `email-attachments` e mostra chips removíveis.
-- **Templates**: mesma UI de anexos no `TemplateDialog`.
-- **Nova campanha**: mesma UI; se um template for escolhido, herda os anexos e permite adicionar/remover.
-- **Detalhe da campanha**: lista de anexos (nome + tamanho + download).
+### 1. Adicionar fallback `findMessages` no resolvedor de LID
 
-### Envio (edge functions)
-- `email-send`, `email-campaign-dispatch`, `email-send-imap`: baixar cada anexo via service role, converter em base64 e:
-  - **Gmail**: montar MIME `multipart/mixed` com `buildRawMime` estendido para aceitar `attachments: [{filename, contentType, base64}]`.
-  - **Microsoft Graph**: array `attachments` com `@odata.type: #microsoft.graph.fileAttachment`.
-  - **SMTP (IMAP)**: `buildSimpleMime` estendido para `multipart/mixed`.
-- Erro claro se algum anexo ultrapassar o limite do provedor.
+Em `supabase/functions/resolve-lid-contacts/index.ts`, quando `fetchInstanceContacts` (que usa `findContacts`) **não** encontra o `labelId` do contato, fazer uma segunda chamada:
 
----
+```
+POST /chat/findMessages/{instance}
+body: { where: { key: { remoteJid: "<labelId>@lid" } }, limit: 20 }
+```
 
-## 2. Editor "mala direta"
+Percorrer os `records` e pegar o primeiro `key.remoteJidAlt` que termine com `@s.whatsapp.net`/`@c.us`. Normalizar com `normalizePhone` e usar como telefone real (segue o mesmo fluxo `processContact` já existente: merge se já existir contato com esse número, senão apenas atualiza `phone` e limpa `custom_fields.lid_unresolved`).
 
-### Abordagem
-Adicionar um **modo Visual** ao lado do modo HTML atual, tanto no `TemplateDialog` quanto no `CreateCampaignDialog`. Não substitui o HTML — gera HTML compatível com clientes de e-mail (tabelas inline, largura máx 600px, sem `<style>` externo).
+Cachear em memória por instância para não repetir chamadas na mesma execução.
 
-### Blocos disponíveis
-Estrutura JSON persistida em nova coluna `email_templates.design_json jsonb` (e `email_campaigns.design_json jsonb`):
-- **Header** — logo + título + subtítulo, cor de fundo configurável.
-- **Texto** — parágrafo com formatação básica (bold, itálico, link, `{{variáveis}}`).
-- **Imagem** — upload para bucket `email-attachments` (reaproveitado) + alt + link opcional.
-- **Botão CTA** — texto, URL, cor, alinhamento.
-- **Divisor** — linha horizontal.
-- **Colunas 2x** — duas colunas com texto/imagem.
-- **Rodapé** — endereço, redes sociais, texto "descadastrar" já inserido pelo sistema.
+### 2. Aplicar o mesmo fallback no `receive-webhook`
 
-### Preset "Programa Seven / mala direta"
-Um template inicial pronto no botão "Novo template → Usar mala direta" que já traz: header verde da marca, saudação `{{nome}}`, bloco texto, botão CTA, rodapé. Basta editar textos.
+Em `supabase/functions/receive-webhook/index.ts` (bloco `[LID] ... Resolved real phone from cached map`, linhas ~680–740), se após consultar o cache do `findContacts` o telefone ainda não for válido, fazer a mesma chamada `findMessages` para o `labelId` atual **antes** de cair no `phone = LID_${labelId}`. Isso evita que novos contatos entrem no sistema já como `LID_`.
 
-### Compilação
-Utilitário `compileDesignToHtml(design_json)` em `src/lib/email-design.ts`:
-- Renderiza tabelas MSO-safe (usa `<table role="presentation">`, larguras fixas, estilos inline).
-- Substitui variáveis `{{...}}` no dispatch (já existe).
-- Salva o HTML compilado em `body_html` toda vez que salva (mantém retrocompatibilidade com envios que só olham `body_html`).
+### 3. Backfill: enfileirar todos os LID_ existentes
 
-### UI
-- Dialog em duas abas: **Visual** (drag-list de blocos, painel lateral de propriedades) | **HTML** (mostra o gerado, editável — se editar aqui, entra em "modo avançado" e desativa Visual).
-- Preview ao vivo no lado direito (iframe sandbox).
-- Bibliotecas: usar apenas Radix + Tailwind existentes; drag com `@dnd-kit/core` (já presente no projeto — confirmar em `package.json` no build).
+Rodar uma migração única que insere todos os contatos ainda com `phone LIKE 'LID_%'` em `lid_resolution_queue` (com `attempts = 0`, `resolved_at = null`), para que o cron `resolve-lid-queue` (modo `queue`) os processe usando o novo fallback.
 
----
+```sql
+INSERT INTO lid_resolution_queue (contact_id, label_id, user_id, attempts)
+SELECT id, COALESCE(label_id, substr(phone, 5)), user_id, 0
+FROM contacts
+WHERE phone LIKE 'LID_%'
+ON CONFLICT (contact_id) DO UPDATE
+SET attempts = 0, resolved_at = NULL, last_error = NULL;
+```
 
-## Rota / permissões / analytics
-- Nenhum novo endpoint; tudo passa pelas funções `email-send*` e `email-campaign-dispatch` atualizadas.
-- Reaproveita RLS existente (`email_channels`, `email_campaigns`, `email_templates`) já escopadas por org.
+### 4. Disparo manual imediato
 
-## Fora de escopo
-- Editor de e-mail transacional (`_shared/transactional-email-templates`) continua em código (é infra).
-- Split test A/B, agendamento futuro, tracking de abertura/clique — podem virar plano separado.
+Depois do deploy, invocar `resolve-lid-contacts` com `{ "mode": "queue" }` para reprocessar todos os LIDs pendentes de uma vez. O contato do print deve virar `559294418204` automaticamente (ou ser mergeado se já existir outro contato com esse número no mesmo user).
 
-## Ordem de implementação
-1. Bucket `email-attachments` + RLS.
-2. Colunas `attachments`, `design_json` em `email_templates` e `email_campaigns`.
-3. UI de anexos (Compor → Templates → Campanha) + edge functions com multipart.
-4. `compileDesignToHtml` + preset "mala direta".
-5. Aba Visual nos dialogs de template e campanha.
+## Notas técnicas
 
-Ao final, o usuário consegue: montar um e-mail visual com blocos, anexar PDF/imagem, salvar como template, disparar em campanha com anexos + variáveis por contato.
+- `findMessages` retorna `records` dentro de `messages` em algumas versões do Evolution; o código deve tolerar tanto `data.messages.records` quanto `data[]`.
+- O merge de contatos duplicados já é tratado por `mergeContacts` — nenhum ajuste extra necessário.
+- Nenhuma alteração de UI: o cabeçalho da conversa passa a mostrar o telefone real assim que o contato for atualizado, e o realtime do inbox reflete a mudança sem refresh manual.
