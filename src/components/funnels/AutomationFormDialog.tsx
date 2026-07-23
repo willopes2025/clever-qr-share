@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
 import { useMetaWhatsAppNumbers } from "@/hooks/useMetaWhatsAppNumbers";
+import { useMetaTemplates } from "@/hooks/useMetaTemplates";
 
 interface AutomationFormDialogProps {
   open: boolean;
