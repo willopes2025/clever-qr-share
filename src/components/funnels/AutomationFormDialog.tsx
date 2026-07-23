@@ -91,6 +91,110 @@ type ActionType =
   | 'ai_analyze_and_move'
   | 'activate_ai';
 
+// Meta official template action config: choose Meta number + approved template
+function SendMetaTemplateActionConfig({ actionConfig, setActionConfig }: {
+  actionConfig: Record<string, unknown>;
+  setActionConfig: (v: Record<string, unknown>) => void;
+}) {
+  const { metaNumbers, isLoading: isLoadingNumbers } = useMetaWhatsAppNumbers();
+  const activeNumbers = (metaNumbers || []).filter((n) => n.is_active);
+  const selectedNumber = activeNumbers.find(
+    (n) => n.phone_number_id === (actionConfig.meta_phone_number_id as string)
+  );
+  const { templates, isLoading: isLoadingTemplates } = useMetaTemplates(selectedNumber?.waba_id ?? null);
+  const approved = (templates || []).filter((t) => t.status === 'approved');
+  const selectedTemplate = approved.find((t) => t.id === (actionConfig.meta_template_id as string));
+
+  return (
+    <div className="space-y-3">
+      <div className="p-3 bg-primary/10 rounded-lg border border-primary/20 text-sm text-muted-foreground">
+        📱 Envia um template oficial aprovado pelo Meta (WhatsApp Cloud API). Ideal para reengajar contatos fora da janela de 24h.
+      </div>
+
+      <div className="space-y-2">
+        <Label>Número Meta WhatsApp</Label>
+        <Select
+          value={(actionConfig.meta_phone_number_id as string) || ''}
+          onValueChange={(v) => setActionConfig({
+            ...actionConfig,
+            meta_phone_number_id: v,
+            meta_template_id: '',
+            meta_template_name: '',
+          })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Selecionar número" />
+          </SelectTrigger>
+          <SelectContent>
+            {isLoadingNumbers ? (
+              <SelectItem value="__loading" disabled>Carregando…</SelectItem>
+            ) : activeNumbers.length === 0 ? (
+              <SelectItem value="__empty" disabled>Nenhum número Meta ativo</SelectItem>
+            ) : (
+              activeNumbers.map((n) => (
+                <SelectItem key={n.phone_number_id} value={n.phone_number_id}>
+                  {n.display_name || n.phone_number || n.phone_number_id}
+                  {n.phone_number && n.display_name ? ` (${n.phone_number})` : ''}
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
+        {activeNumbers.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            Conecte um número Meta em Configurações → WhatsApp Oficial antes de usar esta ação.
+          </p>
+        )}
+      </div>
+
+      {actionConfig.meta_phone_number_id ? (
+        <div className="space-y-2">
+          <Label>Template aprovado</Label>
+          <Select
+            value={(actionConfig.meta_template_id as string) || ''}
+            onValueChange={(v) => {
+              const tpl = approved.find((t) => t.id === v);
+              setActionConfig({
+                ...actionConfig,
+                meta_template_id: v,
+                meta_template_name: tpl?.name || '',
+                meta_template_language: tpl?.language || 'pt_BR',
+              });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecionar template" />
+            </SelectTrigger>
+            <SelectContent>
+              {isLoadingTemplates ? (
+                <SelectItem value="__loading" disabled>Carregando templates…</SelectItem>
+              ) : approved.length === 0 ? (
+                <SelectItem value="__empty" disabled>Nenhum template aprovado nesta conta</SelectItem>
+              ) : (
+                approved.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name} ({t.category})
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+
+      {selectedTemplate && (
+        <div className="rounded-lg bg-muted/50 p-3 space-y-1 border">
+          <p className="text-xs font-medium text-muted-foreground">Prévia:</p>
+          <p className="text-sm whitespace-pre-line line-clamp-6">{selectedTemplate.body_text}</p>
+          <p className="text-xs text-muted-foreground">
+            As variáveis serão resolvidas automaticamente com Nome ({'{{1}}'}) e Telefone ({'{{2}}'}) do contato. Para mapeamento avançado, edite o template em /templates.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Email action config: choose channel + template (or subject+body inline)
 function SendEmailActionConfig({ actionConfig, setActionConfig }: {
   actionConfig: Record<string, unknown>;
