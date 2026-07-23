@@ -270,8 +270,15 @@ const MessageBubbleComponent = ({ message, isOptimistic, instancePhoneNumber, on
               <LocationMessage content={message.content} />
             </div>
           )}
-          
-          {message.content && message.message_type !== 'contact' && message.message_type !== 'contacts' && message.message_type !== 'location' && (
+
+          {/* Form response (WhatsApp Flow / Meta Lead Ad) */}
+          {message.message_type === 'form_response' && message.content && (
+            <div className="mb-1">
+              <FormResponseMessage content={message.content} />
+            </div>
+          )}
+
+          {message.content && message.message_type !== 'contact' && message.message_type !== 'contacts' && message.message_type !== 'location' && message.message_type !== 'form_response' && (
             <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words">
               {message.content}
             </p>
