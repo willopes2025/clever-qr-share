@@ -1066,6 +1066,13 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
             </div>
           )}
 
+          {actionType === 'send_meta_template' && (
+            <SendMetaTemplateActionConfig
+              actionConfig={actionConfig}
+              setActionConfig={setActionConfig}
+            />
+          )}
+
           {actionType === 'send_email' && (
             <SendEmailActionConfig actionConfig={actionConfig} setActionConfig={setActionConfig} />
           )}
