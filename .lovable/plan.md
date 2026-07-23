@@ -1,52 +1,53 @@
-## Diagnóstico
 
-O contato "Coloquei Deus acima de Tudo" (id `00f6b3e8…`) ficou com telefone `LID_1219888197746` porque veio de anúncio Click-to-WhatsApp e o Evolution devolveu apenas o `@lid`, sem o telefone real na primeira mensagem.
+# Exibir respostas de formulário Meta Ads no Inbox
 
-Investiguei o Evolution da instância **Soul Muscle** e confirmei:
+O painel "Resposta ao formulário" que aparece no WhatsApp Business Web (print enviado) vem de dois lugares possíveis — precisamos tratar ambos para que os dados (Nome, Email, Telefone e demais campos) apareçam na conversa do Inbox do Widezap:
 
-- `POST /chat/findContacts/Soul Muscle` → devolve o registro do LID **sem** o campo `lid`/`remoteJid` mapeando para o número real. É por isso que tanto o `receive-webhook` quanto o cron `resolve-lid-contacts` (ambos usam `findContacts`) não conseguem resolver.
-- `POST /chat/findMessages/Soul Muscle` com `where.key.remoteJid = "1219888197746@lid"` → devolve as mensagens com `key.remoteJidAlt = "559294418204@s.whatsapp.net"`. **Esse é o telefone real** do lead.
+1. **WhatsApp Flows / Instant Forms** — o lead abre o anúncio, o form é preenchido dentro do WhatsApp e a resposta chega no webhook Meta como uma mensagem `type: "interactive"` com `interactive.type = "nfm_reply"` contendo `response_json` (JSON com os campos preenchidos). Hoje o `meta-whatsapp-webhook` só lê `button_reply`/`list_reply`, então o conteúdo cai no fallback `[Interativo]` e o JSON é descartado.
+2. **Lead Ads clássicos (Facebook/Instagram Lead Forms)** — não chegam pelo webhook do WhatsApp; chegam pelo webhook de Page com o campo `leadgen`. Precisa assinar o campo `leadgen` na Page e buscar o lead completo em `/{lead_id}?fields=field_data,created_time,ad_id,form_id` usando o page access token.
 
-Além disso, esse contato específico nunca entrou em `lid_resolution_queue` (a fila está vazia para ele), então mesmo o modo `queue` do resolver nunca tentaria processá-lo — só o modo `all` o pegaria, e ainda assim falharia pelo motivo acima.
+## O que vamos construir
 
-## O que fazer
+### 1. Captura no webhook Meta WhatsApp (Flows / nfm_reply)
+Arquivo: `supabase/functions/meta-whatsapp-webhook/index.ts` (case `'interactive'`).
+- Detectar `message.interactive?.type === 'nfm_reply'`.
+- Fazer `JSON.parse(message.interactive.nfm_reply.response_json)` — ele traz `flow_token` + os campos (`screen_0_Nome_0`, `screen_0_Email_1`, etc.).
+- Normalizar em um objeto `{ label, value }[]` (mapeando os nomes técnicos para rótulos legíveis quando possível).
+- Persistir na mensagem do inbox:
+  - `message_type = 'form_response'`
+  - `content` = resumo textual ("Resposta ao formulário: Nome — …, Email — …") para busca/preview
+  - `metadata.form_response = { title, fields: [{label,value}], flow_token, name_token }`
+- Se vier `email` ou telefone alternativo, popular `contacts.email` e `contacts.custom_fields` (respeitando a regra "1 Contact por phone").
 
-### 1. Adicionar fallback `findMessages` no resolvedor de LID
+### 2. Captura de Lead Ads clássicos (leadgen)
+Nova edge function: `receive-meta-leadgen-webhook` (pública, sem JWT) — separada porque a assinatura é no objeto `page`, campo `leadgen`, distinta do webhook WhatsApp/Messenger.
+- Verify token igual ao dos outros webhooks Meta.
+- Ao receber `leadgen`: pegar `leadgen_id`, `page_id`, `form_id`, `ad_id`.
+- Resolver a Page em `meta_messenger_accounts` (já temos `page_access_token`).
+- Buscar `GET /{leadgen_id}?fields=field_data,created_time,ad_id,form_id,campaign_id` com o page token.
+- Normalizar `field_data` → `[{name,value}]`, extrair `phone_number`/`email`/`full_name`.
+- Criar/mesclar Contact pelo telefone (via `normalizePhone`) e Deal no funil padrão da organização, com `tracking = { source:'meta_lead_ads', form_id, ad_id, campaign_id, ctwa_clid:null }`.
+- Se já existe conversa (contato tem WhatsApp), inserir uma mensagem `message_type='form_response'` com os campos, para aparecer no Inbox exatamente como no print.
+- Assinar `leadgen` automaticamente em `connect-meta-messenger` (adicionar `leadgen` na lista `subscribed_fields` já existente para páginas).
 
-Em `supabase/functions/resolve-lid-contacts/index.ts`, quando `fetchInstanceContacts` (que usa `findContacts`) **não** encontra o `labelId` do contato, fazer uma segunda chamada:
+### 3. UI no Inbox
+Novo componente: `src/components/inbox/FormResponseMessage.tsx`.
+- Renderizado quando `message_type === 'form_response'`.
+- Card com título "Resposta ao formulário" + lista `label / value` (visual similar ao painel lateral do WhatsApp do print).
+- Integrado em `MessageBubble.tsx` (onde já existem os handlers de `location`, `contact`, etc.).
 
-```
-POST /chat/findMessages/{instance}
-body: { where: { key: { remoteJid: "<labelId>@lid" } }, limit: 20 }
-```
+### 4. Painel lateral do lead
+Em `LeadPanel` (aba de tracking/atividade), adicionar bloco "Formulários preenchidos" listando todas as `form_response` da conversa/contato, com data e origem (Flow do WhatsApp ou Lead Ad).
 
-Percorrer os `records` e pegar o primeiro `key.remoteJidAlt` que termine com `@s.whatsapp.net`/`@c.us`. Normalizar com `normalizePhone` e usar como telefone real (segue o mesmo fluxo `processContact` já existente: merge se já existir contato com esse número, senão apenas atualiza `phone` e limpa `custom_fields.lid_unresolved`).
+## Detalhes técnicos
 
-Cachear em memória por instância para não repetir chamadas na mesma execução.
+- Migração: adicionar `'form_response'` como valor válido em `inbox_messages.message_type` (se houver CHECK/enum). Nenhuma coluna nova — usar `metadata jsonb`.
+- Assinatura da Page: `connect-meta-messenger` já faz POST em `/subscribed_apps?subscribed_fields=messages,messaging_postbacks,...` — acrescentar `leadgen` na lista.
+- Segurança: `receive-meta-leadgen-webhook` valida `x-hub-signature-256` com `META_WHATSAPP_APP_SECRET` (mesma app), mesmo padrão do `receive-meta-messenger-webhook`.
+- Deduplicação: usar `leadgen_id` como chave idempotente em `metadata.form_response.external_id` para não duplicar quando a Meta reenviar.
+- Sem alterações em `receive-webhook` (Evolution) — este fluxo é exclusivo Meta.
 
-### 2. Aplicar o mesmo fallback no `receive-webhook`
+## Pontos que preciso confirmar antes de codar
 
-Em `supabase/functions/receive-webhook/index.ts` (bloco `[LID] ... Resolved real phone from cached map`, linhas ~680–740), se após consultar o cache do `findContacts` o telefone ainda não for válido, fazer a mesma chamada `findMessages` para o `labelId` atual **antes** de cair no `phone = LID_${labelId}`. Isso evita que novos contatos entrem no sistema já como `LID_`.
-
-### 3. Backfill: enfileirar todos os LID_ existentes
-
-Rodar uma migração única que insere todos os contatos ainda com `phone LIKE 'LID_%'` em `lid_resolution_queue` (com `attempts = 0`, `resolved_at = null`), para que o cron `resolve-lid-queue` (modo `queue`) os processe usando o novo fallback.
-
-```sql
-INSERT INTO lid_resolution_queue (contact_id, label_id, user_id, attempts)
-SELECT id, COALESCE(label_id, substr(phone, 5)), user_id, 0
-FROM contacts
-WHERE phone LIKE 'LID_%'
-ON CONFLICT (contact_id) DO UPDATE
-SET attempts = 0, resolved_at = NULL, last_error = NULL;
-```
-
-### 4. Disparo manual imediato
-
-Depois do deploy, invocar `resolve-lid-contacts` com `{ "mode": "queue" }` para reprocessar todos os LIDs pendentes de uma vez. O contato do print deve virar `559294418204` automaticamente (ou ser mergeado se já existir outro contato com esse número no mesmo user).
-
-## Notas técnicas
-
-- `findMessages` retorna `records` dentro de `messages` em algumas versões do Evolution; o código deve tolerar tanto `data.messages.records` quanto `data[]`.
-- O merge de contatos duplicados já é tratado por `mergeContacts` — nenhum ajuste extra necessário.
-- Nenhuma alteração de UI: o cabeçalho da conversa passa a mostrar o telefone real assim que o contato for atualizado, e o realtime do inbox reflete a mudança sem refresh manual.
+1. Os formulários que você quer que apareçam vêm de **anúncios Click-to-WhatsApp com formulário instantâneo** (usuário preenche dentro do WhatsApp) ou de **Lead Ads tradicionais do Facebook/Instagram** (o form abre no Facebook, sem WhatsApp)? — determinam se implemento só o item 1, só o item 2, ou os dois.
+2. Quando chegar um Lead Ad tradicional sem WhatsApp associado, devo criar o Deal no **funil padrão da organização** ou usar um funil específico configurável em Configurações → Integrações Meta?
