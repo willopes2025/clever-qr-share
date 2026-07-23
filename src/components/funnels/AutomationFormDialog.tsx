@@ -1004,6 +1004,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
               <SelectContent>
                 <SelectItem value="send_message">Enviar mensagem</SelectItem>
                 <SelectItem value="send_template">Enviar template</SelectItem>
+                <SelectItem value="send_meta_template">📱 Enviar template Meta (oficial)</SelectItem>
                 <SelectItem value="send_form_link">📝 Enviar link de formulário</SelectItem>
                 <SelectItem value="send_email">✉️ Enviar e-mail</SelectItem>
                 <SelectItem value="add_tag">Adicionar tag</SelectItem>
