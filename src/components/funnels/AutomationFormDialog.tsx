@@ -71,6 +71,7 @@ type TriggerType =
 type ActionType = 
   | 'send_message' 
   | 'send_template' 
+  | 'send_meta_template'
   | 'send_form_link'
   | 'send_email'
   | 'add_tag' 
