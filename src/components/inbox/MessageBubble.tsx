@@ -6,6 +6,7 @@ import { InboxMessage } from "@/hooks/useConversations";
 import { MediaMessage } from "./MediaMessage";
 import { LocationMessage } from "./LocationMessage";
 import { AdReplyCard } from "./AdReplyCard";
+import { FormResponseMessage } from "./FormResponseMessage";
 
 import { MessageReactionsDisplay, ReactionPicker } from "./MessageReactions";
 import { cn } from "@/lib/utils";
