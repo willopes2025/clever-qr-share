@@ -764,11 +764,48 @@ Deno.serve(async (req) => {
                 case 'button':
                   content = message.button?.text || '[Botão]';
                   break;
-                case 'interactive':
-                  content = message.interactive?.button_reply?.title || 
-                           message.interactive?.list_reply?.title || 
-                           '[Interativo]';
+                case 'interactive': {
+                  const it = message.interactive?.type;
+                  if (it === 'nfm_reply') {
+                    // WhatsApp Flow / Instant Form response (Meta Ads lead forms in-chat)
+                    const nfm = message.interactive.nfm_reply || {};
+                    let responseJson: any = {};
+                    try {
+                      responseJson = typeof nfm.response_json === 'string'
+                        ? JSON.parse(nfm.response_json)
+                        : (nfm.response_json || {});
+                    } catch (_e) {
+                      responseJson = { raw: nfm.response_json };
+                    }
+                    // Turn { screen_0_Nome_0: "Foo", email: "x@y" } into readable [{label,value}]
+                    const humanize = (key: string) => {
+                      let k = key.replace(/^screen_\d+_/, '').replace(/_\d+$/, '');
+                      k = k.replace(/[_-]+/g, ' ').trim();
+                      return k.charAt(0).toUpperCase() + k.slice(1);
+                    };
+                    const fields = Object.entries(responseJson)
+                      .filter(([k]) => k !== 'flow_token')
+                      .map(([k, v]) => ({
+                        key: k,
+                        label: humanize(k),
+                        value: typeof v === 'string' ? v : JSON.stringify(v),
+                      }));
+                    const title = nfm.name || nfm.body || 'Resposta ao formulário';
+                    content = JSON.stringify({
+                      type: 'form_response',
+                      title,
+                      fields,
+                      flow_token: responseJson.flow_token ?? null,
+                      source: 'whatsapp_flow',
+                    });
+                    messageType = 'form_response';
+                  } else {
+                    content = message.interactive?.button_reply?.title ||
+                             message.interactive?.list_reply?.title ||
+                             '[Interativo]';
+                  }
                   break;
+                }
                 default:
                   content = `[${message.type}]`;
               }

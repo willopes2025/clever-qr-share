@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     if (!error && data) {
       // Subscribe page to webhook
       try {
-        const subRes = await fetch(`${GRAPH}/${page.id}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_reactions,messaging_handovers&access_token=${page.access_token}`, { method: 'POST' });
+        const subRes = await fetch(`${GRAPH}/${page.id}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_reactions,messaging_handovers,leadgen&access_token=${page.access_token}`, { method: 'POST' });
         const subJson = await subRes.json();
         if (subJson?.success) {
           await service.from('meta_messenger_accounts').update({ webhook_subscribed: true }).eq('id', data.id);

@@ -145,6 +145,8 @@ project_id = "fgbenetdksqnvwkgnips"
     verify_jwt = false
   [functions.receive-meta-messenger-webhook]
     verify_jwt = false
+  [functions.receive-meta-leadgen-webhook]
+    verify_jwt = false
   [functions.receive-webhook]
     verify_jwt = false
   [functions.reset-warming-daily]
