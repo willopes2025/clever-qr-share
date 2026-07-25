@@ -259,7 +259,7 @@ export const WhatsAppNumberCard = ({
                   <span>Diagnóstico Meta → CRM: {healthConfig.label}</span>
                 </div>
                 {health?.conclusion && (
-                  <p className="max-w-3xl text-xs leading-relaxed text-current/90">
+                  <p className="max-w-3xl text-xs leading-relaxed text-current opacity-90">
                     {health.conclusion}
                   </p>
                 )}
