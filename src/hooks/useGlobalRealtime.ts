@@ -27,16 +27,23 @@ export const useGlobalRealtime = () => {
           const convId = (next.id || oldRow.id) as string | undefined;
 
           if (payload.eventType === 'UPDATE' && convId) {
+            let foundInConversationCache = false;
             queryClient.setQueriesData({ queryKey: ['conversations'] }, (data: any) => {
               if (!Array.isArray(data)) return data;
               let touched = false;
               const updated = data.map((c: any) => {
                 if (c.id !== convId) return c;
                 touched = true;
+                foundInConversationCache = true;
                 return { ...c, ...next };
               });
               return touched ? updated : data;
             });
+            // If the updated conversation is outside the first cached inbox page,
+            // refetch so a new inbound message can move it back to the top.
+            if (!foundInConversationCache) {
+              queryClient.invalidateQueries({ queryKey: ['conversations'], refetchType: 'active' });
+            }
             queryClient.invalidateQueries({ queryKey: ['unread-count'], refetchType: 'active' });
             return;
           }
@@ -62,12 +69,14 @@ export const useGlobalRealtime = () => {
           // Atualização otimista da lista do inbox: bumpa last_message_at,
           // preview e direction sem refazer a query pesada.
           if (msg.conversation_id) {
+            let foundInConversationCache = false;
             queryClient.setQueriesData({ queryKey: ['conversations'] }, (data: any) => {
               if (!Array.isArray(data)) return data;
               let touched = false;
               const updated = data.map((c: any) => {
                 if (c.id !== msg.conversation_id) return c;
                 touched = true;
+                foundInConversationCache = true;
                 return {
                   ...c,
                   last_message_at: msg.created_at ?? c.last_message_at,
@@ -78,6 +87,11 @@ export const useGlobalRealtime = () => {
               });
               return touched ? updated : data;
             });
+            // Conversation may not be in the first cached page; searching would
+            // load it, but the normal inbox must also pull it into the queue.
+            if (!foundInConversationCache) {
+              queryClient.invalidateQueries({ queryKey: ['conversations'], refetchType: 'active' });
+            }
           }
           queryClient.invalidateQueries({ queryKey: ['unread-count'], refetchType: 'active' });
         }
