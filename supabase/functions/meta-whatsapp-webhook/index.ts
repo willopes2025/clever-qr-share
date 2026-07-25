@@ -23,6 +23,92 @@ function phonesMatch(a: string | undefined | null, b: string | undefined | null)
   return false;
 }
 
+type WebhookIdentifiers = {
+  phoneNumberId: string | null;
+  eventType: string;
+  displayPhoneNumber: string | null;
+  wabaId: string | null;
+};
+
+function extractWebhookIdentifiers(body: any): WebhookIdentifiers {
+  const identifiers: WebhookIdentifiers = {
+    phoneNumberId: null,
+    eventType: 'unknown',
+    displayPhoneNumber: null,
+    wabaId: null,
+  };
+
+  for (const entry of body?.entry || []) {
+    identifiers.wabaId = identifiers.wabaId || entry?.id || null;
+
+    for (const change of entry?.changes || []) {
+      const value = change?.value || {};
+
+      if (change.field === 'messages') {
+        identifiers.phoneNumberId = value?.metadata?.phone_number_id || identifiers.phoneNumberId;
+        identifiers.displayPhoneNumber = value?.metadata?.display_phone_number || identifiers.displayPhoneNumber;
+        identifiers.eventType = value?.messages?.length > 0
+          ? 'message'
+          : value?.statuses?.length > 0
+            ? 'status'
+            : 'messages';
+      } else if (change.field === 'message_template_status_update') {
+        identifiers.eventType = 'template_status_update';
+      } else if (change.field === 'phone_number_name_update') {
+        identifiers.eventType = 'phone_number_name_update';
+        identifiers.displayPhoneNumber = value?.display_phone_number || identifiers.displayPhoneNumber;
+      } else if (change.field === 'account_update') {
+        identifiers.eventType = 'account_update';
+        identifiers.wabaId = value?.waba_info?.waba_id || identifiers.wabaId;
+      } else if (change.field) {
+        identifiers.eventType = change.field;
+      }
+
+      if (identifiers.phoneNumberId) return identifiers;
+    }
+  }
+
+  return identifiers;
+}
+
+async function resolveWebhookPhoneNumberId(supabase: any, identifiers: WebhookIdentifiers): Promise<string | null> {
+  if (identifiers.phoneNumberId) return identifiers.phoneNumberId;
+
+  const displayDigits = normalizePhoneDigits(identifiers.displayPhoneNumber);
+
+  try {
+    let query = supabase
+      .from('meta_whatsapp_numbers')
+      .select('phone_number_id, phone_number, waba_id')
+      .eq('is_active', true)
+      .limit(50);
+
+    if (identifiers.wabaId) {
+      query = query.eq('waba_id', identifiers.wabaId);
+    }
+
+    const { data: numbers, error } = await query;
+    if (error) {
+      console.error('[META-WEBHOOK] Error resolving phone number from webhook identifiers:', error);
+      return null;
+    }
+
+    const candidates = numbers || [];
+    if (displayDigits) {
+      const matched = candidates.find((number: any) => phonesMatch(number.phone_number, displayDigits));
+      if (matched?.phone_number_id) return matched.phone_number_id;
+    }
+
+    if (identifiers.wabaId && candidates.length === 1 && candidates[0]?.phone_number_id) {
+      return candidates[0].phone_number_id;
+    }
+  } catch (error) {
+    console.error('[META-WEBHOOK] Unexpected error resolving webhook phone number:', error);
+  }
+
+  return null;
+}
+
 async function getOrganizationMemberIds(supabase: any, userId: string): Promise<string[]> {
   try {
     const { data } = await supabase.rpc('get_organization_member_ids', { _user_id: userId });
@@ -162,27 +248,14 @@ Deno.serve(async (req) => {
       
       console.log('[META-WEBHOOK] Received webhook:', JSON.stringify(body, null, 2));
 
-      // Get phone_number_id from webhook payload to find the correct integration
-      for (const entry of body.entry || []) {
-        for (const change of entry.changes || []) {
-          if (change.field === 'messages' && change.value?.metadata?.phone_number_id) {
-            webhookPhoneNumberId = change.value.metadata.phone_number_id;
-            
-            // Determine event type
-            if (change.value.messages?.length > 0) {
-              eventType = 'message';
-            } else if (change.value.statuses?.length > 0) {
-              eventType = 'status';
-            }
-            break;
-          } else if (change.field === 'message_template_status_update') {
-            eventType = 'template_status_update';
-          }
-        }
-        if (webhookPhoneNumberId) break;
-      }
+      const identifiers = extractWebhookIdentifiers(body);
+      webhookPhoneNumberId = await resolveWebhookPhoneNumberId(supabase, identifiers);
+      eventType = identifiers.eventType;
 
-      console.log('[META-WEBHOOK] Phone Number ID from payload:', webhookPhoneNumberId);
+      console.log('[META-WEBHOOK] Webhook identifiers:', {
+        ...identifiers,
+        resolvedPhoneNumberId: webhookPhoneNumberId,
+      });
 
       // Step 1: Find the user via meta_whatsapp_numbers table (primary lookup)
       let integration = null;
