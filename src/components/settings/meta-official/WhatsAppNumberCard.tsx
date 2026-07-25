@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,9 +15,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Phone, Building2, Signal, Gauge, Trash2, Loader2, Settings2 } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Phone, Building2, Signal, Gauge, Trash2, Loader2, Settings2, RefreshCw } from "lucide-react";
 import type { MetaWhatsAppNumber } from "@/hooks/useMetaWhatsAppNumbers";
 import { MetaNumberConfigDialog } from "./MetaNumberConfigDialog";
+import { toast } from "sonner";
 
 interface WhatsAppNumberCardProps {
   number: MetaWhatsAppNumber;
@@ -52,6 +54,39 @@ const getQualityConfig = (quality: string | null) => {
   }
 };
 
+type MetaNumberHealth = {
+  healthStatus: "ok" | "warning" | "error";
+  conclusion: string;
+  counters: {
+    events_last_24h: number;
+    inbound_messages_last_24h: number;
+    status_events_last_24h: number;
+    conversations: number;
+    failed_events: number;
+  };
+  timeline: {
+    latest_event: { ago: string | null; event_type: string | null; received_at: string } | null;
+    latest_message_event: { ago: string | null; received_at: string } | null;
+    latest_status_event: { ago: string | null; received_at: string } | null;
+    latest_admin_event: { ago: string | null; event_type: string | null; received_at: string } | null;
+    latest_inbound_message: { ago: string | null; status: string | null; message_type: string | null; content_preview: string } | null;
+    latest_outbound_message: { ago: string | null; status: string | null; message_type: string | null; content_preview: string } | null;
+  };
+};
+
+const getHealthConfig = (status: MetaNumberHealth["healthStatus"] | undefined) => {
+  switch (status) {
+    case "ok":
+      return { label: "Saudável", icon: CheckCircle2, className: "border-green-500/30 bg-green-500/10 text-green-300" };
+    case "warning":
+      return { label: "Atenção", icon: AlertTriangle, className: "border-yellow-500/30 bg-yellow-500/10 text-yellow-300" };
+    case "error":
+      return { label: "Falha", icon: AlertTriangle, className: "border-red-500/30 bg-red-500/10 text-red-300" };
+    default:
+      return { label: "Não verificado", icon: Activity, className: "border-border bg-muted/30 text-muted-foreground" };
+  }
+};
+
 export const WhatsAppNumberCard = ({
   number,
   onToggleActive,
@@ -60,8 +95,35 @@ export const WhatsAppNumberCard = ({
   isDeleting,
 }: WhatsAppNumberCardProps) => {
   const [configOpen, setConfigOpen] = useState(false);
+  const [health, setHealth] = useState<MetaNumberHealth | null>(null);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const statusConfig = getStatusConfig(number.status);
   const qualityConfig = getQualityConfig(number.quality_rating);
+  const healthConfig = getHealthConfig(health?.healthStatus);
+  const HealthIcon = healthConfig.icon;
+
+  const handleCheckHealth = async () => {
+    setIsCheckingHealth(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('meta-number-health', {
+        body: {
+          metaNumberId: number.id,
+          phoneNumberId: number.phone_number_id,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Não foi possível verificar o número');
+
+      setHealth(data as MetaNumberHealth);
+      toast.success("Diagnóstico atualizado");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erro ao verificar conexão";
+      toast.error(message);
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  };
 
   return (
     <Card className={`transition-all duration-200 ${number.is_active ? "border-primary/20 bg-card/80" : "border-border/30 bg-muted/20 opacity-70"}`}>
@@ -122,6 +184,17 @@ export const WhatsAppNumberCard = ({
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:text-primary"
+              onClick={handleCheckHealth}
+              disabled={isCheckingHealth}
+              title="Verificar conexão Meta → CRM"
+            >
+              {isCheckingHealth ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-primary"
               onClick={() => setConfigOpen(true)}
               title="Configurar número"
             >
@@ -176,6 +249,70 @@ export const WhatsAppNumberCard = ({
             </AlertDialog>
           </div>
         </div>
+
+        {(health || isCheckingHealth) && (
+          <div className={`mt-4 rounded-lg border p-3 text-sm ${healthConfig.className}`}>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 font-medium">
+                  {isCheckingHealth ? <Loader2 className="h-4 w-4 animate-spin" /> : <HealthIcon className="h-4 w-4" />}
+                  <span>Diagnóstico Meta → CRM: {healthConfig.label}</span>
+                </div>
+                {health?.conclusion && (
+                  <p className="max-w-3xl text-xs leading-relaxed text-current/90">
+                    {health.conclusion}
+                  </p>
+                )}
+              </div>
+
+              {health && (
+                <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 lg:min-w-[460px]">
+                  <div className="rounded-md bg-background/40 p-2">
+                    <div className="text-muted-foreground">Eventos 24h</div>
+                    <div className="font-semibold">{health.counters.events_last_24h}</div>
+                  </div>
+                  <div className="rounded-md bg-background/40 p-2">
+                    <div className="text-muted-foreground">Inbound 24h</div>
+                    <div className="font-semibold">{health.counters.inbound_messages_last_24h}</div>
+                  </div>
+                  <div className="rounded-md bg-background/40 p-2">
+                    <div className="text-muted-foreground">Status 24h</div>
+                    <div className="font-semibold">{health.counters.status_events_last_24h}</div>
+                  </div>
+                  <div className="rounded-md bg-background/40 p-2">
+                    <div className="text-muted-foreground">Falhas</div>
+                    <div className="font-semibold">{health.counters.failed_events}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {health && (
+              <div className="mt-3 grid gap-2 text-xs md:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-md bg-background/40 p-2">
+                  <div className="text-muted-foreground">Último evento</div>
+                  <div className="font-medium">{health.timeline.latest_event?.ago || "Sem registro"}</div>
+                  <div className="text-muted-foreground">{health.timeline.latest_event?.event_type || "—"}</div>
+                </div>
+                <div className="rounded-md bg-background/40 p-2">
+                  <div className="text-muted-foreground">Última mensagem recebida</div>
+                  <div className="font-medium">{health.timeline.latest_inbound_message?.ago || "Sem registro"}</div>
+                  <div className="truncate text-muted-foreground">{health.timeline.latest_inbound_message?.content_preview || health.timeline.latest_inbound_message?.message_type || "—"}</div>
+                </div>
+                <div className="rounded-md bg-background/40 p-2">
+                  <div className="text-muted-foreground">Última mensagem enviada</div>
+                  <div className="font-medium">{health.timeline.latest_outbound_message?.ago || "Sem registro"}</div>
+                  <div className="truncate text-muted-foreground">{health.timeline.latest_outbound_message?.status || "—"}</div>
+                </div>
+                <div className="rounded-md bg-background/40 p-2">
+                  <div className="text-muted-foreground">Último evento administrativo</div>
+                  <div className="font-medium">{health.timeline.latest_admin_event?.ago || "Sem registro"}</div>
+                  <div className="truncate text-muted-foreground">{health.timeline.latest_admin_event?.event_type || "—"}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
 
       <MetaNumberConfigDialog
