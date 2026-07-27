@@ -202,6 +202,9 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Token específico do número (WABAs diferentes usam tokens diferentes)
+    accessToken = (await getMetaTokenForNumber(supabase, phoneNumberId, accessToken)) as string;
+
     // Format phone number
     const formattedPhone = body.to.replace(/[^0-9]/g, '');
 
