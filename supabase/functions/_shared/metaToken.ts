@@ -46,3 +46,24 @@ export async function saveMetaTokenForNumbers(
     .upsert(rows, { onConflict: 'phone_number_id' });
   if (error) console.error('[META-TOKEN] save error:', error.message);
 }
+
+export async function getMetaTokenForWaba(
+  supabase: Client,
+  wabaId: string | null | undefined,
+  fallbackToken?: string | null,
+): Promise<string | null> {
+  if (wabaId) {
+    const { data, error } = await supabase
+      .from('meta_number_tokens')
+      .select('access_token')
+      .eq('waba_id', wabaId)
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      console.error('[META-TOKEN] waba lookup error:', error.message);
+    } else if (data?.access_token) {
+      return data.access_token as string;
+    }
+  }
+  return fallbackToken ?? null;
+}

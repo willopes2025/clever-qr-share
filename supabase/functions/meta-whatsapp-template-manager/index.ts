@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getMetaTokenForWaba } from "../_shared/metaToken.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -103,7 +104,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { action, templateId, templateData, wabaId: requestedWabaId } = await req.json();
     console.log(`[meta-template-manager] Action: ${action}, User: ${user.id}`);
 
-    const { accessToken } = await getMetaCredentials(supabaseClient, user.id);
+    const { accessToken: fallbackAccessToken } = await getMetaCredentials(supabaseClient, user.id);
+    let accessToken = fallbackAccessToken;
 
     if (!accessToken) {
       return new Response(
@@ -132,6 +134,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
         wabaId = Deno.env.get("META_WHATSAPP_BUSINESS_ACCOUNT_ID");
       }
     }
+
+    // Token específico da WABA (contas diferentes exigem tokens diferentes)
+    const serviceClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+    accessToken = (await getMetaTokenForWaba(serviceClient, wabaId, accessToken)) ?? accessToken;
 
     switch (action) {
       case "create": {
