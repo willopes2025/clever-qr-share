@@ -96,6 +96,7 @@ export const WhatsAppNumberCard = ({
   isDeleting,
 }: WhatsAppNumberCardProps) => {
   const [configOpen, setConfigOpen] = useState(false);
+  const [tokenOpen, setTokenOpen] = useState(false);
   const [health, setHealth] = useState<MetaNumberHealth | null>(null);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const statusConfig = getStatusConfig(number.status);
