@@ -242,7 +242,11 @@ Deno.serve(async (req) => {
         .eq('user_id', number.user_id)
         .maybeSingle();
 
-      const accessToken = (integration?.credentials as Record<string, string> | undefined)?.access_token;
+      const accessToken = await getMetaTokenForNumber(
+        serviceClient,
+        resolvedPhoneNumberId,
+        (integration?.credentials as Record<string, string> | undefined)?.access_token,
+      );
       if (accessToken) {
         const graphResponse = await fetch(
           `https://graph.facebook.com/v21.0/${resolvedPhoneNumberId}?fields=display_phone_number,verified_name,quality_rating,messaging_limit_tier,status,name_status&access_token=${accessToken}`,

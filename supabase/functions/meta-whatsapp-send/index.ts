@@ -121,7 +121,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const accessToken = integration.credentials?.access_token;
+    let accessToken = integration.credentials?.access_token;
     if (!accessToken) {
       return new Response(JSON.stringify({ 
         success: false,

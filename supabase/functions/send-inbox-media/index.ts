@@ -177,6 +177,15 @@ Deno.serve(async (req) => {
         throw new Error('Phone Number ID não encontrado para envio Meta');
       }
 
+      const metaAccessToken = await getMetaTokenForNumber(
+        supabase,
+        phoneNumberId,
+        integration.credentials.access_token,
+      );
+      if (!metaAccessToken) {
+        throw new Error('Access token Meta não encontrado para este número. Reconecte o número nas configurações.');
+      }
+
       const formattedPhone = (targetPhone || contactData.phone).replace(/[^0-9]/g, '');
 
       // Create message record
@@ -245,7 +254,7 @@ Deno.serve(async (req) => {
       const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${integration.credentials.access_token}`,
+          'Authorization': `Bearer ${metaAccessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(messagePayload),

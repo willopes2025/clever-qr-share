@@ -252,6 +252,15 @@ serve(async (req) => {
       }
     }
 
+    // ── Step 4d: Save a per-number access token (WABAs diferentes = tokens diferentes) ──
+    await saveMetaTokenForNumbers(
+      adminClient,
+      userId,
+      allPhoneNumbers.map((p) => p.id),
+      accessToken,
+      wabaId,
+    );
+
     // ── Step 5: Subscribe WABA to our app's webhooks ──
     try {
       console.log(`[META-EXCHANGE] Subscribing WABA ${wabaId} to app webhooks...`);
