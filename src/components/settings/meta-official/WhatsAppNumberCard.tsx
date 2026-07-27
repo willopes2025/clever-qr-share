@@ -15,9 +15,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Activity, AlertTriangle, CheckCircle2, Phone, Building2, Signal, Gauge, Trash2, Loader2, Settings2, RefreshCw } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Phone, Building2, Signal, Gauge, Trash2, Loader2, Settings2, RefreshCw, KeyRound } from "lucide-react";
 import type { MetaWhatsAppNumber } from "@/hooks/useMetaWhatsAppNumbers";
 import { MetaNumberConfigDialog } from "./MetaNumberConfigDialog";
+import { MetaNumberTokenDialog } from "./MetaNumberTokenDialog";
 import { toast } from "sonner";
 
 interface WhatsAppNumberCardProps {
@@ -95,6 +96,7 @@ export const WhatsAppNumberCard = ({
   isDeleting,
 }: WhatsAppNumberCardProps) => {
   const [configOpen, setConfigOpen] = useState(false);
+  const [tokenOpen, setTokenOpen] = useState(false);
   const [health, setHealth] = useState<MetaNumberHealth | null>(null);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const statusConfig = getStatusConfig(number.status);
@@ -189,6 +191,16 @@ export const WhatsAppNumberCard = ({
               title="Verificar conexão Meta → CRM"
             >
               {isCheckingHealth ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-primary"
+              onClick={() => setTokenOpen(true)}
+              title="Definir token exclusivo deste número"
+            >
+              <KeyRound className="h-4 w-4" />
             </Button>
 
             <Button
@@ -318,6 +330,12 @@ export const WhatsAppNumberCard = ({
       <MetaNumberConfigDialog
         open={configOpen}
         onOpenChange={setConfigOpen}
+        number={number}
+      />
+
+      <MetaNumberTokenDialog
+        open={tokenOpen}
+        onOpenChange={setTokenOpen}
         number={number}
       />
     </Card>
