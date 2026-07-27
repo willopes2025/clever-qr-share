@@ -328,6 +328,16 @@ Deno.serve(async (req) => {
         throw new Error('Phone Number ID não encontrado para envio Meta');
       }
 
+      // Token específico do número (números de WABAs diferentes usam tokens diferentes)
+      const metaAccessToken = await getMetaTokenForNumber(
+        supabase,
+        phoneNumberId,
+        integration.credentials.access_token,
+      );
+      if (!metaAccessToken) {
+        throw new Error('Access token Meta não encontrado para este número. Reconecte o número nas configurações.');
+      }
+
       const formattedPhone = (targetPhone || contactData.phone).replace(/[^0-9]/g, '');
 
       // ---- META TEMPLATE MESSAGE ----
