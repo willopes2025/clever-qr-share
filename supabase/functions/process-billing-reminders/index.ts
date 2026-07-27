@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -154,7 +155,7 @@ Deno.serve(async (req) => {
             const META_API_URL = 'https://graph.facebook.com/v19.0';
             const response = await fetch(
               `${META_API_URL}/${metaNumber.waba_id}/message_templates?fields=name,status,language&limit=100`,
-              { headers: { 'Authorization': `Bearer ${metaIntegration!.credentials.access_token}` } }
+              { headers: { 'Authorization': `Bearer ${await getMetaTokenForNumber(supabase, configuredMetaPhoneNumberId, metaIntegration!.credentials.access_token)}` } }
             );
             if (response.ok) {
               const data = await response.json();
@@ -399,6 +400,11 @@ Deno.serve(async (req) => {
           let sendSuccess = false;
 
           if (useMetaForThis && hasMeta && metaPhoneNumberId) {
+            const metaAccessToken = await getMetaTokenForNumber(
+              supabase,
+              metaPhoneNumberId,
+              metaIntegration!.credentials.access_token,
+            );
             const formattedPhone = contactPhone.replace(/\D/g, '');
             const META_API_URL = 'https://graph.facebook.com/v19.0';
 
@@ -423,7 +429,7 @@ Deno.serve(async (req) => {
               const response = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
                 method: 'POST',
                 headers: {
-                  'Authorization': `Bearer ${metaIntegration!.credentials.access_token}`,
+                  'Authorization': `Bearer ${metaAccessToken}`,
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
@@ -460,7 +466,7 @@ Deno.serve(async (req) => {
               const response = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
                 method: 'POST',
                 headers: {
-                  'Authorization': `Bearer ${metaIntegration!.credentials.access_token}`,
+                  'Authorization': `Bearer ${metaAccessToken}`,
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
