@@ -197,6 +197,16 @@ export const WhatsAppNumberCard = ({
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:text-primary"
+              onClick={() => setTokenOpen(true)}
+              title="Definir token exclusivo deste número"
+            >
+              <KeyRound className="h-4 w-4" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-primary"
               onClick={() => setConfigOpen(true)}
               title="Configurar número"
             >
