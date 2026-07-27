@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveOrgTimezone } from "../_shared/timezone.ts";
+import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
 
 
 // Declare EdgeRuntime for Supabase Edge Functions
@@ -1093,11 +1094,17 @@ Deno.serve(async (req: Request) => {
 
       console.log(`[META-CAMPAIGN] Sending template "${metaTemplate.name}" to ${formattedPhone}`);
 
+      const metaAccessToken = await getMetaTokenForNumber(
+        supabase,
+        phoneNumberId,
+        (integration.credentials as any).access_token,
+      );
+
       const META_API_URL = 'https://graph.facebook.com/v19.0';
       const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${(integration.credentials as any).access_token}`,
+          'Authorization': `Bearer ${metaAccessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(messagePayload),

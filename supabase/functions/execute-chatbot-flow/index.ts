@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveOrgFormatConfig, formatDateSmart, DEFAULT_FORMAT_CONFIG, type OrgFormatConfig } from "../_shared/timezone.ts";
+import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -974,7 +975,7 @@ Deno.serve(async (req: Request) => {
                 .single();
 
               if (metaTemplate && contact?.phone) {
-                const accessToken = await resolveMetaAccessToken(userId);
+                const accessToken = await getMetaTokenForNumber(supabase, metaConfig.metaPhoneNumberId, await resolveMetaAccessToken(userId));
                 if (accessToken) {
                   const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
                   const components: any[] = [];
@@ -1505,7 +1506,7 @@ Deno.serve(async (req: Request) => {
                   .single();
 
                 // Get access token (integrations table, with org-member + env fallback)
-                const accessToken = await resolveMetaAccessToken(userId);
+                const accessToken = await getMetaTokenForNumber(supabase, config.metaPhoneNumberId, await resolveMetaAccessToken(userId));
                 if (!accessToken) {
                   console.error('[FLOW] No Meta access token found');
                 } else {
