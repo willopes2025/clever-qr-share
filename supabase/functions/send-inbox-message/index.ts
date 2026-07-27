@@ -405,7 +405,7 @@ Deno.serve(async (req) => {
         const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${integration.credentials.access_token}`,
+            'Authorization': `Bearer ${metaAccessToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(messagePayload),
@@ -495,7 +495,7 @@ Deno.serve(async (req) => {
       const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${integration.credentials.access_token}`,
+          'Authorization': `Bearer ${metaAccessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(messagePayload),
