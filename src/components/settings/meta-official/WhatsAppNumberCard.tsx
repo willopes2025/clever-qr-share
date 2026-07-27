@@ -15,9 +15,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Activity, AlertTriangle, CheckCircle2, Phone, Building2, Signal, Gauge, Trash2, Loader2, Settings2, RefreshCw } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Phone, Building2, Signal, Gauge, Trash2, Loader2, Settings2, RefreshCw, KeyRound } from "lucide-react";
 import type { MetaWhatsAppNumber } from "@/hooks/useMetaWhatsAppNumbers";
 import { MetaNumberConfigDialog } from "./MetaNumberConfigDialog";
+import { MetaNumberTokenDialog } from "./MetaNumberTokenDialog";
 import { toast } from "sonner";
 
 interface WhatsAppNumberCardProps {
