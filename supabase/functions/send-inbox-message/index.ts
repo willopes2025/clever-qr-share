@@ -120,14 +120,21 @@ Deno.serve(async (req) => {
           .eq('is_active', true)
           .maybeSingle();
         
-        if (integration?.credentials?.access_token) {
-          const phoneNumberId = conv.meta_phone_number_id || integration.credentials?.phone_number_id;
+        const reactionPhoneNumberId = conv.meta_phone_number_id || integration?.credentials?.phone_number_id;
+        const reactionToken = await getMetaTokenForNumber(
+          supabase,
+          reactionPhoneNumberId,
+          integration?.credentials?.access_token,
+        );
+
+        if (reactionToken) {
+          const phoneNumberId = reactionPhoneNumberId;
           const formattedPhone = contactInfo.phone.replace(/[^0-9]/g, '');
           
           await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${integration.credentials.access_token}`,
+              'Authorization': `Bearer ${reactionToken}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
