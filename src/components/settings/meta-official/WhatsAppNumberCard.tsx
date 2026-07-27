@@ -332,6 +332,12 @@ export const WhatsAppNumberCard = ({
         onOpenChange={setConfigOpen}
         number={number}
       />
+
+      <MetaNumberTokenDialog
+        open={tokenOpen}
+        onOpenChange={setTokenOpen}
+        number={number}
+      />
     </Card>
   );
 };
