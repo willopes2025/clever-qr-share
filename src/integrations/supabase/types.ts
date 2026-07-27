@@ -5704,6 +5704,33 @@ export type Database = {
           },
         ]
       }
+      meta_number_tokens: {
+        Row: {
+          access_token: string
+          created_at: string
+          phone_number_id: string
+          updated_at: string
+          user_id: string
+          waba_id: string | null
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          phone_number_id: string
+          updated_at?: string
+          user_id: string
+          waba_id?: string | null
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          phone_number_id?: string
+          updated_at?: string
+          user_id?: string
+          waba_id?: string | null
+        }
+        Relationships: []
+      }
       meta_templates: {
         Row: {
           approved_at: string | null

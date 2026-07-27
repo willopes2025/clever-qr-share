@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -120,7 +121,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const accessToken = integration.credentials?.access_token;
+    let accessToken = integration.credentials?.access_token;
     if (!accessToken) {
       return new Response(JSON.stringify({ 
         success: false,
@@ -200,6 +201,9 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+
+    // Token específico do número (WABAs diferentes usam tokens diferentes)
+    accessToken = (await getMetaTokenForNumber(supabase, phoneNumberId, accessToken)) as string;
 
     // Format phone number
     const formattedPhone = body.to.replace(/[^0-9]/g, '');

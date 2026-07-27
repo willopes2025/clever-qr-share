@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.84.0";
+import { saveMetaTokenForNumbers } from '../_shared/metaToken.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -250,6 +251,15 @@ serve(async (req) => {
         console.log(`[META-EXCHANGE] ✅ Saved ${phone.display_phone_number} (${phone.id}) status=${dbStatus}`);
       }
     }
+
+    // ── Step 4d: Save a per-number access token (WABAs diferentes = tokens diferentes) ──
+    await saveMetaTokenForNumbers(
+      adminClient,
+      userId,
+      allPhoneNumbers.map((p) => p.id),
+      accessToken,
+      wabaId,
+    );
 
     // ── Step 5: Subscribe WABA to our app's webhooks ──
     try {

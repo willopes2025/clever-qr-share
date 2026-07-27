@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -119,14 +120,21 @@ Deno.serve(async (req) => {
           .eq('is_active', true)
           .maybeSingle();
         
-        if (integration?.credentials?.access_token) {
-          const phoneNumberId = conv.meta_phone_number_id || integration.credentials?.phone_number_id;
+        const reactionPhoneNumberId = conv.meta_phone_number_id || integration?.credentials?.phone_number_id;
+        const reactionToken = await getMetaTokenForNumber(
+          supabase,
+          reactionPhoneNumberId,
+          integration?.credentials?.access_token,
+        );
+
+        if (reactionToken) {
+          const phoneNumberId = reactionPhoneNumberId;
           const formattedPhone = contactInfo.phone.replace(/[^0-9]/g, '');
           
           await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${integration.credentials.access_token}`,
+              'Authorization': `Bearer ${reactionToken}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -327,6 +335,16 @@ Deno.serve(async (req) => {
         throw new Error('Phone Number ID não encontrado para envio Meta');
       }
 
+      // Token específico do número (números de WABAs diferentes usam tokens diferentes)
+      const metaAccessToken = await getMetaTokenForNumber(
+        supabase,
+        phoneNumberId,
+        integration.credentials.access_token,
+      );
+      if (!metaAccessToken) {
+        throw new Error('Access token Meta não encontrado para este número. Reconecte o número nas configurações.');
+      }
+
       const formattedPhone = (targetPhone || contactData.phone).replace(/[^0-9]/g, '');
 
       // ---- META TEMPLATE MESSAGE ----
@@ -394,7 +412,7 @@ Deno.serve(async (req) => {
         const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${integration.credentials.access_token}`,
+            'Authorization': `Bearer ${metaAccessToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(messagePayload),
@@ -484,7 +502,7 @@ Deno.serve(async (req) => {
       const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${integration.credentials.access_token}`,
+          'Authorization': `Bearer ${metaAccessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(messagePayload),

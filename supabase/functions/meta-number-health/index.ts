@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') || '';
@@ -241,7 +242,11 @@ Deno.serve(async (req) => {
         .eq('user_id', number.user_id)
         .maybeSingle();
 
-      const accessToken = (integration?.credentials as Record<string, string> | undefined)?.access_token;
+      const accessToken = await getMetaTokenForNumber(
+        serviceClient,
+        resolvedPhoneNumberId,
+        (integration?.credentials as Record<string, string> | undefined)?.access_token,
+      );
       if (accessToken) {
         const graphResponse = await fetch(
           `https://graph.facebook.com/v21.0/${resolvedPhoneNumberId}?fields=display_phone_number,verified_name,quality_rating,messaging_limit_tier,status,name_status&access_token=${accessToken}`,

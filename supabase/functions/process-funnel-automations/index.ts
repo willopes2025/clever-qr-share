@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -791,7 +792,7 @@ Deno.serve(async (req: Request) => {
               break;
             }
 
-            const accessToken = await resolveMetaAccessToken(deal.user_id);
+            const accessToken = await getMetaTokenForNumber(supabase, phoneNumberId, await resolveMetaAccessToken(deal.user_id));
             if (!accessToken) {
               results.push({ automationId: automation.id, success: false, error: 'Meta access token not found' });
               break;
