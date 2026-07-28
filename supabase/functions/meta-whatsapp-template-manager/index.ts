@@ -239,8 +239,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
             JSON.stringify({
               error: metaResult.error?.message || "Failed to submit template to Meta",
               details: metaResult.error,
+              waba_id: wabaId,
             }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
 
