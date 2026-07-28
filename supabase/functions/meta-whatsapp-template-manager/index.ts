@@ -307,20 +307,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
         let totalSynced = 0;
         let totalUpdated = 0;
         let totalAdded = 0;
+        const wabaErrors: Array<{ waba_id: string; error: string }> = [];
 
         for (const currentWabaId of wabasToSync) {
           console.log(`[meta-template-manager] Syncing WABA: ${currentWabaId}`);
 
+          // Resolve token specific for this WABA
+          const wabaToken = (await getMetaTokenForWaba(serviceClient, currentWabaId, fallbackAccessToken)) ?? accessToken;
+
           const metaResponse = await fetch(
             `${GRAPH_API_BASE}/${currentWabaId}/message_templates?limit=100`,
             {
-              headers: { "Authorization": `Bearer ${accessToken}` },
+              headers: { "Authorization": `Bearer ${wabaToken}` },
             }
           );
 
           if (!metaResponse.ok) {
             const errorData = await metaResponse.json();
             console.warn(`[meta-template-manager] Failed to sync WABA ${currentWabaId}:`, errorData);
+            wabaErrors.push({ waba_id: currentWabaId, error: errorData?.error?.message || "Unknown error" });
             continue; // Skip this WABA but continue with others
           }
 
