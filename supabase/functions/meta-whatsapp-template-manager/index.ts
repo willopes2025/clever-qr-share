@@ -415,6 +415,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
             updated: totalUpdated,
             added: totalAdded,
             wabas_synced: wabasToSync.length,
+            waba_errors: wabaErrors,
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
