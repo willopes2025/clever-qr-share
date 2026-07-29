@@ -450,17 +450,19 @@ Deno.serve(async (req) => {
         break;
 
       case 'document':
-      default:
+      default: {
+        const docName = resolveDocName();
         endpoint = `${evolutionApiUrl}/message/sendMedia/${encodedInstanceName}`;
         body = {
           number: phone,
           mediatype: 'document',
-          mimetype: 'application/pdf',
+          mimetype: resolveDocMime(docName),
           media: mediaUrl,
           caption: caption || '',
-          fileName: resolveDocName(),
+          fileName: docName,
         };
         break;
+      }
     }
 
     console.log(`Using instance name for Evolution API: ${instanceNameForApi}`);
