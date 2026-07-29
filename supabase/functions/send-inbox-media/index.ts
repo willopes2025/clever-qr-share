@@ -58,7 +58,24 @@ Deno.serve(async (req) => {
       senderUserId = user?.id || null;
     }
 
-    const { conversationId, mediaUrl, mediaType, caption, instanceId, targetPhone } = await req.json();
+    const { conversationId, mediaUrl, mediaType, caption, instanceId, targetPhone, fileName } = await req.json();
+
+    // Resolve a safe document filename (WhatsApp needs a real name + extension to open the file)
+    const resolveDocName = (): string => {
+      const fromUrl = (() => {
+        try {
+          const p = new URL(mediaUrl).pathname.split('/').pop() || '';
+          return decodeURIComponent(p);
+        } catch { return ''; }
+      })();
+      let name = (fileName && String(fileName).trim()) || (caption && String(caption).trim()) || fromUrl || 'documento';
+      name = name.replace(/[\r\n"]/g, ' ').trim().slice(0, 120);
+      if (!/\.[A-Za-z0-9]{2,5}$/.test(name)) {
+        const ext = fromUrl.includes('.') ? fromUrl.split('.').pop() : 'pdf';
+        name = `${name}.${ext}`;
+      }
+      return name;
+    };
 
     if (!conversationId || !mediaUrl || !mediaType || !instanceId) {
       throw new Error('conversationId, mediaUrl, mediaType and instanceId are required');
