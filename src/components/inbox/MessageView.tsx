@@ -1157,12 +1157,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                     className="text-xs text-muted-foreground"
                   >
                     {conversation.contact?.phone}
-                    {isMetaConversation && !metaUsingEvoInstance && selectedMetaNumberId && (
+                    {usingMetaSender && selectedMetaNumberId && (
                       <span className="ml-1.5 text-blue-500">
                         via {getMetaLabel(selectedMetaNumberId)}
                       </span>
                     )}
-                    {isMetaConversation && metaUsingEvoInstance && selectedInstanceId && (
+                    {!usingMetaSender && selectedInstanceId && (
                       <span className="ml-1.5 text-muted-foreground">
                         via {connectedInstances.find(i => i.id === selectedInstanceId)?.instance_name || 'Lite'}
                       </span>
