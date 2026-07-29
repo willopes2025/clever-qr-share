@@ -517,7 +517,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     });
   };
 
-  const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio' | 'video') => {
+  const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio' | 'video', fileName?: string) => {
     const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
     if (!hasValidSender) {
       toast.error("Selecione um número primeiro");
@@ -560,6 +560,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         instanceId: useMetaSender ? selectedMetaNumberId : selectedInstanceId,
         mediaUrl,
         mediaType,
+        fileName,
         targetPhone: selectedTargetPhone || undefined,
       });
       // Media sent successfully - no toast needed as user sees it in chat
@@ -1698,7 +1699,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           {!isMobile && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
           
           <MediaUploadButton 
-            onUpload={(url, type) => handleSendMedia(url, type)} 
+            onUpload={(url, type, name) => handleSendMedia(url, type, name)} 
             disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
           />
 
