@@ -22,18 +22,37 @@ interface TemplateComponent {
   }>;
 }
 
-async function getMetaCredentials(
+async function getOrgUserIds(
   supabaseClient: ReturnType<typeof createClient>,
   userId: string
+): Promise<string[]> {
+  const ids = new Set<string>([userId]);
+  try {
+    const { data } = await supabaseClient.rpc("get_organization_member_ids", { _user_id: userId });
+    (data as Array<string | { get_organization_member_ids: string }> | null)?.forEach((row) => {
+      const id = typeof row === "string" ? row : row?.get_organization_member_ids;
+      if (id) ids.add(id);
+    });
+  } catch (err) {
+    console.warn("[meta-template-manager] org scope lookup failed:", err);
+  }
+  return Array.from(ids);
+}
+
+async function getMetaCredentials(
+  supabaseClient: ReturnType<typeof createClient>,
+  userIds: string[]
 ) {
-  // Try integrations table first
-  const { data: integration } = await supabaseClient
+  // Try integrations table first (any account inside the organization)
+  const { data: integrations } = await supabaseClient
     .from("integrations")
     .select("credentials")
-    .eq("user_id", userId)
+    .in("user_id", userIds)
     .eq("provider", "meta_whatsapp")
     .eq("is_active", true)
-    .single();
+    .limit(1);
+
+  const integration = integrations?.[0];
 
   let accessToken: string | undefined;
 
@@ -51,12 +70,12 @@ async function getMetaCredentials(
 
 async function getUserWabas(
   supabaseClient: ReturnType<typeof createClient>,
-  userId: string
+  userIds: string[]
 ): Promise<Array<{ waba_id: string; display_name: string | null; phone_number: string | null }>> {
   const { data } = await supabaseClient
     .from("meta_whatsapp_numbers")
     .select("waba_id, display_name, phone_number")
-    .eq("user_id", userId)
+    .in("user_id", userIds)
     .eq("is_active", true);
 
   if (!data || data.length === 0) return [];
@@ -104,7 +123,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { action, templateId, templateData, wabaId: requestedWabaId } = await req.json();
     console.log(`[meta-template-manager] Action: ${action}, User: ${user.id}`);
 
-    const { accessToken: fallbackAccessToken } = await getMetaCredentials(supabaseClient, user.id);
+    const orgUserIds = await getOrgUserIds(supabaseClient, user.id);
+    const { accessToken: fallbackAccessToken } = await getMetaCredentials(supabaseClient, orgUserIds);
     let accessToken = fallbackAccessToken;
 
     if (!accessToken) {
@@ -118,13 +138,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let wabaId = requestedWabaId as string | undefined;
     if (!wabaId) {
       // Try integration credentials
-      const { data: integration } = await supabaseClient
+      const { data: integrations } = await supabaseClient
         .from("integrations")
         .select("credentials")
-        .eq("user_id", user.id)
+        .in("user_id", orgUserIds)
         .eq("provider", "meta_whatsapp")
         .eq("is_active", true)
-        .single();
+        .limit(1);
+      const integration = integrations?.[0];
 
       if (integration?.credentials) {
         const creds = integration.credentials as { waba_id?: string; business_account_id?: string };
@@ -284,7 +305,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       case "sync": {
         // Get all distinct WABAs for this user
-        const userWabas = await getUserWabas(supabaseClient, user.id);
+        const userWabas = await getUserWabas(supabaseClient, orgUserIds);
 
         // If no numbers in DB, fallback to single wabaId
         const wabasToSync: string[] = userWabas.length > 0
@@ -302,7 +323,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const { data: localTemplates } = await supabaseClient
           .from("meta_templates")
           .select("*")
-          .eq("user_id", user.id);
+          .in("user_id", orgUserIds);
 
         let totalSynced = 0;
         let totalUpdated = 0;
@@ -433,8 +454,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           .from("meta_templates")
           .select("*")
           .eq("id", templateId)
-          .eq("user_id", user.id)
-          .single();
+          .in("user_id", orgUserIds)
+          .maybeSingle();
 
         if (!template) {
           return new Response(
@@ -483,8 +504,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           .from("meta_templates")
           .select("*")
           .eq("id", templateId)
-          .eq("user_id", user.id)
-          .single();
+          .in("user_id", orgUserIds)
+          .maybeSingle();
 
         if (fetchError || !template) {
           return new Response(
@@ -503,7 +524,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         let query = supabaseClient
           .from("meta_templates")
           .select("*")
-          .eq("user_id", user.id)
+          .in("user_id", orgUserIds)
           .order("created_at", { ascending: false });
 
         // Filter by wabaId if provided
