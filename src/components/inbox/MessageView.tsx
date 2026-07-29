@@ -228,26 +228,21 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const conversationProvider = conversation.provider;
   
   useEffect(() => {
+    const hasEvoInstance = !!(conversationInstanceId && instances?.find(i => i.id === conversationInstanceId && i.status === 'connected'));
+    const metaId = conversationMetaPhoneId || "";
+
+    if (metaId) setSelectedMetaNumberId(metaId);
+    else if (metaNumbers.length > 0) setSelectedMetaNumberId(metaNumbers[0].phone_number_id);
+    else setSelectedMetaNumberId("");
+
+    if (conversationInstanceId) setSelectedInstanceId(conversationInstanceId);
+    else if (connectedInstances.length > 0) setSelectedInstanceId(connectedInstances[0].id);
+
+    // Prefer the channel the conversation is actually bound to
     if (isMetaConversation) {
-      // Check if conversation has an instance_id set (means user previously chose Evo)
-      if (conversationInstanceId && instances?.find(i => i.id === conversationInstanceId && i.status === 'connected')) {
-        setMetaUsingEvoInstance(true);
-        setSelectedInstanceId(conversationInstanceId);
-      } else {
-        setMetaUsingEvoInstance(false);
-        const metaId = conversationMetaPhoneId || "";
-        setSelectedMetaNumberId(metaId);
-        if (!metaId && metaNumbers.length > 0) {
-          setSelectedMetaNumberId(metaNumbers[0].phone_number_id);
-        }
-      }
+      setUsingMetaSender(!hasEvoInstance);
     } else {
-      setMetaUsingEvoInstance(false);
-      if (conversationInstanceId) {
-        setSelectedInstanceId(conversationInstanceId);
-      } else if (connectedInstances.length > 0) {
-        setSelectedInstanceId(connectedInstances[0].id);
-      }
+      setUsingMetaSender(!!metaId && !hasEvoInstance);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
