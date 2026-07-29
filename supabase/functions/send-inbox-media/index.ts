@@ -77,6 +77,21 @@ Deno.serve(async (req) => {
       return name;
     };
 
+    const DOC_MIME: Record<string, string> = {
+      pdf: 'application/pdf',
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls: 'application/vnd.ms-excel',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ppt: 'application/vnd.ms-powerpoint',
+      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      csv: 'text/csv',
+      txt: 'text/plain',
+      zip: 'application/zip',
+    };
+    const resolveDocMime = (name: string): string =>
+      DOC_MIME[(name.split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
+
     if (!conversationId || !mediaUrl || !mediaType || !instanceId) {
       throw new Error('conversationId, mediaUrl, mediaType and instanceId are required');
     }
