@@ -542,6 +542,7 @@ export const useMessages = (conversationId: string | null) => {
       mediaUrl, 
       mediaType, 
       caption,
+      fileName,
       targetPhone 
     }: { 
       conversationId: string; 
@@ -549,6 +550,7 @@ export const useMessages = (conversationId: string | null) => {
       mediaUrl: string; 
       mediaType: 'image' | 'document' | 'audio' | 'video';
       caption?: string;
+      fileName?: string;
       targetPhone?: string;
     }) => {
       const { data, error } = await supabase.functions.invoke('send-inbox-media', {
@@ -558,6 +560,7 @@ export const useMessages = (conversationId: string | null) => {
           mediaUrl,
           mediaType,
           caption,
+          ...(fileName && { fileName }),
           ...(targetPhone && { targetPhone }),
         },
       });
