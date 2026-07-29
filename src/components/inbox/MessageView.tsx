@@ -1647,9 +1647,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         {/* Mobile: Instance selector above input */}
         {isMobile && (
           <div className="mb-2">
-            {isMetaConversation ? (
               <Select 
-                value={metaUsingEvoInstance ? `evo:${selectedInstanceId}` : `meta:${selectedMetaNumberId}`} 
+                value={usingMetaSender ? `meta:${selectedMetaNumberId}` : `evo:${selectedInstanceId}`} 
                 onValueChange={async (value) => {
                   if (value.startsWith('evo:')) {
                     const evoId = value.replace('evo:', '');
