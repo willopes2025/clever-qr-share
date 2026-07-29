@@ -404,9 +404,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   }, [optimisticMessages.length]);
 
-  // Helper: determine effective sender for Meta conversations that may use Evolution
-  const useMetaSender = isMetaConversation && !metaUsingEvoInstance;
-  const effectiveInstanceId = metaUsingEvoInstance ? selectedInstanceId : (isMetaConversation ? selectedMetaNumberId : selectedInstanceId);
+  // Helper: determine effective sender (Meta or Evolution) for any conversation
+  const useMetaSender = usingMetaSender;
+  const effectiveInstanceId = usingMetaSender ? selectedMetaNumberId : selectedInstanceId;
 
   const handleSend = async (messageText?: string) => {
     const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
