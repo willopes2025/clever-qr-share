@@ -107,8 +107,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const [selectedMetaNumberId, setSelectedMetaNumberId] = useState<string>(
     (conversation as any).meta_phone_number_id || ""
   );
-  // For Meta conversations: track if user switched to an Evolution instance
-  const [metaUsingEvoInstance, setMetaUsingEvoInstance] = useState(false);
+  // Sender channel: true = Meta (API Oficial), false = Evolution instance.
+  // Available for ANY conversation, regardless of the original provider.
+  const [usingMetaSender, setUsingMetaSender] = useState<boolean>(
+    !!(conversation as any).meta_phone_number_id && !conversation.instance_id
+  );
+  const metaUsingEvoInstance = !usingMetaSender;
+  const setMetaUsingEvoInstance = (v: boolean) => setUsingMetaSender(!v);
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
