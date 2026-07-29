@@ -1326,52 +1326,6 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                     )}
                   </SelectContent>
                 </Select>
-              ) : (
-              <Select 
-                value={selectedInstanceId} 
-                onValueChange={async (value) => {
-                  setSelectedInstanceId(value);
-                  try {
-                    await supabase
-                      .from('conversations')
-                      .update({ instance_id: value })
-                      .eq('id', conversation.id);
-                    toast.success("Número de envio atualizado");
-                  } catch (error) {
-                    toast.error("Erro ao atualizar número");
-                  }
-                }}
-              >
-                <SelectTrigger className="w-[120px] xl:w-[140px] h-9">
-                  <div className="flex items-center min-w-0 flex-1">
-                    <Smartphone className="h-4 w-4 mr-1 text-muted-foreground shrink-0" />
-                    <span className="truncate">
-                      <SelectValue placeholder="Número" />
-                    </span>
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {connectedInstances.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground text-center">
-                      Nenhuma instância conectada
-                    </div>
-                  ) : (
-                    connectedInstances.map((instance) => (
-                      <SelectItem key={instance.id} value={instance.id}>
-                        <div className="flex flex-col items-start">
-                          <span>{instance.instance_name}</span>
-                          {instance.phone_number && (
-                            <span className="text-xs text-muted-foreground">
-                              {instance.phone_number}
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              )}
 
               {/* Invoke AI Button - Primary */}
               <Tooltip>
