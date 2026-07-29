@@ -286,9 +286,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     } else if (inboundInstanceId) {
       const known = connectedInstances.find(i => i.id === inboundInstanceId);
       if (!known) return;
-      if (selectedInstanceId === inboundInstanceId && (!isMetaConversation || metaUsingEvoInstance)) return;
+      if (selectedInstanceId === inboundInstanceId && !usingMetaSender) return;
       setSelectedInstanceId(inboundInstanceId);
-      if (isMetaConversation) setMetaUsingEvoInstance(true);
+      setUsingMetaSender(false);
       supabase
         .from('conversations')
         .update({ instance_id: inboundInstanceId })
