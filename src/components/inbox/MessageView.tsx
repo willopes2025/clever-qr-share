@@ -107,8 +107,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const [selectedMetaNumberId, setSelectedMetaNumberId] = useState<string>(
     (conversation as any).meta_phone_number_id || ""
   );
-  // For Meta conversations: track if user switched to an Evolution instance
-  const [metaUsingEvoInstance, setMetaUsingEvoInstance] = useState(false);
+  // Sender channel: true = Meta (API Oficial), false = Evolution instance.
+  // Available for ANY conversation, regardless of the original provider.
+  const [usingMetaSender, setUsingMetaSender] = useState<boolean>(
+    !!(conversation as any).meta_phone_number_id && !conversation.instance_id
+  );
+  const metaUsingEvoInstance = !usingMetaSender;
+  const setMetaUsingEvoInstance = (v: boolean) => setUsingMetaSender(!v);
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
@@ -223,26 +228,21 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const conversationProvider = conversation.provider;
   
   useEffect(() => {
+    const hasEvoInstance = !!(conversationInstanceId && instances?.find(i => i.id === conversationInstanceId && i.status === 'connected'));
+    const metaId = conversationMetaPhoneId || "";
+
+    if (metaId) setSelectedMetaNumberId(metaId);
+    else if (metaNumbers.length > 0) setSelectedMetaNumberId(metaNumbers[0].phone_number_id);
+    else setSelectedMetaNumberId("");
+
+    if (conversationInstanceId) setSelectedInstanceId(conversationInstanceId);
+    else if (connectedInstances.length > 0) setSelectedInstanceId(connectedInstances[0].id);
+
+    // Prefer the channel the conversation is actually bound to
     if (isMetaConversation) {
-      // Check if conversation has an instance_id set (means user previously chose Evo)
-      if (conversationInstanceId && instances?.find(i => i.id === conversationInstanceId && i.status === 'connected')) {
-        setMetaUsingEvoInstance(true);
-        setSelectedInstanceId(conversationInstanceId);
-      } else {
-        setMetaUsingEvoInstance(false);
-        const metaId = conversationMetaPhoneId || "";
-        setSelectedMetaNumberId(metaId);
-        if (!metaId && metaNumbers.length > 0) {
-          setSelectedMetaNumberId(metaNumbers[0].phone_number_id);
-        }
-      }
+      setUsingMetaSender(!hasEvoInstance);
     } else {
-      setMetaUsingEvoInstance(false);
-      if (conversationInstanceId) {
-        setSelectedInstanceId(conversationInstanceId);
-      } else if (connectedInstances.length > 0) {
-        setSelectedInstanceId(connectedInstances[0].id);
-      }
+      setUsingMetaSender(!!metaId && !hasEvoInstance);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
@@ -286,9 +286,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     } else if (inboundInstanceId) {
       const known = connectedInstances.find(i => i.id === inboundInstanceId);
       if (!known) return;
-      if (selectedInstanceId === inboundInstanceId && (!isMetaConversation || metaUsingEvoInstance)) return;
+      if (selectedInstanceId === inboundInstanceId && !usingMetaSender) return;
       setSelectedInstanceId(inboundInstanceId);
-      if (isMetaConversation) setMetaUsingEvoInstance(true);
+      setUsingMetaSender(false);
       supabase
         .from('conversations')
         .update({ instance_id: inboundInstanceId })
@@ -404,9 +404,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   }, [optimisticMessages.length]);
 
-  // Helper: determine effective sender for Meta conversations that may use Evolution
-  const useMetaSender = isMetaConversation && !metaUsingEvoInstance;
-  const effectiveInstanceId = metaUsingEvoInstance ? selectedInstanceId : (isMetaConversation ? selectedMetaNumberId : selectedInstanceId);
+  // Helper: determine effective sender (Meta or Evolution) for any conversation
+  const useMetaSender = usingMetaSender;
+  const effectiveInstanceId = usingMetaSender ? selectedMetaNumberId : selectedInstanceId;
 
   const handleSend = async (messageText?: string) => {
     const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
@@ -1157,12 +1157,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                     className="text-xs text-muted-foreground"
                   >
                     {conversation.contact?.phone}
-                    {isMetaConversation && !metaUsingEvoInstance && selectedMetaNumberId && (
+                    {usingMetaSender && selectedMetaNumberId && (
                       <span className="ml-1.5 text-blue-500">
                         via {getMetaLabel(selectedMetaNumberId)}
                       </span>
                     )}
-                    {isMetaConversation && metaUsingEvoInstance && selectedInstanceId && (
+                    {!usingMetaSender && selectedInstanceId && (
                       <span className="ml-1.5 text-muted-foreground">
                         via {connectedInstances.find(i => i.id === selectedInstanceId)?.instance_name || 'Lite'}
                       </span>
@@ -1232,9 +1232,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           {!isMobile ? (
             <>
               {/* Instance / Meta Number Selector - Primary */}
-              {isMetaConversation ? (
                 <Select 
-                  value={metaUsingEvoInstance ? `evo:${selectedInstanceId}` : `meta:${selectedMetaNumberId}`} 
+                  value={usingMetaSender ? `meta:${selectedMetaNumberId}` : `evo:${selectedInstanceId}`} 
                   onValueChange={async (value) => {
                     if (value.startsWith('evo:')) {
                       const evoId = value.replace('evo:', '');
@@ -1326,52 +1325,6 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                     )}
                   </SelectContent>
                 </Select>
-              ) : (
-              <Select 
-                value={selectedInstanceId} 
-                onValueChange={async (value) => {
-                  setSelectedInstanceId(value);
-                  try {
-                    await supabase
-                      .from('conversations')
-                      .update({ instance_id: value })
-                      .eq('id', conversation.id);
-                    toast.success("Número de envio atualizado");
-                  } catch (error) {
-                    toast.error("Erro ao atualizar número");
-                  }
-                }}
-              >
-                <SelectTrigger className="w-[120px] xl:w-[140px] h-9">
-                  <div className="flex items-center min-w-0 flex-1">
-                    <Smartphone className="h-4 w-4 mr-1 text-muted-foreground shrink-0" />
-                    <span className="truncate">
-                      <SelectValue placeholder="Número" />
-                    </span>
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {connectedInstances.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground text-center">
-                      Nenhuma instância conectada
-                    </div>
-                  ) : (
-                    connectedInstances.map((instance) => (
-                      <SelectItem key={instance.id} value={instance.id}>
-                        <div className="flex flex-col items-start">
-                          <span>{instance.instance_name}</span>
-                          {instance.phone_number && (
-                            <span className="text-xs text-muted-foreground">
-                              {instance.phone_number}
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              )}
 
               {/* Invoke AI Button - Primary */}
               <Tooltip>
@@ -1647,9 +1600,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         {/* Mobile: Instance selector above input */}
         {isMobile && (
           <div className="mb-2">
-            {isMetaConversation ? (
               <Select 
-                value={metaUsingEvoInstance ? `evo:${selectedInstanceId}` : `meta:${selectedMetaNumberId}`} 
+                value={usingMetaSender ? `meta:${selectedMetaNumberId}` : `evo:${selectedInstanceId}`} 
                 onValueChange={async (value) => {
                   if (value.startsWith('evo:')) {
                     const evoId = value.replace('evo:', '');
@@ -1717,40 +1669,6 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                   )}
                 </SelectContent>
               </Select>
-            ) : (
-              <Select 
-                value={selectedInstanceId} 
-                onValueChange={async (value) => {
-                  setSelectedInstanceId(value);
-                  try {
-                    await supabase
-                      .from('conversations')
-                      .update({ instance_id: value })
-                      .eq('id', conversation.id);
-                  } catch (error) {
-                    toast.error("Erro ao atualizar número");
-                  }
-                }}
-              >
-                <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-[#2a3942] border-0">
-                  <Smartphone className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder="Selecionar número" />
-                </SelectTrigger>
-                <SelectContent>
-                  {connectedInstances.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground text-center">
-                      Nenhuma instância conectada
-                    </div>
-                  ) : (
-                    connectedInstances.map((instance) => (
-                      <SelectItem key={instance.id} value={instance.id}>
-                        {instance.instance_name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            )}
           </div>
         )}
         

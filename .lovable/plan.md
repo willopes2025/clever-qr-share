@@ -1,80 +1,30 @@
+## Causa
 
-# Como gerar e salvar os tokens Meta (7685 e 6204)
+No `src/components/inbox/MessageView.tsx` o seletor de remetente é escolhido por um `if` baseado no provedor da conversa:
 
-Cada número precisa de um token próprio, vindo do App Meta que está vinculado à WABA daquele número. O mesmo processo se repete duas vezes — uma para cada WABA.
+- `isMetaConversation = conversation.provider === 'meta'` (linha 103)
+- Se for `meta`, renderiza o seletor combinado com os grupos **API Oficial** (números Meta) + **WhatsApp Lite** (instâncias Evolution) — desktop linha ~1235 e mobile linha ~1650.
+- Se **não** for `meta` (conversas criadas pela Evolution/Baileys, como a do LabClear Financeiro da imagem), cai no `else`, que lista **apenas** `connectedInstances` (James, BVC Oficial, Centro de Saúde).
 
----
+Ou seja: não é permissão nem falta de números — os números Meta existem e são carregados (`useMetaNumbersMap`), mas o seletor "somente Evolution" nunca os exibe. Por isso alguns leads mostram e outros não.
 
-## Parte 1 — Identificar a WABA de cada número
+## Solução
 
-1. Abra o **Meta Business Manager**: https://business.facebook.com
-2. Menu esquerdo → **Contas** → **Contas do WhatsApp**.
-3. Anote o **ID da WABA** de cada número:
-   - **7685 (Programa Seven)** → WABA `704155141972507` (é a que deu "Application has been deleted", vamos precisar recriar/reatribuir o app)
-   - **6204 (Seven Ótica)** → clique nela e copie o ID que aparece.
+Unificar o seletor: uma única lista com Meta + Evolution, independente do `provider` da conversa.
 
----
+### Mudanças em `src/components/inbox/MessageView.tsx`
 
-## Parte 2 — Garantir que existe um App ativo para cada WABA
+1. Substituir o par `isMetaConversation` / `metaUsingEvoInstance` por um único estado `usingMetaSender` (booleano), inicializado como `true` quando a conversa tem `meta_phone_number_id` e não tem `instance_id` escolhido, e `false` caso contrário. Mantém o comportamento atual para conversas Meta.
+2. Remover o `if (isMetaConversation) ... else ...` nos dois pontos (desktop ~1235-1373 e mobile ~1650-1751), deixando apenas o seletor combinado com os grupos "API Oficial" e "WhatsApp Lite".
+3. `onValueChange` continua igual: `meta:<phone_number_id>` grava `meta_phone_number_id` e `provider: 'meta'`; `evo:<id>` grava `instance_id` e mantém/ajusta o provider para a instância escolhida — assim a conversa passa a responder pelo canal escolhido.
+4. Atualizar os derivados de envio para usar o novo estado:
+   - `useMetaSender = usingMetaSender`
+   - `effectiveInstanceId`, `hasValidSender` e os `disabled` dos botões (linhas 408-412, 521, 604, 757, 1784, 1831, 1883) passam a depender só de `usingMetaSender`.
+5. O efeito de auto-seleção pelo último inbound (linhas ~261-301) passa a alternar `usingMetaSender` conforme a origem da última mensagem recebida, sem depender do provider da conversa.
+6. O badge "via <número>" no cabeçalho (linhas 1160-1167) passa a exibir o remetente atual em qualquer conversa.
 
-1. Menu esquerdo → **Contas** → **Aplicativos**.
-2. Confirme que existe pelo menos **um App ativo** (não "deletado"). Se o app antigo do Programa Seven foi deletado, **crie um novo**:
-   - developers.facebook.com → **Meus Apps** → **Criar App** → tipo **Business** → dê um nome (ex.: "WideZap Seven").
-   - Dentro do app, adicione o produto **WhatsApp**.
-3. No Business Manager → **Aplicativos** → selecione o app → **Adicionar assets** → vincule a **WABA** correspondente.
+Nada muda no backend: `send-inbox-message` já aceita envio cruzado (Meta ↔ Evolution) conforme ajuste anterior.
 
-Ambas as WABAs podem usar o mesmo App, ou apps separados — tanto faz. O que importa é que o App esteja **ativo e vinculado à WABA** do número.
+## Resultado
 
----
-
-## Parte 3 — Gerar o token pelo Usuário do Sistema
-
-Faça isso **duas vezes** (uma pra cada WABA):
-
-1. Business Manager → engrenagem no canto → **Configurações do negócio**.
-2. **Usuários** → **Usuários do sistema** → selecione um usuário do sistema **Admin** (ou crie um novo: "Adicionar" → tipo Admin).
-3. Clique em **Adicionar assets** → **Contas do WhatsApp** → marque a WABA do 7685 (na 1ª vez) ou do 6204 (na 2ª vez) → marque **Controle total**.
-4. Ainda no usuário do sistema → **Adicionar assets** → **Aplicativos** → marque o App ativo → **Controle total**.
-5. Clique em **Gerar novo token**:
-   - **App**: selecione o App vinculado à WABA daquele número.
-   - **Expiração**: **Nunca** (recomendado).
-   - **Permissões**: marque
-     - `whatsapp_business_messaging`
-     - `whatsapp_business_management`
-6. **Copie o token na hora** — ele só aparece uma vez. Guarde num bloco de notas temporário.
-
----
-
-## Parte 4 — Colar no WideZap
-
-Pra cada número:
-
-1. WideZap → **Configurações** → **WhatsApp Oficial (Meta)**.
-2. Ache o card do número (7685 ou 6204) → clique no ícone de **chave 🔑** ("Definir token exclusivo deste número").
-3. Cole o token → **Validar e salvar**.
-4. O sistema valida direto na Meta antes de gravar. Se der erro, a mensagem da Meta aparece exata no toast (ex.: "não tem permissão na WABA X" → volte na Parte 3 passo 3 e confirme que a WABA certa está atribuída ao usuário do sistema).
-
-Repita pro outro número, usando o token gerado pra WABA dele.
-
----
-
-## Parte 5 — Confirmar que funcionou
-
-Depois de colar os dois tokens, me avise. Eu rodo aqui:
-
-- `meta-number-health` nos dois números pra ver inbound/outbound das últimas 24h.
-- Teste real de sync de templates da WABA `704155141972507` (a que estava com erro 190).
-- Reprocesso do disparo "Receitas vencidas" pra confirmar que o 6204 voltou a enviar.
-
----
-
-## Erros comuns e como resolver
-
-- **"Application has been deleted" (190)** → o App vinculado foi excluído. Refaça a Parte 2 criando/vinculando um App novo, gere token de novo (Parte 3).
-- **"(#100) The parameter ... is required" / "(#33)"** → o token não tem a WABA daquele número nos assets. Volte na Parte 3 passo 3.
-- **Token aceito mas templates não sincronizam** → falta `whatsapp_business_management` nas permissões. Gere de novo marcando as duas.
-- **"Session has expired"** → você gerou com token de usuário pessoal em vez de usuário do sistema. Só o token do **usuário do sistema** com expiração "Nunca" é permanente.
-
----
-
-Se preferir, posso montar um vídeo-tutorial curto em texto pra imprimir, ou entrar direto e disparar o `meta-number-health` assim que você colar cada um. Me diz quando quiser que eu valide.
+Em qualquer lead do inbox o dropdown mostrará "API Oficial" (7685 / 6204, conforme permissão do usuário) e "WhatsApp Lite" (instâncias conectadas), permitindo trocar o canal a qualquer momento.
