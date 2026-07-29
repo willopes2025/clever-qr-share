@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
           recipient_type: 'individual',
           to: formattedPhone,
           type: 'document',
-          document: { link: mediaUrl, caption: caption || undefined, filename: caption || 'document' },
+          document: { link: mediaUrl, caption: caption || undefined, filename: resolveDocName() },
         };
       }
 
@@ -440,9 +440,10 @@ Deno.serve(async (req) => {
         body = {
           number: phone,
           mediatype: 'document',
+          mimetype: 'application/pdf',
           media: mediaUrl,
           caption: caption || '',
-          fileName: caption || 'document',
+          fileName: resolveDocName(),
         };
         break;
     }
