@@ -13,7 +13,7 @@ import { compressVideo, WHATSAPP_VIDEO_LIMIT_BYTES } from "@/lib/video-compress"
 type MediaType = 'image' | 'document' | 'video';
 
 interface MediaUploadButtonProps {
-  onUpload: (url: string, type: MediaType) => void;
+  onUpload: (url: string, type: MediaType, fileName?: string) => void;
   disabled?: boolean;
 }
 
@@ -107,7 +107,7 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
         .from('inbox-media')
         .getPublicUrl(fileName);
 
-      onUpload(publicUrl, type);
+      onUpload(publicUrl, type, file.name);
       setOpen(false);
       setPreview(null);
       toast.success("Arquivo enviado com sucesso");
