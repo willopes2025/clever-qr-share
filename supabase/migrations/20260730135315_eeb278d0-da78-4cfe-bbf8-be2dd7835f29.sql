@@ -1,0 +1,1 @@
+UPDATE public.subscriptions SET max_leads = 2000 WHERE user_id = 'ca6269aa-49bd-47e5-8efd-01166c07ae5b' AND plan = 'avancado' AND (max_leads IS NULL OR max_leads = 0);
