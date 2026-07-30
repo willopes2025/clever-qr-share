@@ -551,7 +551,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     const optimisticMessage: OptimisticMessage = {
       id: `optimistic-${Date.now()}`,
       conversation_id: conversation.id,
-      content: contentLabels[mediaType] || '[Mídia]',
+      content: caption || contentLabels[mediaType] || '[Mídia]',
       direction: 'outbound',
       status: 'sending',
       message_type: mediaType,
