@@ -7309,6 +7309,7 @@ export type Database = {
           message_interval_min: number
           notify_on_complete: boolean
           stop_on_error: boolean
+          theme: string
           timezone: string
           updated_at: string
           user_id: string
@@ -7330,6 +7331,7 @@ export type Database = {
           message_interval_min?: number
           notify_on_complete?: boolean
           stop_on_error?: boolean
+          theme?: string
           timezone?: string
           updated_at?: string
           user_id: string
@@ -7351,6 +7353,7 @@ export type Database = {
           message_interval_min?: number
           notify_on_complete?: boolean
           stop_on_error?: boolean
+          theme?: string
           timezone?: string
           updated_at?: string
           user_id?: string
