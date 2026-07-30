@@ -1,30 +1,39 @@
-## Causa
+## Problema
 
-No `src/components/inbox/MessageView.tsx` o seletor de remetente é escolhido por um `if` baseado no provedor da conversa:
+O PDF chegava sem nome/extensão e sem mimetype, então o WhatsApp não abria. Isso já foi corrigido em dois lugares (inbox e campanhas), mas os demais fluxos de envio ainda podem repetir o erro.
 
-- `isMetaConversation = conversation.provider === 'meta'` (linha 103)
-- Se for `meta`, renderiza o seletor combinado com os grupos **API Oficial** (números Meta) + **WhatsApp Lite** (instâncias Evolution) — desktop linha ~1235 e mobile linha ~1650.
-- Se **não** for `meta` (conversas criadas pela Evolution/Baileys, como a do LabClear Financeiro da imagem), cai no `else`, que lista **apenas** `connectedInstances` (James, BVC Oficial, Centro de Saúde).
+Estado atual verificado nas funções de envio:
 
-Ou seja: não é permissão nem falta de números — os números Meta existem e são carregados (`useMetaNumbersMap`), mas o seletor "somente Evolution" nunca os exibe. Por isso alguns leads mostram e outros não.
+| Fluxo | Nome do arquivo | Mimetype |
+|---|---|---|
+| Inbox (`send-inbox-media`) | OK | OK |
+| Campanhas (`send-campaign-messages`) | OK | OK |
+| Relatórios (`dispatch-buyer-reports`, `send-scheduled-analysis`) | OK (fixo .pdf) | OK |
+| Chatbot — mídia de nó (`execute-chatbot-flow`, Evolution) | só se vier `filename`, sem validar extensão | ausente |
+| Chatbot — mídia de nó (Meta) | só se vier `filename` | n/a |
+| Chatbot — mídia de template (Evolution e Meta) | **ausente** (nenhum `fileName`/`filename`) | ausente |
+| Agente IA de campanha (`ai-campaign-agent`, mídia de estágio) | usa `m.name` (nome livre, geralmente sem extensão) | ausente |
+| Agente IA — template com mídia | usa `media_filename` quando existe, senão nada | ausente |
 
-## Solução
+Ou seja: o mesmo bug volta a acontecer em chatbot e nos disparos do agente de IA.
 
-Unificar o seletor: uma única lista com Meta + Evolution, independente do `provider` da conversa.
+## O que fazer
 
-### Mudanças em `src/components/inbox/MessageView.tsx`
+1. **Criar helper compartilhado** `supabase/functions/_shared/media-filename.ts`, extraindo a lógica que já funciona no inbox:
+   - `resolveDocName({ fileName, caption, url })` — usa o nome informado, senão o nome do arquivo na URL, senão `documento`; sanitiza e **garante extensão** (deduz pela URL, ou `.pdf` como padrão).
+   - `resolveDocMime(name)` — mapa de extensões (pdf, doc/docx, xls/xlsx, ppt/pptx, txt, csv, zip…) com fallback `application/octet-stream`.
 
-1. Substituir o par `isMetaConversation` / `metaUsingEvoInstance` por um único estado `usingMetaSender` (booleano), inicializado como `true` quando a conversa tem `meta_phone_number_id` e não tem `instance_id` escolhido, e `false` caso contrário. Mantém o comportamento atual para conversas Meta.
-2. Remover o `if (isMetaConversation) ... else ...` nos dois pontos (desktop ~1235-1373 e mobile ~1650-1751), deixando apenas o seletor combinado com os grupos "API Oficial" e "WhatsApp Lite".
-3. `onValueChange` continua igual: `meta:<phone_number_id>` grava `meta_phone_number_id` e `provider: 'meta'`; `evo:<id>` grava `instance_id` e mantém/ajusta o provider para a instância escolhida — assim a conversa passa a responder pelo canal escolhido.
-4. Atualizar os derivados de envio para usar o novo estado:
-   - `useMetaSender = usingMetaSender`
-   - `effectiveInstanceId`, `hasValidSender` e os `disabled` dos botões (linhas 408-412, 521, 604, 757, 1784, 1831, 1883) passam a depender só de `usingMetaSender`.
-5. O efeito de auto-seleção pelo último inbound (linhas ~261-301) passa a alternar `usingMetaSender` conforme a origem da última mensagem recebida, sem depender do provider da conversa.
-6. O badge "via <número>" no cabeçalho (linhas 1160-1167) passa a exibir o remetente atual em qualquer conversa.
+2. **Aplicar o helper nos pontos que ainda não têm**:
+   - `execute-chatbot-flow`: no `sendMediaMessage` (Evolution: `fileName` + `mimetype`; Meta: `document.filename`) e no envio de mídia de template (ambos os provedores) — hoje sem nome nenhum.
+   - `ai-campaign-agent`: envio de mídia de estágio (`m.name` → nome com extensão derivada de `media_url`/`mime_type`, + `mimetype`) e envio de mídia de template (`media_filename` com fallback pela URL, + `mimetype`).
 
-Nada muda no backend: `send-inbox-message` já aceita envio cruzado (Meta ↔ Evolution) conforme ajuste anterior.
+3. **Refatorar** `send-inbox-media` e `send-campaign-messages` para usarem o mesmo helper, removendo as cópias duplicadas da lógica (mesmo comportamento, uma fonte só).
 
-## Resultado
+4. **Deploy** das funções alteradas: `send-inbox-media`, `send-campaign-messages`, `execute-chatbot-flow`, `ai-campaign-agent`.
 
-Em qualquer lead do inbox o dropdown mostrará "API Oficial" (7685 / 6204, conforme permissão do usuário) e "WhatsApp Lite" (instâncias conectadas), permitindo trocar o canal a qualquer momento.
+## Detalhes técnicos
+
+- Para a Evolution API, documentos exigem `mediatype: "document"` + `fileName` (com extensão) + `mimetype`.
+- Para a Meta Cloud API, `document.filename` é o que define o nome exibido; sem ele o app mostra um arquivo genérico.
+- Quando o registro tiver `mime_type` salvo (biblioteca de mídia do agente), ele tem prioridade sobre o mapa de extensões.
+- Sem mudanças de banco e sem mudanças de UI.

@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveOrgFormatConfig, formatDateSmart, DEFAULT_FORMAT_CONFIG, type OrgFormatConfig } from "../_shared/timezone.ts";
 import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
+import { resolveDocName, resolveDocMime } from '../_shared/media-filename.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -570,6 +571,9 @@ Deno.serve(async (req: Request) => {
       const canSendEvolution = !!instanceName && !!evolutionRecipient;
       const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && !!contact?.phone;
       if (!canSendEvolution && !canSendMeta) return;
+      const docName = mediaType === 'document'
+        ? resolveDocName({ fileName: filename, caption, url: mediaUrl })
+        : null;
       if (canSendEvolution) {
         try {
           const isAudio = mediaType === 'audio';
@@ -578,7 +582,10 @@ Deno.serve(async (req: Request) => {
             ? { number: evolutionRecipient, audio: mediaUrl }
             : { number: evolutionRecipient, mediatype: mediaType, media: mediaUrl };
           if (!isAudio && caption) body.caption = caption;
-          if (!isAudio && filename && mediaType === 'document') body.fileName = filename;
+          if (docName) {
+            body.fileName = docName;
+            body.mimetype = resolveDocMime(docName);
+          }
           const resp = await fetch(`${evolutionApiUrl}/message/${endpoint}/${instanceName}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
@@ -612,7 +619,7 @@ Deno.serve(async (req: Request) => {
           if (mediaType === 'audio') payload.audio = { link: mediaUrl };
           else if (mediaType === 'image') payload.image = { link: mediaUrl, ...(caption ? { caption } : {}) };
           else if (mediaType === 'video') payload.video = { link: mediaUrl, ...(caption ? { caption } : {}) };
-          else payload.document = { link: mediaUrl, ...(caption ? { caption } : {}), ...(filename ? { filename } : {}) };
+          else payload.document = { link: mediaUrl, ...(caption ? { caption } : {}), filename: docName || resolveDocName({ fileName: filename, caption, url: mediaUrl }) };
           const resp = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${metaAccessToken}`, 'Content-Type': 'application/json' },
@@ -848,7 +855,7 @@ Deno.serve(async (req: Request) => {
             try {
               const { data: tpl } = await supabase
                 .from('message_templates')
-                .select('content, media_url, media_type')
+                .select('content, media_url, media_type, media_filename')
                 .eq('id', node.data.templateId)
                 .single();
 
@@ -864,6 +871,9 @@ Deno.serve(async (req: Request) => {
 
                 if (hasMedia && (contact?.phone || evolutionRecipient)) {
                   const mediaType = tpl.media_type as string;
+                  const tplDocName = mediaType === 'document'
+                    ? resolveDocName({ fileName: (tpl as any).media_filename, url: tpl.media_url })
+                    : null;
                   let mediaSent = false;
                   let mediaError: string | null = null;
                   let mediaMessageId: string | null = null;
@@ -876,6 +886,10 @@ Deno.serve(async (req: Request) => {
                       const payload: any = isAudio
                         ? { number: evolutionRecipient, audio: tpl.media_url }
                         : { number: evolutionRecipient, mediatype: mediaType, media: tpl.media_url };
+                      if (tplDocName) {
+                        payload.fileName = tplDocName;
+                        payload.mimetype = resolveDocMime(tplDocName);
+                      }
 
                       const mediaResp = await fetch(`${evolutionApiUrl}/message/${endpoint}/${instanceName}`, {
                         method: 'POST',
@@ -912,7 +926,7 @@ Deno.serve(async (req: Request) => {
                       } else if (mediaType === 'video') {
                         metaPayload.video = { link: tpl.media_url };
                       } else {
-                        metaPayload.document = { link: tpl.media_url };
+                        metaPayload.document = { link: tpl.media_url, filename: tplDocName || resolveDocName({ url: tpl.media_url }) };
                       }
                       const metaResp = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
                         method: 'POST',

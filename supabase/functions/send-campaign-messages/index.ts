@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveOrgTimezone } from "../_shared/timezone.ts";
+import { resolveDocName, resolveDocMime } from '../_shared/media-filename.ts';
 import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
 
 
@@ -1395,28 +1396,14 @@ Deno.serve(async (req: Request) => {
               caption: '',
             };
             if (templateMedia.media_type === 'document') {
-              const urlName = decodeURIComponent((templateMedia.media_url.split('?')[0].split('/').pop() || '')).trim();
-              let docName = (templateMedia.media_filename || urlName || 'documento.pdf').trim();
-              if (!/\.[a-z0-9]{2,5}$/i.test(docName)) {
-                const ext = urlName.match(/\.([a-z0-9]{2,5})$/i)?.[1] || 'pdf';
-                docName = `${docName}.${ext}`;
-              }
-              const ext = docName.split('.').pop()!.toLowerCase();
-              const mimeMap: Record<string, string> = {
-                pdf: 'application/pdf',
-                doc: 'application/msword',
-                docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                xls: 'application/vnd.ms-excel',
-                xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                ppt: 'application/vnd.ms-powerpoint',
-                pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                csv: 'text/csv',
-                txt: 'text/plain',
-                zip: 'application/zip',
-              };
+              const docName = resolveDocName({
+                fileName: templateMedia.media_filename,
+                url: templateMedia.media_url,
+              });
               mediaBody.fileName = docName;
-              mediaBody.mimetype = mimeMap[ext] || 'application/octet-stream';
+              mediaBody.mimetype = resolveDocMime(docName);
             }
+
 
           }
 

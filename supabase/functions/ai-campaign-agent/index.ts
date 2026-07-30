@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveOrgTimezone, nowInTimezone } from "../_shared/timezone.ts";
+import { resolveDocName, resolveDocMime } from "../_shared/media-filename.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -895,8 +896,10 @@ async function sendSingleStageMedia(params: {
         mediatype: m.media_type === 'document' ? 'document' : m.media_type,
         caption,
       };
-      if (m.media_type === 'document' && m.name) {
-        body.fileName = m.name;
+      if (m.media_type === 'document') {
+        const docName = resolveDocName({ fileName: m.name, url: m.media_url, mimeType: m.mime_type });
+        body.fileName = docName;
+        body.mimetype = resolveDocMime(docName, m.mime_type);
       }
     }
 
@@ -2475,7 +2478,11 @@ ${mapeamento}
                     mediatype: selectedMediaType === 'document' ? 'document' : selectedMediaType,
                     caption: '',
                   };
-                  if (selectedMediaFilename) {
+                  if (selectedMediaType === 'document') {
+                    const docName = resolveDocName({ fileName: selectedMediaFilename, url: selectedMediaUrl });
+                    mediaBody.fileName = docName;
+                    mediaBody.mimetype = resolveDocMime(docName);
+                  } else if (selectedMediaFilename) {
                     mediaBody.fileName = selectedMediaFilename;
                   }
                 }
