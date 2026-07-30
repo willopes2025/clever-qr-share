@@ -61,36 +61,9 @@ Deno.serve(async (req) => {
     const { conversationId, mediaUrl, mediaType, caption, instanceId, targetPhone, fileName } = await req.json();
 
     // Resolve a safe document filename (WhatsApp needs a real name + extension to open the file)
-    const resolveDocName = (): string => {
-      const fromUrl = (() => {
-        try {
-          const p = new URL(mediaUrl).pathname.split('/').pop() || '';
-          return decodeURIComponent(p);
-        } catch { return ''; }
-      })();
-      let name = (fileName && String(fileName).trim()) || (caption && String(caption).trim()) || fromUrl || 'documento';
-      name = name.replace(/[\r\n"]/g, ' ').trim().slice(0, 120);
-      if (!/\.[A-Za-z0-9]{2,5}$/.test(name)) {
-        const ext = fromUrl.includes('.') ? fromUrl.split('.').pop() : 'pdf';
-        name = `${name}.${ext}`;
-      }
-      return name;
-    };
+    const resolveDocumentName = (): string =>
+      resolveDocName({ fileName, caption, url: mediaUrl });
 
-    const DOC_MIME: Record<string, string> = {
-      pdf: 'application/pdf',
-      doc: 'application/msword',
-      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      xls: 'application/vnd.ms-excel',
-      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      ppt: 'application/vnd.ms-powerpoint',
-      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      csv: 'text/csv',
-      txt: 'text/plain',
-      zip: 'application/zip',
-    };
-    const resolveDocMime = (name: string): string =>
-      DOC_MIME[(name.split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
 
     if (!conversationId || !mediaUrl || !mediaType || !instanceId) {
       throw new Error('conversationId, mediaUrl, mediaType and instanceId are required');
