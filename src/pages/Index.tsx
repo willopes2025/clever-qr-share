@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -141,6 +141,17 @@ const pricingTiers = [
 
 const Index = () => {
   const [isAnnual, setIsAnnual] = useState(false);
+
+  // A landing page é sempre exibida em tema claro
+  useEffect(() => {
+    const root = document.documentElement;
+    const wasDark = root.classList.contains("dark");
+    root.classList.remove("dark");
+    return () => {
+      if (wasDark) root.classList.add("dark");
+    };
+  }, []);
+
 
   return (
     <div className="min-h-screen bg-background">
