@@ -404,6 +404,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   }, [optimisticMessages.length]);
 
+  // Pending attachment awaiting caption / confirmation before sending
+  const [pendingMedia, setPendingMedia] = useState<{ url: string; type: 'image' | 'document' | 'video'; name?: string } | null>(null);
+
   // Helper: determine effective sender (Meta or Evolution) for any conversation
   const useMetaSender = usingMetaSender;
   const effectiveInstanceId = usingMetaSender ? selectedMetaNumberId : selectedInstanceId;
