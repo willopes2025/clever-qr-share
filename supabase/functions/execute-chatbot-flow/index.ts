@@ -871,6 +871,9 @@ Deno.serve(async (req: Request) => {
 
                 if (hasMedia && (contact?.phone || evolutionRecipient)) {
                   const mediaType = tpl.media_type as string;
+                  const tplDocName = mediaType === 'document'
+                    ? resolveDocName({ fileName: (tpl as any).media_filename, url: tpl.media_url })
+                    : null;
                   let mediaSent = false;
                   let mediaError: string | null = null;
                   let mediaMessageId: string | null = null;
@@ -883,6 +886,10 @@ Deno.serve(async (req: Request) => {
                       const payload: any = isAudio
                         ? { number: evolutionRecipient, audio: tpl.media_url }
                         : { number: evolutionRecipient, mediatype: mediaType, media: tpl.media_url };
+                      if (tplDocName) {
+                        payload.fileName = tplDocName;
+                        payload.mimetype = resolveDocMime(tplDocName);
+                      }
 
                       const mediaResp = await fetch(`${evolutionApiUrl}/message/${endpoint}/${instanceName}`, {
                         method: 'POST',
