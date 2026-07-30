@@ -571,6 +571,9 @@ Deno.serve(async (req: Request) => {
       const canSendEvolution = !!instanceName && !!evolutionRecipient;
       const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && !!contact?.phone;
       if (!canSendEvolution && !canSendMeta) return;
+      const docName = mediaType === 'document'
+        ? resolveDocName({ fileName: filename, caption, url: mediaUrl })
+        : null;
       if (canSendEvolution) {
         try {
           const isAudio = mediaType === 'audio';
@@ -579,7 +582,10 @@ Deno.serve(async (req: Request) => {
             ? { number: evolutionRecipient, audio: mediaUrl }
             : { number: evolutionRecipient, mediatype: mediaType, media: mediaUrl };
           if (!isAudio && caption) body.caption = caption;
-          if (!isAudio && filename && mediaType === 'document') body.fileName = filename;
+          if (docName) {
+            body.fileName = docName;
+            body.mimetype = resolveDocMime(docName);
+          }
           const resp = await fetch(`${evolutionApiUrl}/message/${endpoint}/${instanceName}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
