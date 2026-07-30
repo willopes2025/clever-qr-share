@@ -937,19 +937,20 @@ Deno.serve(async (req: Request) => {
     }
 
     // Fetch template media info if template exists
-    let templateMedia: { media_url: string; media_type: string } | null = null;
+    let templateMedia: { media_url: string; media_type: string; media_filename?: string | null } | null = null;
     if (campaign.template_id) {
       const { data: template } = await supabase
         .from('message_templates')
-        .select('media_url, media_type')
+        .select('media_url, media_type, media_filename')
         .eq('id', campaign.template_id)
         .single();
       
       if (template?.media_url && template?.media_type) {
-        templateMedia = { media_url: template.media_url, media_type: template.media_type };
+        templateMedia = { media_url: template.media_url, media_type: template.media_type, media_filename: template.media_filename };
         console.log(`Template has media: ${template.media_type} - ${template.media_url}`);
       }
     }
+
 
     // ===== META TEMPLATE SENDING =====
     if (campaign.meta_template_id) {
