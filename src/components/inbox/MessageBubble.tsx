@@ -37,7 +37,7 @@ const MessageBubbleComponent = ({ message, isOptimistic, instancePhoneNumber, on
   
   const getStatusIcon = () => {
     if (isOptimistic || message.status === "sending") {
-      return <Loader2 className="h-3 w-3 animate-spin text-[#667781]" />;
+      return <Loader2 className="h-3 w-3 animate-spin text-[#667781] dark:text-[#8696a0]" />;
     }
     if (isFailed) {
       return (
@@ -68,12 +68,12 @@ const MessageBubbleComponent = ({ message, isOptimistic, instancePhoneNumber, on
       return <CheckCheck className="h-3 w-3 text-[#53bdeb]" />;
     }
     if (message.delivered_at) {
-      return <CheckCheck className="h-3 w-3 text-[#667781]" />;
+      return <CheckCheck className="h-3 w-3 text-[#667781] dark:text-[#8696a0]" />;
     }
     if (message.sent_at) {
-      return <Check className="h-3 w-3 text-[#667781]" />;
+      return <Check className="h-3 w-3 text-[#667781] dark:text-[#8696a0]" />;
     }
-    return <Clock className="h-3 w-3 text-[#667781]" />;
+    return <Clock className="h-3 w-3 text-[#667781] dark:text-[#8696a0]" />;
   };
 
   const senderName = message.sent_by_user?.full_name;
@@ -119,7 +119,7 @@ const MessageBubbleComponent = ({ message, isOptimistic, instancePhoneNumber, on
             </>
           ) : (
             <>
-              <span className="text-[11px] text-[#667781]">
+              <span className="text-[11px] text-[#667781] dark:text-[#8696a0]">
                 {senderName}
               </span>
               {instancePhoneNumber && (

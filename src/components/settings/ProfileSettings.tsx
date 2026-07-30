@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Palette } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -144,6 +146,23 @@ export const ProfileSettings = () => {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5" />
+            Aparência
+          </CardTitle>
+          <CardDescription>
+            Escolha entre o tema claro, escuro ou automático (segue o sistema)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="max-w-xs border border-border rounded-xl p-1">
+            <ThemeToggle />
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

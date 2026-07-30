@@ -133,7 +133,7 @@ export const ConditionNode = ({ data, selected }: NodeProps) => {
             type="source"
             position={Position.Bottom}
             id="none"
-            className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-background"
+            className="!bg-muted-foreground !w-2.5 !h-2.5 !border-2 !border-background"
             style={{ left: `${((validIntents.length + 1) / (validIntents.length + 2)) * 100}%` }}
           />
         </>

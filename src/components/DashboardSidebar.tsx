@@ -15,6 +15,7 @@ import { usePendingTasksCount } from "@/hooks/usePendingTasksCount";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebarContext } from "@/contexts/SidebarContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import wideLogo from "@/assets/wide-logo.png";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -440,6 +441,15 @@ export const DashboardSidebar = () => {
 
               <Tooltip>
                 <TooltipTrigger asChild>
+                  <div>
+                    <ThemeToggle collapsed variant="sidebar" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">Tema do sistema</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <Button 
                     variant="ghost" 
                     size="icon"
@@ -480,6 +490,8 @@ export const DashboardSidebar = () => {
                   </p>
                 </div>
               </NavLink>
+
+              <ThemeToggle variant="sidebar" />
 
               <Button 
                 variant="ghost" 

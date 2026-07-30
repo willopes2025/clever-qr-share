@@ -79,25 +79,61 @@
   }
 
   .dark {
-    --background: 168 44% 10%;
-    --foreground: 0 0% 95%;
-    --card: 168 44% 15%;
-    --card-foreground: 0 0% 95%;
-    --popover: 168 44% 12%;
-    --popover-foreground: 0 0% 95%;
-    --primary: 134 54% 55%;
-    --primary-foreground: 168 44% 10%;
-    --secondary: 168 44% 18%;
-    --secondary-foreground: 0 0% 90%;
-    --muted: 168 44% 20%;
-    --muted-foreground: 168 20% 60%;
-    --accent: 134 54% 55%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 70% 55%;
+    /* Base surfaces */
+    --background: 200 20% 8%;         /* #10161a */
+    --foreground: 180 8% 93%;
+
+    --card: 200 18% 12%;
+    --card-foreground: 180 8% 93%;
+
+    --popover: 200 18% 12%;
+    --popover-foreground: 180 8% 93%;
+
+    /* Green stays the brand accent on dark */
+    --primary: 134 48% 52%;
+    --primary-foreground: 200 25% 8%;
+
+    --secondary: 200 15% 16%;
+    --secondary-foreground: 180 8% 90%;
+
+    --muted: 200 14% 18%;
+    --muted-foreground: 190 10% 68%;
+
+    --accent: 134 48% 52%;
+    --accent-foreground: 200 25% 8%;
+
+    --destructive: 0 65% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 168 44% 25%;
-    --input: 168 44% 18%;
-    --ring: 134 54% 55%;
+
+    --border: 200 12% 24%;
+    --input: 200 15% 16%;
+    --ring: 134 48% 52%;
+
+    --info: 201 70% 58%;
+
+    /* WhatsApp tokens adapted to dark */
+    --whatsapp-teal-dark: 190 30% 14%;
+    --whatsapp-teal-medium: 168 39% 42%;
+    --whatsapp-light-green: 134 48% 52%;
+    --whatsapp-chat-bubble: 168 60% 18%;
+    --whatsapp-check-blue: 201 70% 58%;
+    --whatsapp-chat-bg: 200 25% 7%;
+
+    /* Shadows need to be darker (not teal-tinted) on dark surfaces */
+    --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.35);
+    --shadow-medium: 0 8px 30px rgba(0, 0, 0, 0.45);
+    --shadow-elevated: 0 12px 40px rgba(0, 0, 0, 0.55);
+    --shadow-hover: 0 16px 50px rgba(0, 0, 0, 0.6);
+
+    /* Sidebar */
+    --sidebar-background: 200 22% 10%;
+    --sidebar-foreground: 180 8% 92%;
+    --sidebar-primary: 134 48% 55%;
+    --sidebar-primary-foreground: 200 25% 8%;
+    --sidebar-accent: 200 16% 18%;
+    --sidebar-accent-foreground: 180 8% 95%;
+    --sidebar-border: 200 12% 22%;
+    --sidebar-ring: 134 48% 55%;
   }
 }
 
@@ -167,7 +203,7 @@
     content: '';
     position: absolute;
     inset: 4px -4px -4px 4px;
-    background: white;
+    background: hsl(var(--card));
     border-radius: 20px;
     box-shadow: var(--shadow-soft);
     z-index: -1;
@@ -177,7 +213,7 @@
     content: '';
     position: absolute;
     inset: 8px -8px -8px 8px;
-    background: white;
+    background: hsl(var(--card));
     border-radius: 20px;
     box-shadow: var(--shadow-soft);
     z-index: -2;

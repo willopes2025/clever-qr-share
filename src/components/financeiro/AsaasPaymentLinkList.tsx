@@ -87,7 +87,7 @@ export const AsaasPaymentLinkList = () => {
                       {link.value ? formatCurrency(link.value) : "Valor livre"}
                     </TableCell>
                     <TableCell>
-                      <Badge className={link.active ? "bg-green-500/20 text-green-500" : "bg-gray-500/20 text-gray-500"}>
+                      <Badge className={link.active ? "bg-green-500/20 text-green-500" : "bg-muted text-muted-foreground"}>
                         {link.active ? "Ativo" : "Inativo"}
                       </Badge>
                     </TableCell>

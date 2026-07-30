@@ -1,39 +1,58 @@
-## Problema
+## Objetivo
 
-O PDF chegava sem nome/extensão e sem mimetype, então o WhatsApp não abria. Isso já foi corrigido em dois lugares (inbox e campanhas), mas os demais fluxos de envio ainda podem repetir o erro.
+Modo dark real no WideZap: legível em todas as telas, com cada usuário escolhendo entre **Claro / Escuro / Sistema**, e a preferência salva na conta (persiste entre dispositivos).
 
-Estado atual verificado nas funções de envio:
+## Situação atual (verificada)
 
-| Fluxo | Nome do arquivo | Mimetype |
-|---|---|---|
-| Inbox (`send-inbox-media`) | OK | OK |
-| Campanhas (`send-campaign-messages`) | OK | OK |
-| Relatórios (`dispatch-buyer-reports`, `send-scheduled-analysis`) | OK (fixo .pdf) | OK |
-| Chatbot — mídia de nó (`execute-chatbot-flow`, Evolution) | só se vier `filename`, sem validar extensão | ausente |
-| Chatbot — mídia de nó (Meta) | só se vier `filename` | n/a |
-| Chatbot — mídia de template (Evolution e Meta) | **ausente** (nenhum `fileName`/`filename`) | ausente |
-| Agente IA de campanha (`ai-campaign-agent`, mídia de estágio) | usa `m.name` (nome livre, geralmente sem extensão) | ausente |
-| Agente IA — template com mídia | usa `media_filename` quando existe, senão nada | ausente |
+- `src/index.css` já tem um bloco `.dark` com tokens básicos (background, card, primary, border...), mas ele nunca é ativado — não existe `ThemeProvider` nem toggle.
+- `next-themes@^0.3.0` já está instalado (usado só pelo `sonner`).
+- O bloco `.dark` está incompleto: faltam `--sidebar-*`, `--info`, `--whatsapp-*`, e as sombras (`--shadow-*`) são feitas para fundo claro.
+- Cerca de 67 arquivos usam cores fixas (`bg-white`, `text-white`, `text-gray-*`, `bg-black`, hex) — esses são os pontos que ficariam ilegíveis no dark. Concentrados em: Inbox (bolhas, mídia, painel do lead), Dashboard (cards/gráficos), Chatbot Builder (nodes), Financeiro/Asaas, Instances/Settings, Landing/Login.
 
-Ou seja: o mesmo bug volta a acontecer em chatbot e nos disparos do agente de IA.
+## Escopo da entrega
 
-## O que fazer
+### 1. Infra de tema
+- Criar `ThemeProvider` (next-themes, `attribute="class"`, `defaultTheme="system"`, sem flash) no topo do `App.tsx`.
+- Script anti-flash no `index.html` aplicando a classe antes do render.
+- Hook `useThemePreference` que sincroniza o tema local com o backend.
 
-1. **Criar helper compartilhado** `supabase/functions/_shared/media-filename.ts`, extraindo a lógica que já funciona no inbox:
-   - `resolveDocName({ fileName, caption, url })` — usa o nome informado, senão o nome do arquivo na URL, senão `documento`; sanitiza e **garante extensão** (deduz pela URL, ou `.pdf` como padrão).
-   - `resolveDocMime(name)` — mapa de extensões (pdf, doc/docx, xls/xlsx, ppt/pptx, txt, csv, zip…) com fallback `application/octet-stream`.
+### 2. Preferência por usuário (backend)
+- Adicionar coluna `theme` (`'light' | 'dark' | 'system'`, default `'system'`) em `user_settings` (tabela já existente, já com RLS por usuário).
+- Ler no login e gravar ao trocar, com fallback em `localStorage` para carregamento instantâneo.
 
-2. **Aplicar o helper nos pontos que ainda não têm**:
-   - `execute-chatbot-flow`: no `sendMediaMessage` (Evolution: `fileName` + `mimetype`; Meta: `document.filename`) e no envio de mídia de template (ambos os provedores) — hoje sem nome nenhum.
-   - `ai-campaign-agent`: envio de mídia de estágio (`m.name` → nome com extensão derivada de `media_url`/`mime_type`, + `mimetype`) e envio de mídia de template (`media_filename` com fallback pela URL, + `mimetype`).
+### 3. Paleta dark completa
+- Completar o bloco `.dark` em `index.css`: sidebar, info, tokens WhatsApp (fundo do chat, bolhas in/out), sombras com opacidade adequada ao fundo escuro, `--card`, `--muted`, bordas com contraste suficiente.
+- Ajustar utilitários já existentes (`.depth-card`, `.bg-dark-*`, `.whatsapp-chat-bg`, caudas de bolha) para variantes dark.
+- Alvo de contraste: AA (4.5:1 em texto, 3:1 em bordas/ícones).
 
-3. **Refatorar** `send-inbox-media` e `send-campaign-messages` para usarem o mesmo helper, removendo as cópias duplicadas da lógica (mesmo comportamento, uma fonte só).
+### 4. Toggle na interface
+- Botão de tema no **rodapé da sidebar** (desktop) com os 3 modos, seguindo a preferência já registrada pelo usuário.
+- Espelhar no menu do usuário no header mobile.
+- Também disponível em Configurações > Perfil.
 
-4. **Deploy** das funções alteradas: `send-inbox-media`, `send-campaign-messages`, `execute-chatbot-flow`, `ai-campaign-agent`.
+### 5. Varredura de cores fixas (a parte mais longa)
+Substituir cores fixas por tokens semânticos, em ondas por área de impacto:
+1. Inbox (bolhas, lista de conversas, mídia, painel do lead, badges de provider)
+2. Dashboard e gráficos (recharts usa `--chart-*`)
+3. Funis / Kanban e cards de lead
+4. Chatbot Builder (nodes do react-flow)
+5. Configurações, Instances, Financeiro/Asaas
+6. Diálogos, tabelas e componentes `ui/` restantes
+7. Login / Landing / páginas públicas (podem ficar fixas no claro, se você preferir)
+
+Fora do escopo do dark: templates de e-mail (`email-design.ts`) e HTML enviado a clientes continuam em tema claro.
+
+### 6. Validação
+- Percorrer as telas principais em dark com screenshots automatizados e conferir contraste, estados hover/ativo, e ícones sobre fundo escuro.
+- Verificar persistência: trocar tema, recarregar, entrar em outro navegador com o mesmo usuário.
 
 ## Detalhes técnicos
 
-- Para a Evolution API, documentos exigem `mediatype: "document"` + `fileName` (com extensão) + `mimetype`.
-- Para a Meta Cloud API, `document.filename` é o que define o nome exibido; sem ele o app mostra um arquivo genérico.
-- Quando o registro tiver `mime_type` salvo (biblioteca de mídia do agente), ele tem prioridade sobre o mapa de extensões.
-- Sem mudanças de banco e sem mudanças de UI.
+- `next-themes` com `attribute="class"` + `disableTransitionOnChange` para evitar piscadas.
+- Migração: `ALTER TABLE public.user_settings ADD COLUMN theme text NOT NULL DEFAULT 'system' CHECK (theme IN ('light','dark','system'))` — sem novas policies (RLS já cobre a tabela).
+- Nenhuma alteração de lógica de negócio; mudanças limitadas a CSS, tokens e camada de apresentação, mais o campo de preferência.
+
+## Ordem sugerida
+
+Etapa A (rápida, já entrega valor): infra + paleta dark completa + toggle + persistência.
+Etapa B: varredura das cores fixas por área, do Inbox para fora.

@@ -36,8 +36,8 @@ function RankBadge({ rank }: { rank: number }) {
   }
   if (rank === 2) {
     return (
-      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-400/20">
-        <Medal className="h-4 w-4 text-gray-400" />
+      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted">
+        <Medal className="h-4 w-4 text-muted-foreground" />
       </div>
     );
   }

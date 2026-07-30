@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate, useLocation } from "react-router-dom";
 import { SessionStatusBadge } from "@/components/productivity/SessionStatusBadge";
 import { motion } from "framer-motion";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface MobileHeaderProps {
   pageTitle?: string;
@@ -62,6 +63,9 @@ export const MobileHeader = ({ pageTitle }: MobileHeaderProps) => {
       {/* Actions */}
       <div className="flex items-center gap-1">
         <SessionStatusBadge />
+        <div className="w-10">
+          <ThemeToggle collapsed variant="sidebar" />
+        </div>
         <Button
           variant="ghost"
           size="icon"

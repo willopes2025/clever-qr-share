@@ -13,7 +13,7 @@ const statusColors: Record<string, string> = {
   PENDING: "bg-yellow-500/20 text-yellow-500",
   BANK_PROCESSING: "bg-blue-500/20 text-blue-500",
   DONE: "bg-green-500/20 text-green-500",
-  CANCELLED: "bg-gray-500/20 text-gray-500",
+  CANCELLED: "bg-muted text-muted-foreground",
   FAILED: "bg-red-500/20 text-red-500",
 };
 
@@ -108,7 +108,7 @@ export const AsaasTransferList = () => {
                       {transfer.transferFee ? formatCurrency(transfer.transferFee) : '-'}
                     </TableCell>
                     <TableCell>
-                      <Badge className={statusColors[transfer.status] || "bg-gray-500/20"}>
+                      <Badge className={statusColors[transfer.status] || "bg-muted"}>
                         {statusLabels[transfer.status] || transfer.status}
                       </Badge>
                     </TableCell>
