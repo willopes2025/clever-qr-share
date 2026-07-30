@@ -46,6 +46,17 @@
 </head>
 
   <body>
+    <script>
+      // Anti-flash: aplica o tema salvo antes do React montar
+      (function () {
+        try {
+          var stored = localStorage.getItem('widezap-theme') || 'system';
+          var dark = stored === 'dark' || (stored === 'system' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

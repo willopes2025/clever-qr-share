@@ -79,9 +79,11 @@ const queryClient = new QueryClient({
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
       <AuthProvider>
         <SubscriptionProvider>
           <TimezoneBootstrap />
+          <ThemeBootstrap />
           <WhatsNewDialog />
           <TooltipProvider>
             <Toaster />
