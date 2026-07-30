@@ -63,6 +63,9 @@ export const MobileHeader = ({ pageTitle }: MobileHeaderProps) => {
       {/* Actions */}
       <div className="flex items-center gap-1">
         <SessionStatusBadge />
+        <div className="w-10">
+          <ThemeToggle collapsed variant="sidebar" />
+        </div>
         <Button
           variant="ghost"
           size="icon"
