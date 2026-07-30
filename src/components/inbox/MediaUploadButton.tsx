@@ -110,7 +110,7 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
       onUpload(publicUrl, type, file.name);
       setOpen(false);
       setPreview(null);
-      toast.success("Arquivo enviado com sucesso");
+      toast.success("Anexo pronto — escreva uma legenda ou envie");
     } catch (error) {
       console.error("Upload error:", error);
       toast.error("Erro ao enviar arquivo");
