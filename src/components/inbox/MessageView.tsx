@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
-import { Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, UserCheck, Cloud, Phone, MailCheck } from "lucide-react";
+import { Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, UserCheck, Cloud, Phone, MailCheck, Paperclip } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { ConversationCardHeader } from "./ConversationCard";
 import { Input } from "@/components/ui/input";
