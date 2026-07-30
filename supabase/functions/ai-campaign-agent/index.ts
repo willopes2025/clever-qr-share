@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveOrgTimezone, nowInTimezone } from "../_shared/timezone.ts";
+import { resolveDocName, resolveDocMime } from "../_shared/media-filename.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
