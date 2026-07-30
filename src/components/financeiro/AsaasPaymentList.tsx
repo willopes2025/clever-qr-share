@@ -219,7 +219,7 @@ export const AsaasPaymentList = () => {
                       <Badge variant="outline">{billingTypeLabels[payment.billingType]}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={statusColors[payment.status] || "bg-gray-500/20"}>
+                      <Badge className={statusColors[payment.status] || "bg-muted"}>
                         {statusLabels[payment.status] || payment.status}
                       </Badge>
                     </TableCell>

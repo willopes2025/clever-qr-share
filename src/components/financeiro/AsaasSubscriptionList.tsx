@@ -22,7 +22,7 @@ import {
 
 const statusColors: Record<string, string> = {
   ACTIVE: "bg-green-500/20 text-green-500",
-  INACTIVE: "bg-gray-500/20 text-gray-500",
+  INACTIVE: "bg-muted text-muted-foreground",
   EXPIRED: "bg-red-500/20 text-red-500",
 };
 
@@ -111,7 +111,7 @@ export const AsaasSubscriptionList = () => {
                       {formatDateOnly(subscription.nextDueDate)}
                     </TableCell>
                     <TableCell>
-                      <Badge className={statusColors[subscription.status] || "bg-gray-500/20"}>
+                      <Badge className={statusColors[subscription.status] || "bg-muted"}>
                         {statusLabels[subscription.status] || subscription.status}
                       </Badge>
                     </TableCell>

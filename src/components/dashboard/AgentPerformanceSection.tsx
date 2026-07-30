@@ -34,7 +34,7 @@ export const AgentPerformanceSection = ({ dateRange, customRange }: AgentPerform
 
   const getRankBadge = (index: number) => {
     if (index === 0) return <Badge className="bg-yellow-500/20 text-yellow-600 border-yellow-500/30">🥇</Badge>;
-    if (index === 1) return <Badge className="bg-gray-400/20 text-gray-500 border-gray-400/30">🥈</Badge>;
+    if (index === 1) return <Badge className="bg-muted text-muted-foreground border-border">🥈</Badge>;
     if (index === 2) return <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">🥉</Badge>;
     return <Badge variant="outline">{index + 1}º</Badge>;
   };

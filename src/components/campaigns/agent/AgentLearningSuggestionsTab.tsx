@@ -25,7 +25,7 @@ const categoryColors: Record<string, string> = {
   Pagamento: "bg-orange-500/20 text-orange-400 border-orange-500/30",
   Suporte: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
   Objeção: "bg-red-500/20 text-red-400 border-red-500/30",
-  Outro: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+  Outro: "bg-muted text-muted-foreground border-border",
 };
 
 export function AgentLearningSuggestionsTab({ agentConfigId }: AgentLearningSuggestionsTabProps) {

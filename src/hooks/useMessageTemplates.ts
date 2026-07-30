@@ -71,7 +71,7 @@ export const CATEGORY_COLORS: Record<TemplateCategory, string> = {
   notification: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
   welcome: 'bg-green-500/20 text-green-300 border-green-500/30',
   reminder: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  other: 'bg-gray-500/20 text-gray-300 border-gray-500/30'
+  other: 'bg-muted text-muted-foreground border-border'
 };
 
 export const useMessageTemplates = () => {
