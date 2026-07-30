@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
-import { Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, UserCheck, Cloud, Phone, MailCheck } from "lucide-react";
+import { Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, UserCheck, Cloud, Phone, MailCheck, Paperclip } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { ConversationCardHeader } from "./ConversationCard";
 import { Input } from "@/components/ui/input";
@@ -404,6 +404,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   }, [optimisticMessages.length]);
 
+  // Pending attachment awaiting caption / confirmation before sending
+  const [pendingMedia, setPendingMedia] = useState<{ url: string; type: 'image' | 'document' | 'video'; name?: string } | null>(null);
+
   // Helper: determine effective sender (Meta or Evolution) for any conversation
   const useMetaSender = usingMetaSender;
   const effectiveInstanceId = usingMetaSender ? selectedMetaNumberId : selectedInstanceId;
@@ -411,7 +414,20 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const handleSend = async (messageText?: string) => {
     const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
     const textToSend = (messageText ?? composerRef.current?.getValue() ?? "").trim();
+
+    // If there's a pending attachment, send it (with the typed text as caption)
+    if (pendingMedia && hasValidSender) {
+      const attachment = pendingMedia;
+      setPendingMedia(null);
+      composerRef.current?.clear();
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      await handleSendMedia(attachment.url, attachment.type, attachment.name, textToSend || undefined);
+      composerRef.current?.focus();
+      return;
+    }
+
     if (!textToSend || !hasValidSender) return;
+
 
     let messageContent = textToSend;
     const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -517,7 +533,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     });
   };
 
-  const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio' | 'video', fileName?: string) => {
+  const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio' | 'video', fileName?: string, caption?: string) => {
     const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
     if (!hasValidSender) {
       toast.error("Selecione um número primeiro");
@@ -535,7 +551,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     const optimisticMessage: OptimisticMessage = {
       id: `optimistic-${Date.now()}`,
       conversation_id: conversation.id,
-      content: contentLabels[mediaType] || '[Mídia]',
+      content: caption || contentLabels[mediaType] || '[Mídia]',
       direction: 'outbound',
       status: 'sending',
       message_type: mediaType,
@@ -561,6 +577,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         mediaUrl,
         mediaType,
         fileName,
+        caption,
         targetPhone: selectedTargetPhone || undefined,
       });
       // Media sent successfully - no toast needed as user sees it in chat
@@ -1695,13 +1712,48 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           </div>
         )}
 
+        {pendingMedia && (
+          <div className="flex items-center gap-3 mb-2 p-2 rounded-lg bg-muted/50 border border-border max-w-3xl mx-auto">
+            {pendingMedia.type === 'image' ? (
+              <img src={pendingMedia.url} alt={pendingMedia.name || 'anexo'} className="h-14 w-14 object-cover rounded-md shrink-0" />
+            ) : pendingMedia.type === 'video' ? (
+              <video src={pendingMedia.url} className="h-14 w-14 object-cover rounded-md bg-black shrink-0" />
+            ) : (
+              <div className="h-14 w-14 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                <Paperclip className="h-5 w-5 text-primary" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{pendingMedia.name || 'Anexo'}</p>
+              <p className="text-xs text-muted-foreground">Escreva uma legenda (opcional) e envie</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={() => setPendingMedia(null)}
+              title="Remover anexo"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              className="shrink-0"
+              onClick={() => handleSend()}
+            >
+              Enviar
+            </Button>
+          </div>
+        )}
+
         <div className="flex gap-2 max-w-3xl mx-auto items-end">
           {!isMobile && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
           
           <MediaUploadButton 
-            onUpload={(url, type, name) => handleSendMedia(url, type, name)} 
+            onUpload={(url, type, name) => setPendingMedia({ url, type, name })} 
             disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
           />
+
 
           <FormLinkButton
             contactId={conversation.contact_id}
