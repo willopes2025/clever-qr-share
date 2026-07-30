@@ -896,8 +896,10 @@ async function sendSingleStageMedia(params: {
         mediatype: m.media_type === 'document' ? 'document' : m.media_type,
         caption,
       };
-      if (m.media_type === 'document' && m.name) {
-        body.fileName = m.name;
+      if (m.media_type === 'document') {
+        const docName = resolveDocName({ fileName: m.name, url: m.media_url, mimeType: m.mime_type });
+        body.fileName = docName;
+        body.mimetype = resolveDocMime(docName, m.mime_type);
       }
     }
 
