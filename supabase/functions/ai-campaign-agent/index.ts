@@ -2478,7 +2478,11 @@ ${mapeamento}
                     mediatype: selectedMediaType === 'document' ? 'document' : selectedMediaType,
                     caption: '',
                   };
-                  if (selectedMediaFilename) {
+                  if (selectedMediaType === 'document') {
+                    const docName = resolveDocName({ fileName: selectedMediaFilename, url: selectedMediaUrl });
+                    mediaBody.fileName = docName;
+                    mediaBody.mimetype = resolveDocMime(docName);
+                  } else if (selectedMediaFilename) {
                     mediaBody.fileName = selectedMediaFilename;
                   }
                 }
