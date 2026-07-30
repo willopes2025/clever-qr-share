@@ -12,6 +12,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { PageLoader } from "@/components/PageLoader";
 import { TimezoneBootstrap } from "@/components/TimezoneBootstrap";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { ThemeBootstrap } from "@/components/ThemeBootstrap";
 import { WhatsNewDialog } from "@/components/WhatsNewDialog";
 
 
