@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveOrgFormatConfig, formatDateSmart, DEFAULT_FORMAT_CONFIG, type OrgFormatConfig } from "../_shared/timezone.ts";
 import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
+import { resolveDocName, resolveDocMime } from '../_shared/media-filename.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
