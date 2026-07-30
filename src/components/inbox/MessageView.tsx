@@ -411,7 +411,20 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const handleSend = async (messageText?: string) => {
     const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
     const textToSend = (messageText ?? composerRef.current?.getValue() ?? "").trim();
+
+    // If there's a pending attachment, send it (with the typed text as caption)
+    if (pendingMedia && hasValidSender) {
+      const attachment = pendingMedia;
+      setPendingMedia(null);
+      composerRef.current?.clear();
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      await handleSendMedia(attachment.url, attachment.type, attachment.name, textToSend || undefined);
+      composerRef.current?.focus();
+      return;
+    }
+
     if (!textToSend || !hasValidSender) return;
+
 
     let messageContent = textToSend;
     const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
