@@ -577,6 +577,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         mediaUrl,
         mediaType,
         fileName,
+        caption,
         targetPhone: selectedTargetPhone || undefined,
       });
       // Media sent successfully - no toast needed as user sees it in chat
