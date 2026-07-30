@@ -937,19 +937,20 @@ Deno.serve(async (req: Request) => {
     }
 
     // Fetch template media info if template exists
-    let templateMedia: { media_url: string; media_type: string } | null = null;
+    let templateMedia: { media_url: string; media_type: string; media_filename?: string | null } | null = null;
     if (campaign.template_id) {
       const { data: template } = await supabase
         .from('message_templates')
-        .select('media_url, media_type')
+        .select('media_url, media_type, media_filename')
         .eq('id', campaign.template_id)
         .single();
       
       if (template?.media_url && template?.media_type) {
-        templateMedia = { media_url: template.media_url, media_type: template.media_type };
+        templateMedia = { media_url: template.media_url, media_type: template.media_type, media_filename: template.media_filename };
         console.log(`Template has media: ${template.media_type} - ${template.media_url}`);
       }
     }
+
 
     // ===== META TEMPLATE SENDING =====
     if (campaign.meta_template_id) {
@@ -1394,8 +1395,29 @@ Deno.serve(async (req: Request) => {
               caption: '',
             };
             if (templateMedia.media_type === 'document') {
-              mediaBody.fileName = 'document';
+              const urlName = decodeURIComponent((templateMedia.media_url.split('?')[0].split('/').pop() || '')).trim();
+              let docName = (templateMedia.media_filename || urlName || 'documento.pdf').trim();
+              if (!/\.[a-z0-9]{2,5}$/i.test(docName)) {
+                const ext = urlName.match(/\.([a-z0-9]{2,5})$/i)?.[1] || 'pdf';
+                docName = `${docName}.${ext}`;
+              }
+              const ext = docName.split('.').pop()!.toLowerCase();
+              const mimeMap: Record<string, string> = {
+                pdf: 'application/pdf',
+                doc: 'application/msword',
+                docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                xls: 'application/vnd.ms-excel',
+                xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ppt: 'application/vnd.ms-powerpoint',
+                pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                csv: 'text/csv',
+                txt: 'text/plain',
+                zip: 'application/zip',
+              };
+              mediaBody.fileName = docName;
+              mediaBody.mimetype = mimeMap[ext] || 'application/octet-stream';
             }
+
           }
 
           console.log(`Sending ${templateMedia.media_type} to ${formattedPhone}...`);
