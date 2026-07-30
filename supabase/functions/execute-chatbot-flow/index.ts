@@ -619,7 +619,7 @@ Deno.serve(async (req: Request) => {
           if (mediaType === 'audio') payload.audio = { link: mediaUrl };
           else if (mediaType === 'image') payload.image = { link: mediaUrl, ...(caption ? { caption } : {}) };
           else if (mediaType === 'video') payload.video = { link: mediaUrl, ...(caption ? { caption } : {}) };
-          else payload.document = { link: mediaUrl, ...(caption ? { caption } : {}), ...(filename ? { filename } : {}) };
+          else payload.document = { link: mediaUrl, ...(caption ? { caption } : {}), filename: docName || resolveDocName({ fileName: filename, caption, url: mediaUrl }) };
           const resp = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${metaAccessToken}`, 'Content-Type': 'application/json' },
