@@ -855,7 +855,7 @@ Deno.serve(async (req: Request) => {
             try {
               const { data: tpl } = await supabase
                 .from('message_templates')
-                .select('content, media_url, media_type')
+                .select('content, media_url, media_type, media_filename')
                 .eq('id', node.data.templateId)
                 .single();
 
