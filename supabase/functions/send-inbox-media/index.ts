@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
+import { resolveDocName, resolveDocMime } from '../_shared/media-filename.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -250,7 +251,7 @@ Deno.serve(async (req) => {
           recipient_type: 'individual',
           to: formattedPhone,
           type: 'document',
-          document: { link: mediaUrl, caption: caption || undefined, filename: resolveDocName() },
+          document: { link: mediaUrl, caption: caption || undefined, filename: resolveDocumentName() },
         };
       }
 
@@ -424,7 +425,7 @@ Deno.serve(async (req) => {
 
       case 'document':
       default: {
-        const docName = resolveDocName();
+        const docName = resolveDocumentName();
         endpoint = `${evolutionApiUrl}/message/sendMedia/${encodedInstanceName}`;
         body = {
           number: phone,
