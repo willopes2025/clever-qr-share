@@ -1712,13 +1712,48 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           </div>
         )}
 
+        {pendingMedia && (
+          <div className="flex items-center gap-3 mb-2 p-2 rounded-lg bg-muted/50 border border-border max-w-3xl mx-auto">
+            {pendingMedia.type === 'image' ? (
+              <img src={pendingMedia.url} alt={pendingMedia.name || 'anexo'} className="h-14 w-14 object-cover rounded-md shrink-0" />
+            ) : pendingMedia.type === 'video' ? (
+              <video src={pendingMedia.url} className="h-14 w-14 object-cover rounded-md bg-black shrink-0" />
+            ) : (
+              <div className="h-14 w-14 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                <Paperclip className="h-5 w-5 text-primary" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{pendingMedia.name || 'Anexo'}</p>
+              <p className="text-xs text-muted-foreground">Escreva uma legenda (opcional) e envie</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={() => setPendingMedia(null)}
+              title="Remover anexo"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              className="shrink-0"
+              onClick={() => handleSend()}
+            >
+              Enviar
+            </Button>
+          </div>
+        )}
+
         <div className="flex gap-2 max-w-3xl mx-auto items-end">
           {!isMobile && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
           
           <MediaUploadButton 
-            onUpload={(url, type, name) => handleSendMedia(url, type, name)} 
+            onUpload={(url, type, name) => setPendingMedia({ url, type, name })} 
             disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
           />
+
 
           <FormLinkButton
             contactId={conversation.contact_id}
