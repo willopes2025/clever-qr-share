@@ -321,6 +321,7 @@ const App = () => (
           </TooltipProvider>
         </SubscriptionProvider>
       </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   </ErrorBoundary>
 );
