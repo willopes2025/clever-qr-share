@@ -926,7 +926,7 @@ Deno.serve(async (req: Request) => {
                       } else if (mediaType === 'video') {
                         metaPayload.video = { link: tpl.media_url };
                       } else {
-                        metaPayload.document = { link: tpl.media_url };
+                        metaPayload.document = { link: tpl.media_url, filename: tplDocName || resolveDocName({ url: tpl.media_url }) };
                       }
                       const metaResp = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
                         method: 'POST',
