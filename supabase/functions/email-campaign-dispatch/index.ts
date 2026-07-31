@@ -1,6 +1,8 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { ensureFreshGmailToken, buildRawMime, EmailChannel } from '../_shared/gmail.ts';
+import { ensureFreshMsToken, MsChannel } from '../_shared/microsoft.ts';
+import { sendMailSmtp, buildSimpleMime } from '../_shared/smtp-native.ts';
 import { loadAttachments, AttachmentMeta } from '../_shared/email-attachments.ts';
 
 const MAX_PER_TICK = 200;
@@ -38,11 +40,27 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      let accessToken: string;
+      const provider = channel.provider as string;
+      let accessToken = '';
       try {
-        accessToken = await ensureFreshGmailToken(admin, channel as EmailChannel);
+        if (provider === 'gmail') {
+          accessToken = await ensureFreshGmailToken(admin, channel as EmailChannel);
+        } else if (provider === 'microsoft') {
+          accessToken = await ensureFreshMsToken(admin, channel as MsChannel);
+        } else if (provider === 'imap') {
+          if (!channel.smtp_host || !channel.smtp_port || !channel.auth_username || !channel.auth_password) {
+            throw new Error('SMTP não configurado para este canal');
+          }
+        } else {
+          throw new Error(`provider ${provider} não suportado`);
+        }
       } catch (e) {
-        console.error('token refresh failed for campaign', campaign.id, e);
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('channel preparation failed for campaign', campaign.id, msg);
+        await admin.from('email_campaigns').update({
+          status: 'failed',
+          stats: { ...(campaign.stats ?? {}), last_error: msg.slice(0, 500) },
+        }).eq('id', campaign.id);
         continue;
       }
 
@@ -96,47 +114,99 @@ Deno.serve(async (req) => {
           if (sigText) text = `${text ?? ''}\n\n${sigText}`;
         }
 
-        try {
-          const raw = buildRawMime({
-            fromName: channel.display_name, fromEmail: channel.email_address,
-            to: [rec.email], subject, html, text,
-            attachments: campaignAttachments,
-          });
-          const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ raw }),
-          });
-          if (!res.ok) {
-            const body = await res.text();
-            failed++;
-            const isFinal = (rec.attempts ?? 0) + 1 >= 3;
-            await admin.from('email_campaign_recipients').update({
-              status: isFinal ? 'failed' : 'pending',
-              scheduled_at: isFinal ? rec.scheduled_at : new Date(Date.now() + 5 * 60_000).toISOString(),
-              error_message: `[${res.status}] ${body.slice(0, 500)}`,
-            }).eq('id', rec.id);
-          } else {
-            const j = await res.json();
-            sent++;
-            await admin.from('email_campaign_recipients').update({
-              status: 'sent', sent_at: new Date().toISOString(),
-              provider_message_id: j.id, provider_thread_id: j.threadId, error_message: null,
-            }).eq('id', rec.id);
-          }
-        } catch (e) {
+        const markFailure = async (message: string) => {
           failed++;
           const isFinal = (rec.attempts ?? 0) + 1 >= 3;
           await admin.from('email_campaign_recipients').update({
             status: isFinal ? 'failed' : 'pending',
             scheduled_at: isFinal ? rec.scheduled_at : new Date(Date.now() + 5 * 60_000).toISOString(),
-            error_message: String(e).slice(0, 500),
+            error_message: message.slice(0, 500),
           }).eq('id', rec.id);
+        };
+
+        try {
+          if (provider === 'gmail') {
+            const raw = buildRawMime({
+              fromName: channel.display_name, fromEmail: channel.email_address,
+              to: [rec.email], subject, html, text,
+              attachments: campaignAttachments,
+            });
+            const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ raw }),
+            });
+            if (!res.ok) {
+              await markFailure(`[${res.status}] ${await res.text()}`);
+            } else {
+              const j = await res.json();
+              sent++;
+              await admin.from('email_campaign_recipients').update({
+                status: 'sent', sent_at: new Date().toISOString(),
+                provider_message_id: j.id, provider_thread_id: j.threadId, error_message: null,
+              }).eq('id', rec.id);
+            }
+          } else if (provider === 'microsoft') {
+            const msg: Record<string, unknown> = {
+              subject,
+              body: { contentType: html ? 'HTML' : 'Text', content: html ?? text ?? '' },
+              toRecipients: [{ emailAddress: { address: rec.email } }],
+              ...(campaignAttachments.length > 0
+                ? {
+                    attachments: campaignAttachments.map((a) => ({
+                      '@odata.type': '#microsoft.graph.fileAttachment',
+                      name: a.filename,
+                      contentType: a.contentType,
+                      contentBytes: a.base64,
+                    })),
+                  }
+                : {}),
+            };
+            const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message: msg, saveToSentItems: true }),
+            });
+            if (!res.ok) {
+              await markFailure(`[${res.status}] ${await res.text()}`);
+            } else {
+              sent++;
+              await admin.from('email_campaign_recipients').update({
+                status: 'sent', sent_at: new Date().toISOString(),
+                provider_message_id: crypto.randomUUID(), error_message: null,
+              }).eq('id', rec.id);
+            }
+          } else {
+            // IMAP / SMTP
+            const port = Number(channel.smtp_port);
+            const raw = buildSimpleMime({
+              fromName: channel.display_name,
+              fromEmail: channel.email_address,
+              to: [rec.email], cc: [], subject, html, text, inReplyTo: null,
+              attachments: campaignAttachments,
+            });
+            await sendMailSmtp(
+              {
+                host: channel.smtp_host,
+                port,
+                secure: port === 465,
+                username: channel.auth_username,
+                password: channel.auth_password,
+              },
+              { from: channel.email_address, to: [rec.email], raw },
+            );
+            sent++;
+            await admin.from('email_campaign_recipients').update({
+              status: 'sent', sent_at: new Date().toISOString(),
+              provider_message_id: `imap-${Date.now()}-${crypto.randomUUID()}`, error_message: null,
+            }).eq('id', rec.id);
+          }
+        } catch (e) {
+          await markFailure(String(e));
         }
       }
 
       // Update stats + last_dispatch
-      const { data: agg } = await admin.rpc('exec_sql' as never, {}).then(() => ({ data: null })).catch(() => ({ data: null }));
       const { data: counts } = await admin.from('email_campaign_recipients')
         .select('status').eq('campaign_id', campaign.id);
       const stats = { pending: 0, sent: 0, failed: 0, sending: 0, total: counts?.length ?? 0 };
