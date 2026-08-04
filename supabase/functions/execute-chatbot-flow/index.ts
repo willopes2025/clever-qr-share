@@ -1021,7 +1021,7 @@ Deno.serve(async (req: Request) => {
                 .eq('id', metaConfig.metaTemplateId)
                 .single();
 
-              if (metaTemplate && contact?.phone) {
+              if (metaTemplate && isRealPhone) {
                 const accessToken = await getMetaTokenForNumber(supabase, metaConfig.metaPhoneNumberId, await resolveMetaAccessToken(userId));
                 if (accessToken) {
                   const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
@@ -1544,7 +1544,7 @@ Deno.serve(async (req: Request) => {
                 .eq('id', config.metaTemplateId)
                 .single();
 
-              if (metaTemplate && contact?.phone) {
+              if (metaTemplate && isRealPhone) {
                 // Get access token from meta_whatsapp_numbers
                 const { data: metaNumber } = await supabase
                   .from('meta_whatsapp_numbers')
