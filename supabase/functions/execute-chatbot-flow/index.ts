@@ -1147,7 +1147,7 @@ Deno.serve(async (req: Request) => {
             const text = substituteVars(node.data?.message || node.data?.text || '');
             const txtButtons = ((node.data?.buttons as Array<{ label: string }>) || []).filter(b => b?.label?.trim());
 
-            if (text && txtButtons.length > 0 && contact?.phone) {
+            if (text && txtButtons.length > 0 && (isRealPhone || evolutionRecipient)) {
               // Send as interactive buttons
               let sendError: string | null = null;
               if (metaPhoneNumberId && metaAccessToken) {
@@ -1692,10 +1692,10 @@ Deno.serve(async (req: Request) => {
           const timeoutMin = parseInt(String(node.data?.timeoutMinutes ?? 60)) || 60;
           let sendFailed = false;
 
-          if (instanceName && contact?.phone && items.length > 0) {
+          if (instanceName && evolutionRecipient && items.length > 0) {
             try {
               const listPayload = {
-                number: contact.phone, title: header, description: body,
+                number: evolutionRecipient, title: header, description: body,
                 buttonText, footerText: '',
                 sections: [{
                   title: header || 'Opções',
@@ -1761,7 +1761,7 @@ Deno.serve(async (req: Request) => {
           const timeoutMin = parseInt(String(node.data?.timeoutMinutes ?? 60)) || 60;
           let sendFailed = false;
 
-          if (!contact?.phone || buttons.length === 0) {
+          if ((!isRealPhone && !evolutionRecipient) || buttons.length === 0) {
             sendFailed = true;
           } else if (metaPhoneNumberId && metaAccessToken) {
             // Meta interactive buttons
