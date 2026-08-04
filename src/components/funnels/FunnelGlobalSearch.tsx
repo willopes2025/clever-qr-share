@@ -80,7 +80,7 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
           contact_id,
           stage_id,
           funnel_id,
-          contacts!inner(name, phone, email, custom_fields),
+          contacts!inner(name, phone, email, custom_fields, contact_display_id),
           funnel_stages!inner(name, color),
           funnels!inner(name, color, user_id)
         `)
