@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, X, Target, Loader2 } from "lucide-react";
+import { Search, X, Target, Loader2, MessageCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -10,6 +12,7 @@ interface SearchResult {
   deal_id: string;
   deal_title: string;
   deal_value: number | null;
+  contact_id: string | null;
   contact_name: string | null;
   contact_phone: string;
   contact_email: string | null;
