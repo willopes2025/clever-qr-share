@@ -89,13 +89,15 @@ const formatDateBrazil = (date: Date): string => {
   return formatter.format(date);
 };
 
-// Check if a given hour falls inside [startHour, endHour] (supports overnight)
+// Check if a given hour falls inside [startHour, endHour) — end hour is EXCLUSIVE
+// (e.g. 0->8 means até 07:59; 18->24 means das 18:00 às 23:59). Supports overnight.
 const isHourWithinRange = (currentHour: number, startHour: number, endHour: number): boolean => {
-  if (startHour <= endHour) {
-    return currentHour >= startHour && currentHour <= endHour;
+  if (startHour === endHour) return true; // janela de 24h
+  if (startHour < endHour) {
+    return currentHour >= startHour && currentHour < endHour;
   }
   // Overnight window, e.g. 18 -> 09
-  return currentHour >= startHour || currentHour <= endHour;
+  return currentHour >= startHour || currentHour < endHour;
 };
 
 // Legacy single-window check (kept for backwards compatibility), uses timezone if provided
