@@ -471,7 +471,7 @@ Deno.serve(async (req: Request) => {
     const META_API_URL = 'https://graph.facebook.com/v21.0';
     const sendMessage = async (text: string) => {
       const canSendEvolution = !!instanceName && !!evolutionRecipient;
-      const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && !!contact?.phone;
+      const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && isRealPhone;
       if (!canSendEvolution && !canSendMeta) {
         console.log('[FLOW] Cannot send message - no phone/LID or no sending channel configured');
         return;
@@ -492,30 +492,44 @@ Deno.serve(async (req: Request) => {
             }),
           });
 
-          const result = await response.json();
+          const result = await response.json().catch(() => ({}));
           const whatsappMessageId = result?.key?.id || null;
+          const failed = !response.ok || !!result?.error || !whatsappMessageId;
+          const errMsg = failed
+            ? (result?.response?.message
+                ? JSON.stringify(result.response.message)
+                : result?.message || result?.error || `Evolution retornou ${response.status} sem ID de mensagem`)
+            : null;
+
+          if (failed) {
+            console.error('[FLOW] Evolution sendText failed:', response.status, JSON.stringify(result));
+          }
 
           await supabase.from('inbox_messages').insert({
             user_id: userId, conversation_id: conversationId,
-            content: text, direction: 'outbound', status: 'sent',
+            content: text, direction: 'outbound', status: failed ? 'failed' : 'sent',
             message_type: 'text', whatsapp_message_id: whatsappMessageId,
             sent_at: new Date().toISOString(),
+            error_message: typeof errMsg === 'string' ? errMsg : (errMsg ? JSON.stringify(errMsg) : null),
             sent_via_instance_id: resolvedInstanceId,
             sent_via_chatbot_flow_id: flowId,
             sent_via_template_id: currentTemplateId,
             sent_via_meta_template_id: currentMetaTemplateId,
           });
 
-          await supabase.from('conversations').update({
-            last_message_at: new Date().toISOString(),
-            last_message_preview: text.substring(0, 100),
-            last_message_direction: 'outbound',
-          }).eq('id', conversationId);
+          if (!failed) {
+            await supabase.from('conversations').update({
+              last_message_at: new Date().toISOString(),
+              last_message_preview: text.substring(0, 100),
+              last_message_direction: 'outbound',
+            }).eq('id', conversationId);
 
-          console.log('[FLOW] Message sent via Evolution:', text.substring(0, 50));
+            console.log('[FLOW] Message sent via Evolution:', text.substring(0, 50));
+          }
         } catch (err) {
           console.error('[FLOW] Error sending message via Evolution:', err);
         }
+
       } else if (metaPhoneNumberId && metaAccessToken) {
         try {
           const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
