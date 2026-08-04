@@ -186,6 +186,14 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
     setResults([]);
   };
 
+  const handleOpenChat = (result: SearchResult) => {
+    if (!result.contact_id) return;
+    setIsOpen(false);
+    setQuery("");
+    setResults([]);
+    navigate(`/inbox?contactId=${result.contact_id}`);
+  };
+
   const formatCurrency = (value: number | null) => {
     if (!value) return null;
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
