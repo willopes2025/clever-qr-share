@@ -109,6 +109,7 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
         deal_title: d.title,
         deal_value: d.value,
         contact_id: d.contact_id,
+        contact_display_id: d.contacts?.contact_display_id ? String(d.contacts.contact_display_id) : null,
         contact_name: d.contacts?.name,
         contact_phone: d.contacts?.phone,
         contact_email: d.contacts?.email,
