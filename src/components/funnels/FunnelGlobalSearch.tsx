@@ -3,6 +3,8 @@ import { Search, X, Target, Loader2, MessageCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,6 +15,7 @@ interface SearchResult {
   deal_title: string;
   deal_value: number | null;
   contact_id: string | null;
+  contact_display_id: string | null;
   contact_name: string | null;
   contact_phone: string;
   contact_email: string | null;
@@ -79,7 +82,7 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
           contact_id,
           stage_id,
           funnel_id,
-          contacts!inner(name, phone, email, custom_fields),
+          contacts!inner(name, phone, email, custom_fields, contact_display_id),
           funnel_stages!inner(name, color),
           funnels!inner(name, color, user_id)
         `)
@@ -108,6 +111,7 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
         deal_title: d.title,
         deal_value: d.value,
         contact_id: d.contact_id,
+        contact_display_id: d.contacts?.contact_display_id ? String(d.contacts.contact_display_id) : null,
         contact_name: d.contacts?.name,
         contact_phone: d.contacts?.phone,
         contact_email: d.contacts?.email,
@@ -282,9 +286,14 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
                             onClick={() => handleSelect(deal)}
                             className="min-w-0 flex-1 text-left"
                           >
-                            <p className="text-sm font-medium text-foreground truncate">
-                              {deal.contact_name || deal.deal_title}
-                            </p>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {deal.contact_name || deal.deal_title}
+                              </p>
+                              {deal.contact_display_id && (
+                                <ContactIdBadge displayId={deal.contact_display_id} size="sm" />
+                              )}
+                            </div>
                             <p className="text-xs text-muted-foreground truncate">
                               {deal.contact_phone}
                               {deal.contact_email && ` · ${deal.contact_email}`}
@@ -300,17 +309,20 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleOpenChat(deal); }}
+                                    <Button
+                                      variant="secondary"
+                                      size="icon"
                                       aria-label="Abrir conversa no Inbox"
-                                      className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                      onClick={(e) => { e.stopPropagation(); handleOpenChat(deal); }}
+                                      className="h-7 w-7 border border-border text-muted-foreground hover:text-primary-foreground hover:bg-primary"
                                     >
-                                      <MessageCircle className="h-4 w-4" />
-                                    </button>
+                                      <MessageCircle className="h-3.5 w-3.5" />
+                                    </Button>
                                   </TooltipTrigger>
                                   <TooltipContent side="left">Abrir conversa</TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
+
                             )}
                           </div>
                         </div>
