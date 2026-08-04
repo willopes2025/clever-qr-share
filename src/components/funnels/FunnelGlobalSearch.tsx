@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, X, Target, Loader2 } from "lucide-react";
+import { Search, X, Target, Loader2, MessageCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -10,6 +12,7 @@ interface SearchResult {
   deal_id: string;
   deal_title: string;
   deal_value: number | null;
+  contact_id: string | null;
   contact_name: string | null;
   contact_phone: string;
   contact_email: string | null;
@@ -37,6 +40,7 @@ interface FunnelGlobalSearchProps {
 
 export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -103,6 +107,7 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
         deal_id: d.id,
         deal_title: d.title,
         deal_value: d.value,
+        contact_id: d.contact_id,
         contact_name: d.contacts?.name,
         contact_phone: d.contacts?.phone,
         contact_email: d.contacts?.email,
@@ -181,6 +186,14 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
     setResults([]);
   };
 
+  const handleOpenChat = (result: SearchResult) => {
+    if (!result.contact_id) return;
+    setIsOpen(false);
+    setQuery("");
+    setResults([]);
+    navigate(`/inbox?contactId=${result.contact_id}`);
+  };
+
   const formatCurrency = (value: number | null) => {
     if (!value) return null;
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -257,16 +270,18 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
                       </div>
 
                       {stage.deals.map((deal) => (
-                        <button
+                        <div
                           key={deal.deal_id}
-                          onClick={() => handleSelect(deal)}
                           className={cn(
-                            "w-full text-left px-3 py-2 ml-2 rounded-md",
+                            "w-full px-3 py-2 ml-2 rounded-md",
                             "hover:bg-accent transition-colors",
                             "flex items-center justify-between gap-2"
                           )}
                         >
-                          <div className="min-w-0 flex-1">
+                          <button
+                            onClick={() => handleSelect(deal)}
+                            className="min-w-0 flex-1 text-left"
+                          >
                             <p className="text-sm font-medium text-foreground truncate">
                               {deal.contact_name || deal.deal_title}
                             </p>
@@ -274,14 +289,33 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
                               {deal.contact_phone}
                               {deal.contact_email && ` · ${deal.contact_email}`}
                             </p>
+                          </button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {deal.deal_value != null && deal.deal_value > 0 && (
+                              <Badge variant="secondary" className="text-xs">
+                                {formatCurrency(deal.deal_value)}
+                              </Badge>
+                            )}
+                            {deal.contact_id && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleOpenChat(deal); }}
+                                      aria-label="Abrir conversa no Inbox"
+                                      className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                    >
+                                      <MessageCircle className="h-4 w-4" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left">Abrir conversa</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                           </div>
-                          {deal.deal_value != null && deal.deal_value > 0 && (
-                            <Badge variant="secondary" className="text-xs shrink-0">
-                              {formatCurrency(deal.deal_value)}
-                            </Badge>
-                          )}
-                        </button>
+                        </div>
                       ))}
+
                     </div>
                   ))}
                 </div>
