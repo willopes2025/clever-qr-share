@@ -40,6 +40,7 @@ interface FunnelGlobalSearchProps {
 
 export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
