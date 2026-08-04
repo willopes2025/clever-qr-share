@@ -1,58 +1,28 @@
-## Objetivo
+# Corrigir chatbot "Endereço CSV" que envia mas o cliente não recebe
 
-Modo dark real no WideZap: legível em todas as telas, com cada usuário escolhendo entre **Claro / Escuro / Sistema**, e a preferência salva na conta (persiste entre dispositivos).
+## O que está acontecendo (verificado)
 
-## Situação atual (verificada)
+O fluxo executa até o fim (todas as execuções constam como `completed`, sem erro), mas as mensagens nunca chegam ao WhatsApp.
 
-- `src/index.css` já tem um bloco `.dark` com tokens básicos (background, card, primary, border...), mas ele nunca é ativado — não existe `ThemeProvider` nem toggle.
-- `next-themes@^0.3.0` já está instalado (usado só pelo `sonner`).
-- O bloco `.dark` está incompleto: faltam `--sidebar-*`, `--info`, `--whatsapp-*`, e as sombras (`--shadow-*`) são feitas para fundo claro.
-- Cerca de 67 arquivos usam cores fixas (`bg-white`, `text-white`, `text-gray-*`, `bg-black`, hex) — esses são os pontos que ficariam ilegíveis no dark. Concentrados em: Inbox (bolhas, mídia, painel do lead), Dashboard (cards/gráficos), Chatbot Builder (nodes), Financeiro/Asaas, Instances/Settings, Landing/Login.
+Motivo confirmado nos dados: os contatos dessa conversa não têm telefone real — o campo está preenchido com um marcador de LID, por exemplo `LID_79671760785409` (o número real fica em `label_id`). O executor do chatbot só usa o fallback `@lid` quando o telefone está **vazio**; como o marcador não é vazio, ele envia literalmente `LID_79671760785409` como destinatário para a Evolution API, que rejeita.
 
-## Escopo da entrega
+Segundo problema, que escondeu o primeiro: no envio de texto e de mídia via Evolution o código grava a mensagem como `status: 'sent'` sem olhar a resposta da API. Por isso as mensagens aparecem no chat como enviadas, sem `whatsapp_message_id` e sem erro. Nas mensagens do fluxo de 04/08 às 12:44, as três saíram com `whatsapp_message_id` nulo — sinal claro de recusa silenciosa.
 
-### 1. Infra de tema
-- Criar `ThemeProvider` (next-themes, `attribute="class"`, `defaultTheme="system"`, sem flash) no topo do `App.tsx`.
-- Script anti-flash no `index.html` aplicando a classe antes do render.
-- Hook `useThemePreference` que sincroniza o tema local com o backend.
+## Correções
 
-### 2. Preferência por usuário (backend)
-- Adicionar coluna `theme` (`'light' | 'dark' | 'system'`, default `'system'`) em `user_settings` (tabela já existente, já com RLS por usuário).
-- Ler no login e gravar ao trocar, com fallback em `localStorage` para carregamento instantâneo.
+1. **Destinatário correto (causa raiz)**
+   Em `supabase/functions/execute-chatbot-flow/index.ts`, tratar telefones no formato `LID_<numero>` (e qualquer valor sem dígitos suficientes) como "sem telefone", usando `label_id` (ou o número extraído do próprio marcador) no formato `<lid>@lid` para a Evolution. Os caminhos Meta continuam exigindo telefone real.
 
-### 3. Paleta dark completa
-- Completar o bloco `.dark` em `index.css`: sidebar, info, tokens WhatsApp (fundo do chat, bolhas in/out), sombras com opacidade adequada ao fundo escuro, `--card`, `--muted`, bordas com contraste suficiente.
-- Ajustar utilitários já existentes (`.depth-card`, `.bg-dark-*`, `.whatsapp-chat-bg`, caudas de bolha) para variantes dark.
-- Alvo de contraste: AA (4.5:1 em texto, 3:1 em bordas/ícones).
+2. **Parar de marcar falha como sucesso**
+   Nos envios via Evolution (texto e mídia) do mesmo arquivo: verificar `resp.ok` e a presença de erro no corpo; quando falhar, gravar `status: 'failed'` e preencher `error_message` com o retorno da API, além de logar. Assim o operador vê o erro real no Inbox em vez de uma mensagem "enviada" fantasma.
 
-### 4. Toggle na interface
-- Botão de tema no **rodapé da sidebar** (desktop) com os 3 modos, seguindo a preferência já registrada pelo usuário.
-- Espelhar no menu do usuário no header mobile.
-- Também disponível em Configurações > Perfil.
+3. **Verificação após o deploy**
+   Disparar o fluxo "Endereço CSV" para o mesmo contato e conferir que as mensagens gravadas passam a ter `whatsapp_message_id` preenchido (ou, se falharem, com erro visível).
 
-### 5. Varredura de cores fixas (a parte mais longa)
-Substituir cores fixas por tokens semânticos, em ondas por área de impacto:
-1. Inbox (bolhas, lista de conversas, mídia, painel do lead, badges de provider)
-2. Dashboard e gráficos (recharts usa `--chart-*`)
-3. Funis / Kanban e cards de lead
-4. Chatbot Builder (nodes do react-flow)
-5. Configurações, Instances, Financeiro/Asaas
-6. Diálogos, tabelas e componentes `ui/` restantes
-7. Login / Landing / páginas públicas (podem ficar fixas no claro, se você preferir)
+## Observação
 
-Fora do escopo do dark: templates de e-mail (`email-design.ts`) e HTML enviado a clientes continuam em tema claro.
+Contatos com telefone `LID_...` só terão número real quando o `resolve-lid-contacts` conseguir resolvê-lo; a correção acima garante o envio mesmo enquanto o número permanecer como LID.
 
-### 6. Validação
-- Percorrer as telas principais em dark com screenshots automatizados e conferir contraste, estados hover/ativo, e ícones sobre fundo escuro.
-- Verificar persistência: trocar tema, recarregar, entrar em outro navegador com o mesmo usuário.
+## Arquivos afetados
 
-## Detalhes técnicos
-
-- `next-themes` com `attribute="class"` + `disableTransitionOnChange` para evitar piscadas.
-- Migração: `ALTER TABLE public.user_settings ADD COLUMN theme text NOT NULL DEFAULT 'system' CHECK (theme IN ('light','dark','system'))` — sem novas policies (RLS já cobre a tabela).
-- Nenhuma alteração de lógica de negócio; mudanças limitadas a CSS, tokens e camada de apresentação, mais o campo de preferência.
-
-## Ordem sugerida
-
-Etapa A (rápida, já entrega valor): infra + paleta dark completa + toggle + persistência.
-Etapa B: varredura das cores fixas por área, do Inbox para fora.
+- `supabase/functions/execute-chatbot-flow/index.ts`
