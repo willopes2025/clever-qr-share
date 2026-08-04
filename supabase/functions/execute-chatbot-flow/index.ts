@@ -234,10 +234,15 @@ Deno.serve(async (req: Request) => {
       .eq('id', contactId)
       .single();
 
-    // LID fallback: when contact has no phone but has a LID, use it as the Evolution recipient (Meta paths still require phone)
-    const evolutionRecipient: string = (contact?.phone && contact.phone.length > 0)
-      ? contact.phone
-      : (contact?.label_id ? `${contact.label_id}@lid` : '');
+    // LID fallback: telefone vazio OU marcador "LID_<numero>" => usar o LID como destinatário Evolution
+    const rawPhone = (contact?.phone || '').trim();
+    const lidFromPhone = /^LID_(\d+)$/i.exec(rawPhone)?.[1] || null;
+    const isRealPhone = !!rawPhone && !/^LID_/i.test(rawPhone) && rawPhone.replace(/\D/g, '').length >= 8;
+    const lidValue = contact?.label_id || lidFromPhone;
+    const evolutionRecipient: string = isRealPhone
+      ? rawPhone
+      : (lidValue ? `${lidValue}@lid` : '');
+
 
     // Load most recent deal for this contact (for {{valor}}, {{etapa}}, {{funil}}, lead custom fields)
     let activeDeal: any = null;
