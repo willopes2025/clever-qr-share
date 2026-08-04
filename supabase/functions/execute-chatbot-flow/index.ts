@@ -234,10 +234,15 @@ Deno.serve(async (req: Request) => {
       .eq('id', contactId)
       .single();
 
-    // LID fallback: when contact has no phone but has a LID, use it as the Evolution recipient (Meta paths still require phone)
-    const evolutionRecipient: string = (contact?.phone && contact.phone.length > 0)
-      ? contact.phone
-      : (contact?.label_id ? `${contact.label_id}@lid` : '');
+    // LID fallback: telefone vazio OU marcador "LID_<numero>" => usar o LID como destinatário Evolution
+    const rawPhone = (contact?.phone || '').trim();
+    const lidFromPhone = /^LID_(\d+)$/i.exec(rawPhone)?.[1] || null;
+    const isRealPhone = !!rawPhone && !/^LID_/i.test(rawPhone) && rawPhone.replace(/\D/g, '').length >= 8;
+    const lidValue = contact?.label_id || lidFromPhone;
+    const evolutionRecipient: string = isRealPhone
+      ? rawPhone
+      : (lidValue ? `${lidValue}@lid` : '');
+
 
     // Load most recent deal for this contact (for {{valor}}, {{etapa}}, {{funil}}, lead custom fields)
     let activeDeal: any = null;
@@ -466,7 +471,7 @@ Deno.serve(async (req: Request) => {
     const META_API_URL = 'https://graph.facebook.com/v21.0';
     const sendMessage = async (text: string) => {
       const canSendEvolution = !!instanceName && !!evolutionRecipient;
-      const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && !!contact?.phone;
+      const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && isRealPhone;
       if (!canSendEvolution && !canSendMeta) {
         console.log('[FLOW] Cannot send message - no phone/LID or no sending channel configured');
         return;
@@ -487,30 +492,44 @@ Deno.serve(async (req: Request) => {
             }),
           });
 
-          const result = await response.json();
+          const result = await response.json().catch(() => ({}));
           const whatsappMessageId = result?.key?.id || null;
+          const failed = !response.ok || !!result?.error || !whatsappMessageId;
+          const errMsg = failed
+            ? (result?.response?.message
+                ? JSON.stringify(result.response.message)
+                : result?.message || result?.error || `Evolution retornou ${response.status} sem ID de mensagem`)
+            : null;
+
+          if (failed) {
+            console.error('[FLOW] Evolution sendText failed:', response.status, JSON.stringify(result));
+          }
 
           await supabase.from('inbox_messages').insert({
             user_id: userId, conversation_id: conversationId,
-            content: text, direction: 'outbound', status: 'sent',
+            content: text, direction: 'outbound', status: failed ? 'failed' : 'sent',
             message_type: 'text', whatsapp_message_id: whatsappMessageId,
             sent_at: new Date().toISOString(),
+            error_message: typeof errMsg === 'string' ? errMsg : (errMsg ? JSON.stringify(errMsg) : null),
             sent_via_instance_id: resolvedInstanceId,
             sent_via_chatbot_flow_id: flowId,
             sent_via_template_id: currentTemplateId,
             sent_via_meta_template_id: currentMetaTemplateId,
           });
 
-          await supabase.from('conversations').update({
-            last_message_at: new Date().toISOString(),
-            last_message_preview: text.substring(0, 100),
-            last_message_direction: 'outbound',
-          }).eq('id', conversationId);
+          if (!failed) {
+            await supabase.from('conversations').update({
+              last_message_at: new Date().toISOString(),
+              last_message_preview: text.substring(0, 100),
+              last_message_direction: 'outbound',
+            }).eq('id', conversationId);
 
-          console.log('[FLOW] Message sent via Evolution:', text.substring(0, 50));
+            console.log('[FLOW] Message sent via Evolution:', text.substring(0, 50));
+          }
         } catch (err) {
           console.error('[FLOW] Error sending message via Evolution:', err);
         }
+
       } else if (metaPhoneNumberId && metaAccessToken) {
         try {
           const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
@@ -569,7 +588,7 @@ Deno.serve(async (req: Request) => {
     ) => {
       if (!mediaUrl) return;
       const canSendEvolution = !!instanceName && !!evolutionRecipient;
-      const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && !!contact?.phone;
+      const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && isRealPhone;
       if (!canSendEvolution && !canSendMeta) return;
       const docName = mediaType === 'document'
         ? resolveDocName({ fileName: filename, caption, url: mediaUrl })
@@ -591,21 +610,35 @@ Deno.serve(async (req: Request) => {
             headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
             body: JSON.stringify(body),
           });
-          const result = await resp.json();
+          const result = await resp.json().catch(() => ({}));
+          const wid = result?.key?.id || null;
+          const failed = !resp.ok || !!result?.error || !wid;
+          const errMsg = failed
+            ? (result?.response?.message
+                ? JSON.stringify(result.response.message)
+                : String(result?.message || result?.error || `Evolution retornou ${resp.status} sem ID de mensagem`))
+            : null;
+          if (failed) {
+            console.error('[FLOW] Evolution sendMedia failed:', resp.status, JSON.stringify(result));
+          }
           await supabase.from('inbox_messages').insert({
             user_id: userId, conversation_id: conversationId,
-            content: caption || `[${mediaType}]`, direction: 'outbound', status: 'sent',
+            content: caption || `[${mediaType}]`, direction: 'outbound', status: failed ? 'failed' : 'sent',
             message_type: mediaType, media_url: mediaUrl,
-            whatsapp_message_id: result?.key?.id || null,
+            whatsapp_message_id: wid,
             sent_at: new Date().toISOString(),
+            error_message: errMsg,
             sent_via_instance_id: resolvedInstanceId,
             sent_via_chatbot_flow_id: flowId,
           });
-          await supabase.from('conversations').update({
-            last_message_at: new Date().toISOString(),
-            last_message_preview: (caption || `[${mediaType}]`).substring(0, 100),
-            last_message_direction: 'outbound',
-          }).eq('id', conversationId);
+          if (!failed) {
+            await supabase.from('conversations').update({
+              last_message_at: new Date().toISOString(),
+              last_message_preview: (caption || `[${mediaType}]`).substring(0, 100),
+              last_message_direction: 'outbound',
+            }).eq('id', conversationId);
+          }
+
         } catch (err) {
           console.error('[FLOW] Error sending media via Evolution:', err);
         }
@@ -988,7 +1021,7 @@ Deno.serve(async (req: Request) => {
                 .eq('id', metaConfig.metaTemplateId)
                 .single();
 
-              if (metaTemplate && contact?.phone) {
+              if (metaTemplate && isRealPhone) {
                 const accessToken = await getMetaTokenForNumber(supabase, metaConfig.metaPhoneNumberId, await resolveMetaAccessToken(userId));
                 if (accessToken) {
                   const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
@@ -1114,7 +1147,7 @@ Deno.serve(async (req: Request) => {
             const text = substituteVars(node.data?.message || node.data?.text || '');
             const txtButtons = ((node.data?.buttons as Array<{ label: string }>) || []).filter(b => b?.label?.trim());
 
-            if (text && txtButtons.length > 0 && contact?.phone) {
+            if (text && txtButtons.length > 0 && (isRealPhone || evolutionRecipient)) {
               // Send as interactive buttons
               let sendError: string | null = null;
               if (metaPhoneNumberId && metaAccessToken) {
@@ -1511,7 +1544,7 @@ Deno.serve(async (req: Request) => {
                 .eq('id', config.metaTemplateId)
                 .single();
 
-              if (metaTemplate && contact?.phone) {
+              if (metaTemplate && isRealPhone) {
                 // Get access token from meta_whatsapp_numbers
                 const { data: metaNumber } = await supabase
                   .from('meta_whatsapp_numbers')
@@ -1659,10 +1692,10 @@ Deno.serve(async (req: Request) => {
           const timeoutMin = parseInt(String(node.data?.timeoutMinutes ?? 60)) || 60;
           let sendFailed = false;
 
-          if (instanceName && contact?.phone && items.length > 0) {
+          if (instanceName && evolutionRecipient && items.length > 0) {
             try {
               const listPayload = {
-                number: contact.phone, title: header, description: body,
+                number: evolutionRecipient, title: header, description: body,
                 buttonText, footerText: '',
                 sections: [{
                   title: header || 'Opções',
@@ -1728,7 +1761,7 @@ Deno.serve(async (req: Request) => {
           const timeoutMin = parseInt(String(node.data?.timeoutMinutes ?? 60)) || 60;
           let sendFailed = false;
 
-          if (!contact?.phone || buttons.length === 0) {
+          if ((!isRealPhone && !evolutionRecipient) || buttons.length === 0) {
             sendFailed = true;
           } else if (metaPhoneNumberId && metaAccessToken) {
             // Meta interactive buttons
