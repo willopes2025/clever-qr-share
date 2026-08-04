@@ -588,7 +588,7 @@ Deno.serve(async (req: Request) => {
     ) => {
       if (!mediaUrl) return;
       const canSendEvolution = !!instanceName && !!evolutionRecipient;
-      const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && !!contact?.phone;
+      const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && isRealPhone;
       if (!canSendEvolution && !canSendMeta) return;
       const docName = mediaType === 'document'
         ? resolveDocName({ fileName: filename, caption, url: mediaUrl })
