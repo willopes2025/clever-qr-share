@@ -610,21 +610,35 @@ Deno.serve(async (req: Request) => {
             headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
             body: JSON.stringify(body),
           });
-          const result = await resp.json();
+          const result = await resp.json().catch(() => ({}));
+          const wid = result?.key?.id || null;
+          const failed = !resp.ok || !!result?.error || !wid;
+          const errMsg = failed
+            ? (result?.response?.message
+                ? JSON.stringify(result.response.message)
+                : String(result?.message || result?.error || `Evolution retornou ${resp.status} sem ID de mensagem`))
+            : null;
+          if (failed) {
+            console.error('[FLOW] Evolution sendMedia failed:', resp.status, JSON.stringify(result));
+          }
           await supabase.from('inbox_messages').insert({
             user_id: userId, conversation_id: conversationId,
-            content: caption || `[${mediaType}]`, direction: 'outbound', status: 'sent',
+            content: caption || `[${mediaType}]`, direction: 'outbound', status: failed ? 'failed' : 'sent',
             message_type: mediaType, media_url: mediaUrl,
-            whatsapp_message_id: result?.key?.id || null,
+            whatsapp_message_id: wid,
             sent_at: new Date().toISOString(),
+            error_message: errMsg,
             sent_via_instance_id: resolvedInstanceId,
             sent_via_chatbot_flow_id: flowId,
           });
-          await supabase.from('conversations').update({
-            last_message_at: new Date().toISOString(),
-            last_message_preview: (caption || `[${mediaType}]`).substring(0, 100),
-            last_message_direction: 'outbound',
-          }).eq('id', conversationId);
+          if (!failed) {
+            await supabase.from('conversations').update({
+              last_message_at: new Date().toISOString(),
+              last_message_preview: (caption || `[${mediaType}]`).substring(0, 100),
+              last_message_direction: 'outbound',
+            }).eq('id', conversationId);
+          }
+
         } catch (err) {
           console.error('[FLOW] Error sending media via Evolution:', err);
         }
