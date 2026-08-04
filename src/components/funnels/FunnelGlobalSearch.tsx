@@ -262,16 +262,18 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
                       </div>
 
                       {stage.deals.map((deal) => (
-                        <button
+                        <div
                           key={deal.deal_id}
-                          onClick={() => handleSelect(deal)}
                           className={cn(
-                            "w-full text-left px-3 py-2 ml-2 rounded-md",
+                            "w-full px-3 py-2 ml-2 rounded-md",
                             "hover:bg-accent transition-colors",
                             "flex items-center justify-between gap-2"
                           )}
                         >
-                          <div className="min-w-0 flex-1">
+                          <button
+                            onClick={() => handleSelect(deal)}
+                            className="min-w-0 flex-1 text-left"
+                          >
                             <p className="text-sm font-medium text-foreground truncate">
                               {deal.contact_name || deal.deal_title}
                             </p>
@@ -279,14 +281,33 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
                               {deal.contact_phone}
                               {deal.contact_email && ` · ${deal.contact_email}`}
                             </p>
+                          </button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {deal.deal_value != null && deal.deal_value > 0 && (
+                              <Badge variant="secondary" className="text-xs">
+                                {formatCurrency(deal.deal_value)}
+                              </Badge>
+                            )}
+                            {deal.contact_id && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleOpenChat(deal); }}
+                                      aria-label="Abrir conversa no Inbox"
+                                      className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                    >
+                                      <MessageCircle className="h-4 w-4" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left">Abrir conversa</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                           </div>
-                          {deal.deal_value != null && deal.deal_value > 0 && (
-                            <Badge variant="secondary" className="text-xs shrink-0">
-                              {formatCurrency(deal.deal_value)}
-                            </Badge>
-                          )}
-                        </button>
+                        </div>
                       ))}
+
                     </div>
                   ))}
                 </div>
