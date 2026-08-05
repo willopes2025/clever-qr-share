@@ -553,6 +553,7 @@ Deno.serve(async (req) => {
                   sent_at: new Date().toISOString(),
                   sent_via_instance_id: evolutionInstanceId,
                   sent_via_meta_number_id: metaPhoneNumberId,
+                  whatsapp_message_id: waMessageId,
                 });
 
               await supabase
@@ -567,7 +568,7 @@ Deno.serve(async (req) => {
 
             await supabase
               .from('billing_reminders')
-              .update({ status: 'sent', sent_at: new Date().toISOString() })
+              .update({ status: 'sent', sent_at: new Date().toISOString(), error_message: null })
               .eq('id', reminder.id);
 
             sent++;
