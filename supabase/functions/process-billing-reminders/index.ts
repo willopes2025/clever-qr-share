@@ -398,6 +398,8 @@ Deno.serve(async (req) => {
 
           // Send the message
           let sendSuccess = false;
+          let waMessageId: string | null = null;
+
 
           if (useMetaForThis && hasMeta && metaPhoneNumberId) {
             const metaAccessToken = await getMetaTokenForNumber(
@@ -452,7 +454,9 @@ Deno.serve(async (req) => {
 
               if (response.ok) {
                 sendSuccess = true;
-                console.log(`[META-TEMPLATE] Sent ${templateInfo.name} for reminder ${reminder.id} to ${formattedPhone}`);
+                const okBody = await response.json().catch(() => null);
+                waMessageId = okBody?.messages?.[0]?.id ?? null;
+                console.log(`[META-TEMPLATE] Sent ${templateInfo.name} for reminder ${reminder.id} to ${formattedPhone} (wamid: ${waMessageId ?? 'n/a'})`);
               } else {
                 const err = await response.text();
                 console.error(`[META-TEMPLATE] Failed:`, err);
@@ -480,7 +484,9 @@ Deno.serve(async (req) => {
 
               if (response.ok) {
                 sendSuccess = true;
-                console.log(`[META-TEXT] Sent billing reminder ${reminder.id} to ${formattedPhone}`);
+                const okBody = await response.json().catch(() => null);
+                waMessageId = okBody?.messages?.[0]?.id ?? null;
+                console.log(`[META-TEXT] Sent billing reminder ${reminder.id} to ${formattedPhone} (wamid: ${waMessageId ?? 'n/a'})`);
               } else {
                 const err = await response.text();
                 console.error(`[META-TEXT] Failed to send reminder ${reminder.id}:`, err);
@@ -521,7 +527,9 @@ Deno.serve(async (req) => {
 
             if (response.ok) {
               sendSuccess = true;
-              console.log(`[EVO] Sent billing reminder ${reminder.id} to ${remoteJid}`);
+              const okBody = await response.json().catch(() => null);
+              waMessageId = okBody?.key?.id ?? null;
+              console.log(`[EVO] Sent billing reminder ${reminder.id} to ${remoteJid} (msgId: ${waMessageId ?? 'n/a'})`);
             } else {
               const err = await response.text();
               console.error(`[EVO] Failed to send reminder ${reminder.id}:`, err);
@@ -545,6 +553,7 @@ Deno.serve(async (req) => {
                   sent_at: new Date().toISOString(),
                   sent_via_instance_id: evolutionInstanceId,
                   sent_via_meta_number_id: metaPhoneNumberId,
+                  whatsapp_message_id: waMessageId,
                 });
 
               await supabase
@@ -559,7 +568,7 @@ Deno.serve(async (req) => {
 
             await supabase
               .from('billing_reminders')
-              .update({ status: 'sent', sent_at: new Date().toISOString() })
+              .update({ status: 'sent', sent_at: new Date().toISOString(), error_message: null })
               .eq('id', reminder.id);
 
             sent++;
