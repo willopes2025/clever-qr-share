@@ -99,9 +99,20 @@ export function ConnectEmailDialog({ open, onOpenChange, onConnected }: Props) {
     });
     setLoading(false);
     if (error || (data as any)?.error) {
-      toast.error((data as any)?.error ?? error?.message ?? "Falha ao conectar");
+      let detail = (data as any)?.error as string | undefined;
+      if (!detail && error) {
+        try {
+          const ctx = (error as any)?.context;
+          const raw = ctx && typeof ctx.text === "function" ? await ctx.text() : null;
+          if (raw) {
+            try { detail = JSON.parse(raw)?.error ?? raw; } catch { detail = raw; }
+          }
+        } catch { /* ignore */ }
+      }
+      toast.error(detail ?? error?.message ?? "Falha ao conectar");
       return;
     }
+
     toast.success("Conta conectada!");
     reset();
     onConnected();
