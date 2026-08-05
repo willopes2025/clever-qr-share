@@ -527,7 +527,9 @@ Deno.serve(async (req) => {
 
             if (response.ok) {
               sendSuccess = true;
-              console.log(`[EVO] Sent billing reminder ${reminder.id} to ${remoteJid}`);
+              const okBody = await response.json().catch(() => null);
+              waMessageId = okBody?.key?.id ?? null;
+              console.log(`[EVO] Sent billing reminder ${reminder.id} to ${remoteJid} (msgId: ${waMessageId ?? 'n/a'})`);
             } else {
               const err = await response.text();
               console.error(`[EVO] Failed to send reminder ${reminder.id}:`, err);
