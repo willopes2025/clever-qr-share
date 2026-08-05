@@ -398,6 +398,8 @@ Deno.serve(async (req) => {
 
           // Send the message
           let sendSuccess = false;
+          let waMessageId: string | null = null;
+
 
           if (useMetaForThis && hasMeta && metaPhoneNumberId) {
             const metaAccessToken = await getMetaTokenForNumber(
