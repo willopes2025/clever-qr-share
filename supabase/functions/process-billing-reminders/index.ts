@@ -454,7 +454,9 @@ Deno.serve(async (req) => {
 
               if (response.ok) {
                 sendSuccess = true;
-                console.log(`[META-TEMPLATE] Sent ${templateInfo.name} for reminder ${reminder.id} to ${formattedPhone}`);
+                const okBody = await response.json().catch(() => null);
+                waMessageId = okBody?.messages?.[0]?.id ?? null;
+                console.log(`[META-TEMPLATE] Sent ${templateInfo.name} for reminder ${reminder.id} to ${formattedPhone} (wamid: ${waMessageId ?? 'n/a'})`);
               } else {
                 const err = await response.text();
                 console.error(`[META-TEMPLATE] Failed:`, err);
