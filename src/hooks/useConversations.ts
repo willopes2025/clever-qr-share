@@ -566,7 +566,7 @@ export const useMessages = (conversationId: string | null) => {
         },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await extractFunctionError(error, 'Falha ao enviar mídia'));
       if (!data.success) throw new Error(data.error || 'Failed to send media');
 
       return data;
