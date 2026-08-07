@@ -121,3 +121,32 @@ export async function invokeAdminFunction<T = unknown>(
   
   return result;
 }
+
+/**
+ * Extracts the real error message returned in the body of a non-2xx Edge Function
+ * response. supabase-js only surfaces "Edge Function returned a non-2xx status code",
+ * hiding the useful detail inside error.context (a Response object).
+ */
+export async function extractFunctionError(error: unknown, fallback = 'Falha na requisição'): Promise<string> {
+  const anyErr = error as any;
+  const ctx = anyErr?.context;
+  try {
+    if (ctx && typeof ctx.text === 'function') {
+      const raw = await (typeof ctx.clone === 'function' ? ctx.clone() : ctx).text();
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          const msg = parsed?.error || parsed?.message || parsed?.msg;
+          if (msg) return typeof msg === 'string' ? msg : JSON.stringify(msg);
+        } catch {
+          return raw.slice(0, 500);
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  const generic = anyErr?.message ?? String(error ?? '');
+  if (!generic || /non-2xx status code/i.test(generic)) return fallback;
+  return generic;
+}
