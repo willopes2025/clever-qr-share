@@ -611,7 +611,7 @@ export const useMessages = (conversationId: string | null) => {
         },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await extractFunctionError(error, 'Falha ao enviar reação'));
       if (!data.success) throw new Error(data.error || 'Failed to send reaction');
 
       return data;
