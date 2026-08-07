@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInboxHiddenInstances } from "@/hooks/useInboxHiddenInstances";
 import { useChannelAccessScope } from "@/hooks/useChannelAccessScope";
 import { toast } from "sonner";
+import { extractFunctionError } from "@/lib/supabase-functions";
 
 export interface ConversationDeal {
   id: string;
@@ -521,7 +522,7 @@ export const useMessages = (conversationId: string | null) => {
         },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await extractFunctionError(error, 'Falha ao enviar mensagem'));
       if (!data.success) throw new Error(data.error || 'Failed to send message');
 
       return data;
@@ -565,7 +566,7 @@ export const useMessages = (conversationId: string | null) => {
         },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await extractFunctionError(error, 'Falha ao enviar mídia'));
       if (!data.success) throw new Error(data.error || 'Failed to send media');
 
       return data;
@@ -610,7 +611,7 @@ export const useMessages = (conversationId: string | null) => {
         },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await extractFunctionError(error, 'Falha ao enviar reação'));
       if (!data.success) throw new Error(data.error || 'Failed to send reaction');
 
       return data;

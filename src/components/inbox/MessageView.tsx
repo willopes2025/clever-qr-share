@@ -525,8 +525,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       if (conversation.unread_count > 0 && onMarkAsRead) {
         onMarkAsRead();
       }
-    }).catch((error) => {
-      toast.error("Erro ao enviar mensagem");
+    }).catch(() => {
+      // Detailed error toast is shown by the sendMessage mutation
       setOptimisticMessages(prev => 
         prev.filter(m => m.id !== optimisticId)
       );
