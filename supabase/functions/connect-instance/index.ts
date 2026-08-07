@@ -38,37 +38,37 @@ Deno.serve(async (req) => {
 
     console.log(`Connecting instance: ${instanceName} for user: ${user.id}`);
 
-    // Verificar se a instância pertence ao usuário - try by instance_name first, then by id
-    let instance = null;
-    let instanceError = null;
-    
-    // First try to find by instance_name
-    const { data: byName, error: byNameError } = await supabase
-      .from('whatsapp_instances')
-      .select('*')
-      .eq('instance_name', instanceName)
-      .eq('user_id', user.id)
-      .maybeSingle();
-    
-    if (byName) {
-      instance = byName;
-    } else {
-      // If not found by name, try by id (UUID format)
-      const { data: byId, error: byIdError } = await supabase
+    // Buscar instância (RLS já restringe ao usuário/organização)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(instanceName);
+    let instance: any = null;
+
+    if (isUuid) {
+      const { data, error } = await supabase
         .from('whatsapp_instances')
         .select('*')
         .eq('id', instanceName)
-        .eq('user_id', user.id)
         .maybeSingle();
-      
-      instance = byId;
-      instanceError = byIdError;
+      if (error) {
+        console.error('Instance query error (id):', error);
+        throw new Error('Erro ao buscar instância');
+      }
+      instance = data;
     }
 
-    if (instanceError) {
-      console.error('Instance query error:', instanceError);
-      throw new Error('Erro ao buscar instância');
+    if (!instance) {
+      const { data, error } = await supabase
+        .from('whatsapp_instances')
+        .select('*')
+        .or(`instance_name.eq.${instanceName},evolution_instance_name.eq.${instanceName}`)
+        .limit(1)
+        .maybeSingle();
+      if (error) {
+        console.error('Instance query error (name):', error);
+        throw new Error('Erro ao buscar instância');
+      }
+      instance = data;
     }
+
 
     if (!instance) {
       throw new Error('Instância não encontrada');
