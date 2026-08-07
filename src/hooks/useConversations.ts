@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInboxHiddenInstances } from "@/hooks/useInboxHiddenInstances";
 import { useChannelAccessScope } from "@/hooks/useChannelAccessScope";
 import { toast } from "sonner";
+import { extractFunctionError } from "@/lib/supabase-functions";
 
 export interface ConversationDeal {
   id: string;
