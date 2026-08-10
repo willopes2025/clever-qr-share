@@ -286,9 +286,48 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
           </Select>
         );
 
-      default:
-        return null;
-    }
+      default: {
+        // text-like types: email, phone, url and any future type
+        const inputType =
+          definition.field_type === 'email' ? 'email'
+          : definition.field_type === 'phone' ? 'tel'
+          : definition.field_type === 'url' ? 'url'
+          : 'text';
+        return (
+          <div className="flex items-center gap-2">
+            {isEditing ? (
+              <>
+                <Input
+                  type={inputType}
+                  value={value || ''}
+                  onChange={(e) => handleFieldChange(definition.field_key, e.target.value)}
+                  className="h-9 text-sm flex-1 border-primary/30 focus:border-primary"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSave(definition.field_key);
+                    if (e.key === 'Escape') setEditingField(null);
+                  }}
+                />
+                <Button size="icon" variant="default" className="h-8 w-8" onClick={() => handleSave(definition.field_key)}>
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => setEditingField(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <button
+                className="text-sm text-foreground cursor-pointer hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group flex-1 min-h-[36px] min-w-0 overflow-hidden"
+                onClick={() => setEditingField(definition.field_key)}
+              >
+                <span className="truncate">{value || <span className="text-muted-foreground italic">Clique para editar</span>}</span>
+                <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
+              </button>
+            )}
+          </div>
+        );
+      }
+
   };
 
   if (!fieldDefinitions || fieldDefinitions.length === 0) {
