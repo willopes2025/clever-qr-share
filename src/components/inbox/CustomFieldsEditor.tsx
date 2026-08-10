@@ -327,8 +327,9 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
           </div>
         );
       }
-
+    }
   };
+
 
   if (!fieldDefinitions || fieldDefinitions.length === 0) {
     return (
