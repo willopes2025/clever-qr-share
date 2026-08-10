@@ -86,7 +86,9 @@ export function TeamSettings() {
     updateMemberRole, 
     updateMember,
     removeMember, 
+    setMemberStatus,
     resendInvite,
+
     resetPassword 
   } = useTeamMembers();
   const { instances } = useWhatsAppInstances();
