@@ -3184,6 +3184,9 @@ export type Database = {
           name: string
           organization_id: string
           scheduled_start_at: string | null
+          send_days: number[]
+          send_end_hour: number
+          send_start_hour: number
           send_window: Json
           source_config: Json
           source_type: string
@@ -3210,6 +3213,9 @@ export type Database = {
           name: string
           organization_id: string
           scheduled_start_at?: string | null
+          send_days?: number[]
+          send_end_hour?: number
+          send_start_hour?: number
           send_window?: Json
           source_config?: Json
           source_type: string
@@ -3236,6 +3242,9 @@ export type Database = {
           name?: string
           organization_id?: string
           scheduled_start_at?: string | null
+          send_days?: number[]
+          send_end_hour?: number
+          send_start_hour?: number
           send_window?: Json
           source_config?: Json
           source_type?: string
