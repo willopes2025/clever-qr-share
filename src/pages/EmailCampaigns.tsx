@@ -334,6 +334,9 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
         attachments: attachments as never,
         source_type: sourceType, source_config: { formId, listId },
         batch_size: batchSize, batch_interval_seconds: batchInterval,
+        send_days: sendDays.length > 0 ? sendDays : [0, 1, 2, 3, 4, 5, 6],
+        send_start_hour: startHour, send_end_hour: endHour,
+
         status: startNow ? "running" : "draft",
         started_at: startNow ? new Date().toISOString() : null,
         stats: { total: recipients.length, pending: recipients.length, sent: 0, failed: 0, sending: 0 },
