@@ -406,7 +406,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     if (!filteredSubmissions || filteredSubmissions.length === 0) return;
     const headers = ["Data", "Contato", ...visibleFields.map(f => f.label)];
     const rows = filteredSubmissions.map(sub => {
-      const contactName = sub.contacts?.name || sub.contacts?.phone || "Anônimo";
+      const contactName = getContactLabel(sub);
       const fieldValues = visibleFields.map(f => {
         const value = getRawFieldValue(sub, f);
         return resolveDisplayValue(f, value);
