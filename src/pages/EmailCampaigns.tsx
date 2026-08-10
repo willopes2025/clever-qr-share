@@ -204,7 +204,18 @@ function CampaignRow({ campaign, onOpen, onChanged }: { campaign: Campaign; onOp
   );
 }
 
+const WEEKDAY_OPTIONS = [
+  { value: 0, label: "Dom" },
+  { value: 1, label: "Seg" },
+  { value: 2, label: "Ter" },
+  { value: 3, label: "Qua" },
+  { value: 4, label: "Qui" },
+  { value: 5, label: "Sex" },
+  { value: 6, label: "Sáb" },
+];
+
 function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreated }: {
+
   open: boolean; onOpenChange: (b: boolean) => void;
   channels: Channel[]; templates: Template[]; onCreated: () => void;
 }) {
