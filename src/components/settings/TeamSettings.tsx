@@ -507,7 +507,25 @@ export function TeamSettings() {
                                 Redefinir Senha
                               </DropdownMenuItem>
                             )}
+                            {member.status !== 'invited' && (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setMemberStatus.mutate({
+                                    memberId: member.id,
+                                    status: member.status === 'active' ? 'inactive' : 'active',
+                                  })
+                                }
+                                disabled={setMemberStatus.isPending}
+                              >
+                                {member.status === 'active' ? (
+                                  <><UserX className="mr-2 h-4 w-4" /> Inativar</>
+                                ) : (
+                                  <><UserCheck className="mr-2 h-4 w-4" /> Reativar</>
+                                )}
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
+
                             <DropdownMenuItem 
                               className="text-destructive"
                               onClick={() => setMemberToRemove(member)}
