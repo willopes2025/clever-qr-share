@@ -211,6 +211,32 @@ export function useTeamMembers() {
     },
   });
 
+  // Ativar/Inativar membro
+  const setMemberStatus = useMutation({
+    mutationFn: async ({ memberId, status }: { memberId: string; status: 'active' | 'inactive' }) => {
+      if (!isAdmin) throw new Error('Sem permissão para alterar status de membros');
+
+      const { data, error } = await supabase
+        .from('team_members')
+        .update({ status })
+        .eq('id', memberId)
+        .select('id')
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) throw new Error('Não foi possível alterar o status deste membro (permissão negada).');
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      queryClient.invalidateQueries({ queryKey: ['organization'] });
+      queryClient.invalidateQueries({ queryKey: ['current-member'] });
+      toast.success(variables.status === 'inactive' ? 'Membro inativado' : 'Membro reativado');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   // Remover membro
   const removeMember = useMutation({
     mutationFn: async (memberId: string) => {
