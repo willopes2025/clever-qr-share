@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { User, FileText, AtSign, Phone, Mail, Loader2, DollarSign, Layers, GitBranch } from 'lucide-react';
@@ -10,6 +11,8 @@ interface VariableAutocompleteProps {
   placeholder?: string;
   rows?: number;
   className?: string;
+  /** Render a single-line input instead of a textarea */
+  singleLine?: boolean;
 }
 
 interface VariableOption {
@@ -36,9 +39,10 @@ export const VariableAutocomplete = ({
   onChange,
   placeholder,
   rows = 6,
-  className
+  className,
+  singleLine = false
 }: VariableAutocompleteProps) => {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -75,9 +79,9 @@ export const VariableAutocomplete = ({
 
   const flatFilteredList = filteredVariables;
 
-  const handleKeyUp = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyUp = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
     const textarea = e.currentTarget;
-    const pos = textarea.selectionStart;
+    const pos = textarea.selectionStart ?? 0;
     const textBeforeCursor = value.substring(0, pos);
     
     // Check if we just typed {{ 
@@ -105,7 +109,7 @@ export const VariableAutocomplete = ({
     }
   }, [value, isOpen]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
     if (!isOpen) return;
 
     if (e.key === 'ArrowDown') {
@@ -153,16 +157,28 @@ export const VariableAutocomplete = ({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverAnchor asChild>
-        <Textarea
-          ref={textareaRef}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyUp={handleKeyUp}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          rows={rows}
-          className={className}
-        />
+        {singleLine ? (
+          <Input
+            ref={textareaRef as React.RefObject<HTMLInputElement>}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyUp={handleKeyUp}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className={className}
+          />
+        ) : (
+          <Textarea
+            ref={textareaRef as React.RefObject<HTMLTextAreaElement>}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyUp={handleKeyUp}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            rows={rows}
+            className={className}
+          />
+        )}
       </PopoverAnchor>
       <PopoverContent 
         className="w-72 p-0 bg-card border-border" 
