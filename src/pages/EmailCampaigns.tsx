@@ -224,6 +224,10 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
   const [listId, setListId] = useState<string>("");
   const [batchSize, setBatchSize] = useState(20);
   const [batchInterval, setBatchInterval] = useState(60);
+  const [sendDays, setSendDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [startHour, setStartHour] = useState(8);
+  const [endHour, setEndHour] = useState(18);
+
   const [saving, setSaving] = useState(false);
   const [forms, setForms] = useState<{ id: string; name: string }[]>([]);
   const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
