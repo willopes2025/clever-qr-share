@@ -57,11 +57,18 @@ Deno.serve(async (req) => {
       .eq('status', 'running').limit(20);
 
     for (const campaign of (campaigns ?? [])) {
+      // Respect configured sending window (weekdays + hours, in the org timezone)
+      const tz = await resolveOrgTimezone(admin, { organizationId: campaign.organization_id, userId: campaign.user_id });
+      if (!isWithinSendWindow(now, tz, campaign.send_days, campaign.send_start_hour, campaign.send_end_hour)) {
+        continue;
+      }
+
       // Rate-limit per campaign
       if (campaign.last_dispatch_at) {
         const nextAt = new Date(new Date(campaign.last_dispatch_at).getTime() + (campaign.batch_interval_seconds ?? 60) * 1000);
         if (nextAt > now) continue;
       }
+
 
       const { data: channel } = await admin.from('email_channels').select('*').eq('id', campaign.channel_id).maybeSingle();
       if (!channel) {
