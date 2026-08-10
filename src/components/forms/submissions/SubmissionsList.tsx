@@ -385,7 +385,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     const rows = filteredSubmissions.map(sub => {
       const contactName = sub.contacts?.name || sub.contacts?.phone || "Anônimo";
       const fieldValues = visibleFields.map(f => {
-        const value = sub.data[f.id] ?? sub.data[f.label] ?? "";
+        const value = getRawFieldValue(sub, f);
         return resolveDisplayValue(f, value);
       });
       return [formatDateTimeFull(sub.created_at), contactName, ...fieldValues];
