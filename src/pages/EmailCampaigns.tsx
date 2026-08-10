@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { VariableAutocomplete } from "@/components/templates/VariableAutocomplete";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -365,7 +366,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
           </div>
 
           <div><Label>Assunto</Label>
-            <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Use {{nome}} para variáveis" />
+            <VariableAutocomplete singleLine value={subject} onChange={setSubject} placeholder="Use {{nome}} para variáveis" />
           </div>
 
           <div>
@@ -403,7 +404,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
                   onChange={(d, html) => { setDesign(d); setBodyHtml(html); }} />
               </TabsContent>
               <TabsContent value="html" className="mt-3">
-                <Textarea rows={10} value={bodyHtml} onChange={e => { setBodyHtml(e.target.value); setDesign(null); }} placeholder="<p>Olá {{nome}}, ...</p>" />
+                <VariableAutocomplete rows={10} value={bodyHtml} onChange={(v) => { setBodyHtml(v); setDesign(null); }} placeholder="<p>Olá {{nome}}, ...</p>" />
               </TabsContent>
             </Tabs>
             <p className="text-xs text-muted-foreground mt-1">Variáveis: {"{{nome}}"}, {"{{email}}"} e campos do contato/formulário.</p>
@@ -631,7 +632,7 @@ function TemplateDialog({ open, onOpenChange, template, onSaved }: {
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Nome</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
-            <div><Label>Assunto</Label><Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Use {{nome}} para variáveis" /></div>
+            <div><Label>Assunto</Label><VariableAutocomplete singleLine value={subject} onChange={setSubject} placeholder="Use {{nome}} para variáveis" /></div>
           </div>
 
           <Tabs value={editorTab} onValueChange={(v) => setEditorTab(v as "visual" | "html")}>
@@ -644,7 +645,7 @@ function TemplateDialog({ open, onOpenChange, template, onSaved }: {
                 onChange={(d, html) => { setDesign(d); setBodyHtml(html); }} />
             </TabsContent>
             <TabsContent value="html" className="mt-3">
-              <Textarea rows={14} value={bodyHtml} onChange={e => { setBodyHtml(e.target.value); setDesign(null); }} placeholder="<p>Olá {{nome}}...</p>" />
+              <VariableAutocomplete rows={14} value={bodyHtml} onChange={(v) => { setBodyHtml(v); setDesign(null); }} placeholder="<p>Olá {{nome}}...</p>" />
               <p className="text-xs text-muted-foreground mt-1">Alterar o HTML manualmente descarta o design visual.</p>
             </TabsContent>
           </Tabs>
