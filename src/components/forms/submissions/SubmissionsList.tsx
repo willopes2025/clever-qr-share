@@ -120,6 +120,28 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     return direct ?? "";
   };
 
+  // Fallback: quando o contato não tem nome, usa o nome preenchido no formulário
+  const getSubmissionName = (sub: any): string => {
+    const nameField = visibleFields.find(
+      f => f.field_type === "name" || /nome/i.test(f.label || "")
+    );
+    if (nameField) {
+      const v = getRawFieldValue(sub, nameField);
+      if (v && typeof v === "string" && v.trim()) return v.trim();
+    }
+    // Varre qualquer chave composta *_first/*_last salva no submission
+    const data = sub.data || {};
+    const firstKey = Object.keys(data).find(k => k.endsWith("_first") && data[k]);
+    if (firstKey) {
+      const base = firstKey.slice(0, -"_first".length);
+      return `${data[firstKey] || ""} ${data[`${base}_last`] || ""}`.trim();
+    }
+    return "";
+  };
+
+  const getContactLabel = (sub: any): string =>
+    sub.contacts?.name || getSubmissionName(sub) || sub.contacts?.phone || "Anônimo";
+
   const columns = useMemo(() => ([
     { id: "date", label: "Data" },
     { id: "contact", label: "Contato" },
@@ -128,11 +150,12 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
 
   const getCellValue = (sub: any, column: string): string => {
     if (column === "date") return formatDateOnly(sub.created_at);
-    if (column === "contact") return sub.contacts?.name || sub.contacts?.phone || "Anônimo";
+    if (column === "contact") return getContactLabel(sub);
     const field = visibleFields.find(f => f.id === column);
     const raw = getRawFieldValue(sub, field, column);
     return field ? resolveDisplayValue(field, raw) : (typeof raw === "object" ? JSON.stringify(raw) : String(raw));
   };
+
 
 
   const getUniqueValues = (column: string): string[] => {
