@@ -109,6 +109,17 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     return String(rawValue);
   };
 
+  const getRawFieldValue = (sub: any, field?: FormField, columnId?: string): any => {
+    const id = field?.id ?? columnId ?? "";
+    const direct = sub.data?.[id] ?? sub.data?.[field?.label ?? ""];
+    if (direct !== undefined && direct !== null && direct !== "") return direct;
+    // Composite fields: name is stored as `${id}_first` / `${id}_last`
+    const first = sub.data?.[`${id}_first`];
+    const last = sub.data?.[`${id}_last`];
+    if (first || last) return `${first || ""} ${last || ""}`.trim();
+    return direct ?? "";
+  };
+
   const columns = useMemo(() => ([
     { id: "date", label: "Data" },
     { id: "contact", label: "Contato" },
@@ -119,9 +130,10 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     if (column === "date") return formatDateOnly(sub.created_at);
     if (column === "contact") return sub.contacts?.name || sub.contacts?.phone || "Anônimo";
     const field = visibleFields.find(f => f.id === column);
-    const raw = sub.data?.[column] ?? sub.data?.[field?.label ?? ""] ?? "";
+    const raw = getRawFieldValue(sub, field, column);
     return field ? resolveDisplayValue(field, raw) : (typeof raw === "object" ? JSON.stringify(raw) : String(raw));
   };
+
 
   const getUniqueValues = (column: string): string[] => {
     if (!submissions) return [];
@@ -373,7 +385,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     const rows = filteredSubmissions.map(sub => {
       const contactName = sub.contacts?.name || sub.contacts?.phone || "Anônimo";
       const fieldValues = visibleFields.map(f => {
-        const value = sub.data[f.id] ?? sub.data[f.label] ?? "";
+        const value = getRawFieldValue(sub, f);
         return resolveDisplayValue(f, value);
       });
       return [formatDateTimeFull(sub.created_at), contactName, ...fieldValues];
