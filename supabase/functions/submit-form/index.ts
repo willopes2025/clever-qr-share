@@ -430,10 +430,11 @@ Deno.serve(async (req: Request) => {
 
       const { data: lookupDeal } = await supabase
         .from('funnel_deals')
-        .select('id, contact_id, funnel_id, stage_id, user_id')
+        .select('id, contact_id, funnel_id, stage_id, user_id, title')
         .in('user_id', memberIds)
         .eq('lead_number', lookupLeadNumber)
         .is('closed_at', null)
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
@@ -453,6 +454,7 @@ Deno.serve(async (req: Request) => {
             .maybeSingle();
 
           if (existingContact) {
+            const oldContactName = existingContact.name as string | null;
             const updateData: Record<string, any> = {};
             if (contactData.name) updateData.name = contactData.name;
             if (contactData.email) updateData.email = contactData.email;
@@ -466,9 +468,28 @@ Deno.serve(async (req: Request) => {
             if (Object.keys(updateData).length > 0) {
               await supabase.from('contacts').update(updateData).eq('id', contactId);
             }
+
+            // Propagate the new name to the deal title when it is generic or derived from the old name
+            if (contactData.name && contactData.name !== oldContactName) {
+              const currentTitle = (lookupDeal.title || '').trim();
+              const genericTitles = ['Lead - Cliente', 'Sem nome', '', 'Cliente', 'Lead do Formulário'];
+              if (oldContactName) {
+                genericTitles.push(oldContactName, `Lead - ${oldContactName}`);
+              }
+              const isStaleTitle =
+                genericTitles.includes(currentTitle) ||
+                currentTitle.toLowerCase().startsWith('lead - ');
+              if (isStaleTitle) {
+                await supabase
+                  .from('funnel_deals')
+                  .update({ title: contactData.name })
+                  .eq('id', lookupDeal.id);
+              }
+            }
           }
         }
       } else {
+
         console.warn(`Open deal not found for lead_number: ${lookupLeadNumber} across org members`);
         return new Response(
           JSON.stringify({ error: `Lead com código #${lookupLeadNumber} não encontrado (ou já está fechado)` }),
