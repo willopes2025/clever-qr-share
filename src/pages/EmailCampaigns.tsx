@@ -204,7 +204,18 @@ function CampaignRow({ campaign, onOpen, onChanged }: { campaign: Campaign; onOp
   );
 }
 
+const WEEKDAY_OPTIONS = [
+  { value: 0, label: "Dom" },
+  { value: 1, label: "Seg" },
+  { value: 2, label: "Ter" },
+  { value: 3, label: "Qua" },
+  { value: 4, label: "Qui" },
+  { value: 5, label: "Sex" },
+  { value: 6, label: "Sáb" },
+];
+
 function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreated }: {
+
   open: boolean; onOpenChange: (b: boolean) => void;
   channels: Channel[]; templates: Template[]; onCreated: () => void;
 }) {
@@ -224,6 +235,10 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
   const [listId, setListId] = useState<string>("");
   const [batchSize, setBatchSize] = useState(20);
   const [batchInterval, setBatchInterval] = useState(60);
+  const [sendDays, setSendDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [startHour, setStartHour] = useState(8);
+  const [endHour, setEndHour] = useState(18);
+
   const [saving, setSaving] = useState(false);
   const [forms, setForms] = useState<{ id: string; name: string }[]>([]);
   const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
@@ -319,6 +334,9 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
         attachments: attachments as never,
         source_type: sourceType, source_config: { formId, listId },
         batch_size: batchSize, batch_interval_seconds: batchInterval,
+        send_days: sendDays.length > 0 ? sendDays : [0, 1, 2, 3, 4, 5, 6],
+        send_start_hour: startHour, send_end_hour: endHour,
+
         status: startNow ? "running" : "draft",
         started_at: startNow ? new Date().toISOString() : null,
         stats: { total: recipients.length, pending: recipients.length, sent: 0, failed: 0, sending: 0 },
@@ -458,6 +476,34 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
               <Input type="number" min={10} value={batchInterval} onChange={e => setBatchInterval(Number(e.target.value))} />
             </div>
           </div>
+
+          <div className="space-y-2 rounded-md border p-3">
+            <Label>Janela de envio</Label>
+            <div className="flex flex-wrap gap-2">
+              {WEEKDAY_OPTIONS.map(d => (
+                <Button
+                  key={d.value}
+                  type="button"
+                  size="sm"
+                  variant={sendDays.includes(d.value) ? "default" : "outline"}
+                  onClick={() => setSendDays(prev => prev.includes(d.value) ? prev.filter(v => v !== d.value) : [...prev, d.value].sort())}
+                >
+                  {d.label}
+                </Button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Das</span>
+              <Input type="number" min={0} max={23} className="w-20" value={startHour} onChange={e => setStartHour(Number(e.target.value))} />
+              <span className="text-muted-foreground">h até</span>
+              <Input type="number" min={1} max={24} className="w-20" value={endHour} onChange={e => setEndHour(Number(e.target.value))} />
+              <span className="text-muted-foreground">h</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Os envios só ocorrem nos dias e horários selecionados (fuso horário da organização). Fora da janela a campanha fica em espera.
+            </p>
+          </div>
+
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>

@@ -4,6 +4,7 @@ import { ensureFreshGmailToken, buildRawMime, EmailChannel } from '../_shared/gm
 import { ensureFreshMsToken, MsChannel } from '../_shared/microsoft.ts';
 import { sendMailSmtp, buildSimpleMime } from '../_shared/smtp-native.ts';
 import { loadAttachments, AttachmentMeta } from '../_shared/email-attachments.ts';
+import { resolveOrgTimezone } from '../_shared/timezone.ts';
 
 const MAX_PER_TICK = 200;
 
@@ -13,6 +14,34 @@ function renderVars(tpl: string, vars: Record<string, unknown>): string {
     return v == null ? '' : String(v);
   });
 }
+
+/** Returns true when `now` falls inside the campaign's allowed weekday + hour window. */
+function isWithinSendWindow(
+  now: Date,
+  timezone: string,
+  days: number[] | null,
+  startHour: number | null,
+  endHour: number | null,
+): boolean {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'short',
+    hour: 'numeric',
+    hour12: false,
+  }).formatToParts(now);
+  const weekdayName = parts.find((p) => p.type === 'weekday')?.value ?? 'Sun';
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const weekday = map[weekdayName] ?? 0;
+
+  const allowedDays = Array.isArray(days) && days.length > 0 ? days.map(Number) : [0, 1, 2, 3, 4, 5, 6];
+  if (!allowedDays.includes(weekday)) return false;
+
+  const start = startHour ?? 0;
+  const end = endHour ?? 24;
+  return hour >= start && hour < end;
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -28,11 +57,18 @@ Deno.serve(async (req) => {
       .eq('status', 'running').limit(20);
 
     for (const campaign of (campaigns ?? [])) {
+      // Respect configured sending window (weekdays + hours, in the org timezone)
+      const tz = await resolveOrgTimezone(admin, { organizationId: campaign.organization_id, userId: campaign.user_id });
+      if (!isWithinSendWindow(now, tz, campaign.send_days, campaign.send_start_hour, campaign.send_end_hour)) {
+        continue;
+      }
+
       // Rate-limit per campaign
       if (campaign.last_dispatch_at) {
         const nextAt = new Date(new Date(campaign.last_dispatch_at).getTime() + (campaign.batch_interval_seconds ?? 60) * 1000);
         if (nextAt > now) continue;
       }
+
 
       const { data: channel } = await admin.from('email_channels').select('*').eq('id', campaign.channel_id).maybeSingle();
       if (!channel) {
