@@ -506,15 +506,20 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                   </TableCell>
                   <TableCell className="text-sm">{formatDateTimeFull(submission.created_at)}</TableCell>
                   <TableCell>
-                    {submission.contacts ? (
+                    {submission.contacts || getSubmissionName(submission) ? (
                       <div>
-                        <p className="font-medium text-sm">{submission.contacts.name || "Sem nome"}</p>
-                        <p className="text-xs text-muted-foreground">{submission.contacts.phone}</p>
+                        <p className="font-medium text-sm">
+                          {submission.contacts?.name || getSubmissionName(submission) || "Sem nome"}
+                        </p>
+                        {submission.contacts?.phone && (
+                          <p className="text-xs text-muted-foreground">{submission.contacts.phone}</p>
+                        )}
                       </div>
                     ) : (
                       <Badge variant="secondary">Anônimo</Badge>
                     )}
                   </TableCell>
+
                   <TableCell className="text-sm">
                     {(submission as any).shared_by_name ? (
                       <span className="font-medium">{(submission as any).shared_by_name}</span>
