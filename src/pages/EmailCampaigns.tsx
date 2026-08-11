@@ -345,7 +345,17 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
     setSaving(true);
     try {
       const recipients = await collectRecipients();
-      if (recipients.length === 0) { toast.error("Nenhum destinatário válido"); setSaving(false); return; }
+      if (recipients.length === 0) {
+        const hint = sourceType === "paste"
+          ? "Cole ao menos um e-mail válido."
+          : sourceType === "form"
+            ? "Nenhuma resposta desse formulário possui e-mail cadastrado."
+            : sourceType === "broadcast"
+              ? "Nenhum contato dessa lista possui e-mail cadastrado."
+              : "Nenhum contato possui e-mail cadastrado.";
+        toast.error(`Nenhum destinatário válido — ${hint}`);
+        setSaving(false); return;
+      }
 
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) { toast.error("Não autenticado"); setSaving(false); return; }
