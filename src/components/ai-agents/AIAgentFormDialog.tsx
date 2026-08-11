@@ -601,6 +601,24 @@ export const AIAgentFormDialog = ({
                   </TabsTrigger>
                 </TabsList>
 
+                <TabsContent value="role" className="mt-4">
+                  <AgentRoleToolsTab
+                    agentId={agentId}
+                    organizationId={organization?.id ?? null}
+                    roleKey={roleKey}
+                    onRoleKeyChange={setRoleKey}
+                    objective={objective}
+                    onObjectiveChange={setObjective}
+                    notAllowed={notAllowed}
+                    onNotAllowedChange={setNotAllowed}
+                    isOrchestrator={isOrchestrator}
+                    onIsOrchestratorChange={setIsOrchestrator}
+                    allowedTools={allowedTools}
+                    onAllowedToolsChange={setAllowedTools}
+                  />
+                </TabsContent>
+
+
                 <TabsContent value="personality" className="space-y-4 mt-4">
                   <div>
                     <Label htmlFor="personalityPrompt">Prompt de Personalidade</Label>
