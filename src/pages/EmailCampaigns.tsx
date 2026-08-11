@@ -286,6 +286,8 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
   }
 
   async function collectRecipients(): Promise<{ email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[]> {
+    const PAGE_SIZE = 1000;
+
     if (sourceType === "paste") {
       const set = new Set<string>();
       const list: { email: string }[] = [];
@@ -295,42 +297,63 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
       return list;
     }
     if (sourceType === "contacts_all") {
-      const { data } = await supabase.from("contacts").select("id,name,email,custom_fields").limit(10000);
       const out: { email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[] = [];
       const seen = new Set<string>();
-      for (const c of (data ?? []) as { id: string; name: string | null; email: string | null; custom_fields: unknown }[]) {
-        const email = findEmailIn(c.email) ?? findEmailIn(c.custom_fields);
-        if (!email || seen.has(email)) continue;
-        seen.add(email);
-        out.push({ email, name: c.name ?? undefined, contact_id: c.id, variables: { name: c.name, nome: c.name } });
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await supabase.from("contacts")
+          .select("id,name,email,custom_fields")
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        const page = (data ?? []) as { id: string; name: string | null; email: string | null; custom_fields: unknown }[];
+        for (const c of page) {
+          const email = findEmailIn(c.email) ?? findEmailIn(c.custom_fields);
+          if (!email || seen.has(email)) continue;
+          seen.add(email);
+          out.push({ email, name: c.name ?? undefined, contact_id: c.id, variables: { name: c.name, nome: c.name } });
+        }
+        if (page.length < PAGE_SIZE) break;
       }
       return out;
     }
     if (sourceType === "form" && formId) {
-      const { data } = await supabase.from("form_submissions")
-        .select("contact_id, data, contact:contacts(id,name,email,custom_fields)")
-        .eq("form_id", formId).limit(10000);
       const out: { email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[] = [];
       const seen = new Set<string>();
-      for (const s of (data ?? []) as { contact_id: string | null; data: Record<string, unknown>; contact: { id: string; name: string | null; email: string | null; custom_fields: unknown } | null }[]) {
-        const email = findEmailIn(s.contact?.email) ?? findEmailIn(s.data) ?? findEmailIn(s.contact?.custom_fields);
-        if (!email || seen.has(email)) continue;
-        seen.add(email);
-        out.push({ email, name: s.contact?.name ?? (s.data?.name as string | undefined), contact_id: s.contact?.id, variables: { name: s.contact?.name, nome: s.contact?.name, ...s.data } });
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await supabase.from("form_submissions")
+          .select("contact_id, data, contact:contacts(id,name,email,custom_fields)")
+          .eq("form_id", formId)
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        const page = (data ?? []) as { contact_id: string | null; data: Record<string, unknown>; contact: { id: string; name: string | null; email: string | null; custom_fields: unknown } | null }[];
+        for (const s of page) {
+          const email = findEmailIn(s.contact?.email) ?? findEmailIn(s.data) ?? findEmailIn(s.contact?.custom_fields);
+          if (!email || seen.has(email)) continue;
+          seen.add(email);
+          out.push({ email, name: s.contact?.name ?? (s.data?.name as string | undefined), contact_id: s.contact?.id, variables: { name: s.contact?.name, nome: s.contact?.name, ...s.data } });
+        }
+        if (page.length < PAGE_SIZE) break;
       }
       return out;
     }
     if (sourceType === "broadcast" && listId) {
-      const { data } = await supabase.from("broadcast_list_contacts")
-        .select("contact:contacts(id,name,email,custom_fields)")
-        .eq("list_id", listId).limit(10000);
       const out: { email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[] = [];
       const seen = new Set<string>();
-      for (const r of (data ?? []) as { contact: { id: string; name: string | null; email: string | null; custom_fields: unknown } | null }[]) {
-        const email = findEmailIn(r.contact?.email) ?? findEmailIn(r.contact?.custom_fields);
-        if (!email || seen.has(email)) continue;
-        seen.add(email);
-        out.push({ email, name: r.contact?.name ?? undefined, contact_id: r.contact?.id, variables: { name: r.contact?.name, nome: r.contact?.name } });
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await supabase.from("broadcast_list_contacts")
+          .select("contact:contacts(id,name,email,custom_fields)")
+          .eq("list_id", listId)
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        const page = (data ?? []) as { contact: { id: string; name: string | null; email: string | null; custom_fields: unknown } | null }[];
+        for (const r of page) {
+          const email = findEmailIn(r.contact?.email) ?? findEmailIn(r.contact?.custom_fields);
+          if (!email || seen.has(email)) continue;
+          seen.add(email);
+          out.push({ email, name: r.contact?.name ?? undefined, contact_id: r.contact?.id, variables: { name: r.contact?.name, nome: r.contact?.name } });
+        }
+        if (page.length < PAGE_SIZE) break;
       }
       return out;
     }
