@@ -409,6 +409,12 @@ export const AIAgentFormDialog = ({
         task_title_template: taskTitleTemplate.trim() || null,
         task_extra_instructions: taskExtraInstructions.trim() || null,
         task_notify_user_ids: taskNotifyUserIds,
+        organization_id: organization?.id ?? null,
+        role_key: roleKey,
+        objective: objective.trim() || null,
+        not_allowed: notAllowed.trim() || null,
+        is_orchestrator: isOrchestrator,
+        allowed_tools: allowedTools,
       } as any;
 
       if (agentId) {
