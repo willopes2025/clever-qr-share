@@ -143,10 +143,16 @@ export const ImportLeadsDialog = ({
     const newMappings: Record<string, FieldMapping> = {};
     
     SOURCE_FIELDS.forEach(field => {
+      // E-mail já é salvo no campo padrão do contato — não duplicar em campo personalizado
+      if (field.key === "email") {
+        newMappings[field.key] = { sourceKey: field.key, targetType: "ignore" };
+        return;
+      }
       // Check if there's an existing custom field with matching key
       const existingField = fieldDefinitions?.find(
         f => f.field_key === field.key || f.field_name.toLowerCase() === field.label.toLowerCase()
       );
+      
       
       if (existingField) {
         newMappings[field.key] = {
