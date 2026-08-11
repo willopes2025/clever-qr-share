@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { ensureFreshGmailToken, buildRawMime, EmailChannel } from '../_shared/gmail.ts';
 import { ensureFreshMsToken, MsChannel } from '../_shared/microsoft.ts';
 import { sendMailSmtp, buildSimpleMime } from '../_shared/smtp-native.ts';
+import { appendToSentFolder } from '../_shared/imap-native.ts';
 import { loadAttachments, AttachmentMeta } from '../_shared/email-attachments.ts';
 
 Deno.serve(async (req) => {
