@@ -16,10 +16,12 @@ export type Database = {
     Tables: {
       ai_agent_configs: {
         Row: {
+          activation_rules: Json
           active_hours_end: number | null
           active_hours_start: number | null
           active_hours_windows: Json
           agent_name: string
+          allowed_tools: string[]
           behavior_rules: string | null
           campaign_id: string | null
           created_at: string | null
@@ -31,13 +33,20 @@ export type Database = {
           handoff_keywords: string[] | null
           id: string
           is_active: boolean | null
+          is_orchestrator: boolean
+          max_delegations: number
           max_interactions: number | null
+          max_tool_calls: number
+          not_allowed: string | null
+          objective: string | null
+          organization_id: string | null
           pause_emoji: string | null
           personality_prompt: string | null
           response_delay_max: number | null
           response_delay_min: number | null
           response_mode: string | null
           resume_emoji: string | null
+          role_key: string | null
           task_creation_enabled: boolean
           task_default_priority: string
           task_extra_instructions: string | null
@@ -50,10 +59,12 @@ export type Database = {
           voice_id: string | null
         }
         Insert: {
+          activation_rules?: Json
           active_hours_end?: number | null
           active_hours_start?: number | null
           active_hours_windows?: Json
           agent_name?: string
+          allowed_tools?: string[]
           behavior_rules?: string | null
           campaign_id?: string | null
           created_at?: string | null
@@ -65,13 +76,20 @@ export type Database = {
           handoff_keywords?: string[] | null
           id?: string
           is_active?: boolean | null
+          is_orchestrator?: boolean
+          max_delegations?: number
           max_interactions?: number | null
+          max_tool_calls?: number
+          not_allowed?: string | null
+          objective?: string | null
+          organization_id?: string | null
           pause_emoji?: string | null
           personality_prompt?: string | null
           response_delay_max?: number | null
           response_delay_min?: number | null
           response_mode?: string | null
           resume_emoji?: string | null
+          role_key?: string | null
           task_creation_enabled?: boolean
           task_default_priority?: string
           task_extra_instructions?: string | null
@@ -84,10 +102,12 @@ export type Database = {
           voice_id?: string | null
         }
         Update: {
+          activation_rules?: Json
           active_hours_end?: number | null
           active_hours_start?: number | null
           active_hours_windows?: Json
           agent_name?: string
+          allowed_tools?: string[]
           behavior_rules?: string | null
           campaign_id?: string | null
           created_at?: string | null
@@ -99,13 +119,20 @@ export type Database = {
           handoff_keywords?: string[] | null
           id?: string
           is_active?: boolean | null
+          is_orchestrator?: boolean
+          max_delegations?: number
           max_interactions?: number | null
+          max_tool_calls?: number
+          not_allowed?: string | null
+          objective?: string | null
+          organization_id?: string | null
           pause_emoji?: string | null
           personality_prompt?: string | null
           response_delay_max?: number | null
           response_delay_min?: number | null
           response_mode?: string | null
           resume_emoji?: string | null
+          role_key?: string | null
           task_creation_enabled?: boolean
           task_default_priority?: string
           task_extra_instructions?: string | null
@@ -130,6 +157,13 @@ export type Database = {
             columns: ["funnel_id"]
             isOneToOne: false
             referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -273,6 +307,52 @@ export type Database = {
           },
         ]
       }
+      ai_agent_knowledge_links: {
+        Row: {
+          agent_config_id: string
+          created_at: string
+          id: string
+          knowledge_item_id: string
+          organization_id: string
+        }
+        Insert: {
+          agent_config_id: string
+          created_at?: string
+          id?: string
+          knowledge_item_id: string
+          organization_id: string
+        }
+        Update: {
+          agent_config_id?: string
+          created_at?: string
+          id?: string
+          knowledge_item_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_knowledge_links_agent_config_id_fkey"
+            columns: ["agent_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_knowledge_links_knowledge_item_id_fkey"
+            columns: ["knowledge_item_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_knowledge_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_knowledge_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_media_library: {
         Row: {
           caption: string | null
@@ -314,6 +394,129 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      ai_agent_memory: {
+        Row: {
+          agent_config_id: string | null
+          contact_id: string | null
+          content: string
+          conversation_id: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          importance: number
+          memory_key: string
+          organization_id: string
+          scope: string
+          updated_at: string
+        }
+        Insert: {
+          agent_config_id?: string | null
+          contact_id?: string | null
+          content: string
+          conversation_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          importance?: number
+          memory_key: string
+          organization_id: string
+          scope?: string
+          updated_at?: string
+        }
+        Update: {
+          agent_config_id?: string | null
+          contact_id?: string | null
+          content?: string
+          conversation_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          importance?: number
+          memory_key?: string
+          organization_id?: string
+          scope?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_memory_agent_config_id_fkey"
+            columns: ["agent_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_memory_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_memory_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_memory_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_skills: {
+        Row: {
+          agent_config_id: string
+          config: Json
+          created_at: string
+          id: string
+          organization_id: string
+          skill_id: string
+        }
+        Insert: {
+          agent_config_id: string
+          config?: Json
+          created_at?: string
+          id?: string
+          organization_id: string
+          skill_id: string
+        }
+        Update: {
+          agent_config_id?: string
+          config?: Json
+          created_at?: string
+          id?: string
+          organization_id?: string
+          skill_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_skills_agent_config_id_fkey"
+            columns: ["agent_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_skills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_skills_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "ai_skills"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_agent_stage_media: {
         Row: {
@@ -458,6 +661,64 @@ export type Database = {
           },
         ]
       }
+      ai_agent_transfers: {
+        Row: {
+          condition_text: string | null
+          created_at: string
+          from_agent_id: string
+          id: string
+          is_active: boolean
+          organization_id: string
+          priority: number
+          to_agent_id: string
+          updated_at: string
+        }
+        Insert: {
+          condition_text?: string | null
+          created_at?: string
+          from_agent_id: string
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          priority?: number
+          to_agent_id: string
+          updated_at?: string
+        }
+        Update: {
+          condition_text?: string | null
+          created_at?: string
+          from_agent_id?: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          priority?: number
+          to_agent_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_transfers_from_agent_id_fkey"
+            columns: ["from_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_transfers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_transfers_to_agent_id_fkey"
+            columns: ["to_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_variables: {
         Row: {
           agent_config_id: string
@@ -545,6 +806,169 @@ export type Database = {
             columns: ["integration_id"]
             isOneToOne: false
             referencedRelation: "ai_agent_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_execution_runs: {
+        Row: {
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string
+          detected_intent: string | null
+          duration_ms: number | null
+          entry_agent_id: string | null
+          error_message: string | null
+          estimated_cost: number | null
+          final_agent_id: string | null
+          final_response: string | null
+          id: string
+          incoming_message: string | null
+          organization_id: string
+          status: string
+          total_tokens: number | null
+          updated_at: string
+        }
+        Insert: {
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          detected_intent?: string | null
+          duration_ms?: number | null
+          entry_agent_id?: string | null
+          error_message?: string | null
+          estimated_cost?: number | null
+          final_agent_id?: string | null
+          final_response?: string | null
+          id?: string
+          incoming_message?: string | null
+          organization_id: string
+          status?: string
+          total_tokens?: number | null
+          updated_at?: string
+        }
+        Update: {
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          detected_intent?: string | null
+          duration_ms?: number | null
+          entry_agent_id?: string | null
+          error_message?: string | null
+          estimated_cost?: number | null
+          final_agent_id?: string | null
+          final_response?: string | null
+          id?: string
+          incoming_message?: string | null
+          organization_id?: string
+          status?: string
+          total_tokens?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_execution_runs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_execution_runs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_execution_runs_entry_agent_id_fkey"
+            columns: ["entry_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_execution_runs_final_agent_id_fkey"
+            columns: ["final_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_execution_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_execution_steps: {
+        Row: {
+          agent_config_id: string | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          input_summary: string | null
+          label: string | null
+          organization_id: string
+          output_summary: string | null
+          run_id: string
+          status: string
+          step_index: number
+          step_type: string
+        }
+        Insert: {
+          agent_config_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input_summary?: string | null
+          label?: string | null
+          organization_id: string
+          output_summary?: string | null
+          run_id: string
+          status?: string
+          step_index?: number
+          step_type: string
+        }
+        Update: {
+          agent_config_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input_summary?: string | null
+          label?: string | null
+          organization_id?: string
+          output_summary?: string | null
+          run_id?: string
+          status?: string
+          step_index?: number
+          step_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_execution_steps_agent_config_id_fkey"
+            columns: ["agent_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_execution_steps_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_execution_steps_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_execution_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -706,6 +1130,56 @@ export type Database = {
             columns: ["sip_config_id"]
             isOneToOne: false
             referencedRelation: "elevenlabs_sip_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_skills: {
+        Row: {
+          config_schema: Json
+          created_at: string
+          description: string | null
+          id: string
+          instructions: string | null
+          is_builtin: boolean
+          name: string
+          organization_id: string | null
+          skill_key: string
+          tools: string[]
+          updated_at: string
+        }
+        Insert: {
+          config_schema?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          instructions?: string | null
+          is_builtin?: boolean
+          name: string
+          organization_id?: string | null
+          skill_key: string
+          tools?: string[]
+          updated_at?: string
+        }
+        Update: {
+          config_schema?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          instructions?: string | null
+          is_builtin?: boolean
+          name?: string
+          organization_id?: string | null
+          skill_key?: string
+          tools?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_skills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
