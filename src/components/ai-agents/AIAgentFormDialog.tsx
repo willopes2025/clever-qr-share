@@ -302,6 +302,11 @@ export const AIAgentFormDialog = ({
     setTaskDefaultPriority("medium");
     setTaskTitleTemplate("");
     setTaskExtraInstructions("");
+    setRoleKey(null);
+    setObjective("");
+    setNotAllowed("");
+    setIsOrchestrator(false);
+    setAllowedTools([]);
   };
 
   const loadAgentData = async (id: string) => {
