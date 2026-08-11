@@ -155,11 +155,99 @@ export class NativeImap {
     throw new Error("FETCH_TIMEOUT");
   }
 
+  /** Discover the "Sent" mailbox, preferring the \Sent special-use flag. */
+  async findSentMailbox(): Promise<string> {
+    let resp = "";
+    try {
+      resp = await this.command(`LIST "" "*"`, 30000);
+    } catch { /* ignore */ }
+    const lines = resp.split(/\r?\n/).filter((l) => /^\*\s+LIST/i.test(l));
+    const nameOf = (line: string): string | null => {
+      const quoted = line.match(/"([^"]*)"\s*$/);
+      if (quoted) return quoted[1];
+      const bare = line.match(/\s(\S+)\s*$/);
+      return bare ? bare[1] : null;
+    };
+    for (const l of lines) {
+      if (/\\Sent/i.test(l)) {
+        const n = nameOf(l);
+        if (n) return n;
+      }
+    }
+    const candidates = ["INBOX.Sent", "Sent", "INBOX.Sent Items", "Sent Items", "[Gmail]/Sent Mail", "Enviados", "INBOX.Enviados"];
+    const available = lines.map(nameOf).filter(Boolean) as string[];
+    for (const c of candidates) {
+      if (available.some((a) => a.toLowerCase() === c.toLowerCase())) return c;
+    }
+    return "INBOX.Sent";
+  }
+
+  /** APPEND a raw RFC822 message into a mailbox, flagged as \Seen. */
+  async append(mailbox: string, raw: Uint8Array): Promise<void> {
+    const tag = this.nextTag();
+    await this.conn.write(
+      this.encoder.encode(`${tag} APPEND "${this.escape(mailbox)}" (\\Seen) {${raw.length}}\r\n`),
+    );
+
+    // Wait for the continuation request ("+ ...") before streaming the literal.
+    const deadline = Date.now() + 60000;
+    while (!/(^|\n)\+[^\r\n]*\r?\n/.test(this.buf)) {
+      if (Date.now() > deadline) throw new Error("APPEND_NO_CONTINUATION");
+      const failed = this.buf.match(new RegExp(`(^|\\n)${tag} (NO|BAD)([^\\r\\n]*)`, "i"));
+      if (failed) throw new Error(`IMAP ${failed[2]}: ${failed[3].trim()}`);
+      this.buf += await this.readChunk(Math.max(500, deadline - Date.now()));
+    }
+    this.buf = this.buf.replace(/^[\s\S]*?\+[^\r\n]*\r?\n/, "");
+
+    await this.conn.write(raw);
+    await this.conn.write(this.encoder.encode("\r\n"));
+
+    const tagRe = new RegExp(`(^|\\n)${tag} (OK|NO|BAD)([^\\r\\n]*)\\r?\\n`, "i");
+    while (Date.now() < deadline) {
+      const m = this.buf.match(tagRe);
+      if (m) {
+        const end = m.index! + m[0].length;
+        this.buf = this.buf.slice(end);
+        if (m[2].toUpperCase() !== "OK") throw new Error(`IMAP ${m[2]}: ${m[3].trim()}`);
+        return;
+      }
+      this.buf += await this.readChunk(Math.max(500, deadline - Date.now()));
+    }
+    throw new Error("APPEND_TIMEOUT");
+  }
+
   async logout(): Promise<void> {
     try { await this.conn.write(this.encoder.encode(`X LOGOUT\r\n`)); } catch { /* ignore */ }
     try { this.conn.close(); } catch { /* ignore */ }
   }
 }
+
+/**
+ * Copy already-sent messages into the mailbox's Sent folder so they show up in
+ * webmail/clients. SMTP sending alone never populates Sent. Best-effort: never throws.
+ */
+export async function appendToSentFolder(cfg: ImapConfig, raws: string[]): Promise<void> {
+  if (raws.length === 0) return;
+  const client = new NativeImap(cfg);
+  try {
+    await client.connect();
+    const mailbox = await client.findSentMailbox();
+    const enc = new TextEncoder();
+    for (const raw of raws) {
+      const normalized = raw.replace(/\r?\n/g, "\r\n");
+      try {
+        await client.append(mailbox, enc.encode(normalized));
+      } catch (e) {
+        console.error("IMAP APPEND to Sent failed", mailbox, e);
+      }
+    }
+  } catch (e) {
+    console.error("IMAP Sent-folder sync failed", e);
+  } finally {
+    await client.logout();
+  }
+}
+
 
 /** Parse untagged * SEARCH lines from a response into UIDs. */
 export function parseSearchUids(resp: string): number[] {
