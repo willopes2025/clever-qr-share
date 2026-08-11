@@ -236,6 +236,7 @@ Deno.serve(async (req) => {
               { from: channel.email_address, to: [rec.email], raw },
             );
             sent++;
+            sentRaws.push(raw);
             await admin.from('email_campaign_recipients').update({
               status: 'sent', sent_at: new Date().toISOString(),
               provider_message_id: `imap-${Date.now()}-${crypto.randomUUID()}`, error_message: null,
@@ -245,6 +246,21 @@ Deno.serve(async (req) => {
           await markFailure(String(e));
         }
       }
+
+      // Mirror SMTP sends into the account's Sent folder (best-effort).
+      if (provider === 'imap' && sentRaws.length > 0 && channel.imap_host && channel.imap_port) {
+        await appendToSentFolder(
+          {
+            host: channel.imap_host,
+            port: Number(channel.imap_port),
+            secure: Number(channel.imap_port) === 993,
+            user: channel.auth_username,
+            pass: channel.auth_password,
+          },
+          sentRaws,
+        );
+      }
+
 
       // Update stats + last_dispatch
       const { data: counts } = await admin.from('email_campaign_recipients')
