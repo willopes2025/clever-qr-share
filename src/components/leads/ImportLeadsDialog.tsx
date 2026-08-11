@@ -43,6 +43,7 @@ const SOURCE_FIELDS: SourceField[] = [
   { key: "cnae_principal", label: "CNAE Principal", icon: "🏭", getValue: (c) => c.cnae_principal, suggestedType: "text" },
   { key: "situacao_cadastral", label: "Situação Cadastral", icon: "✅", getValue: (c) => typeof c.situacao_cadastral === 'string' ? c.situacao_cadastral : c.situacao_cadastral?.situacao_atual, suggestedType: "text" },
   { key: "telefone2", label: "Telefone 2", icon: "📞", getValue: (c) => c.telefone2, suggestedType: "text" },
+  { key: "email", label: "E-mail", icon: "✉️", getValue: (c) => c.email?.toLowerCase(), suggestedType: "text" },
   { key: "municipio", label: "Município", icon: "🏙️", getValue: (c) => c.endereco?.municipio, suggestedType: "text" },
   { key: "uf", label: "UF", icon: "🗺️", getValue: (c) => c.endereco?.uf, suggestedType: "text" },
   { key: "bairro", label: "Bairro", icon: "📍", getValue: (c) => c.endereco?.bairro, suggestedType: "text" },
