@@ -43,6 +43,7 @@ const SOURCE_FIELDS: SourceField[] = [
   { key: "cnae_principal", label: "CNAE Principal", icon: "🏭", getValue: (c) => c.cnae_principal, suggestedType: "text" },
   { key: "situacao_cadastral", label: "Situação Cadastral", icon: "✅", getValue: (c) => typeof c.situacao_cadastral === 'string' ? c.situacao_cadastral : c.situacao_cadastral?.situacao_atual, suggestedType: "text" },
   { key: "telefone2", label: "Telefone 2", icon: "📞", getValue: (c) => c.telefone2, suggestedType: "text" },
+  { key: "email", label: "E-mail", icon: "✉️", getValue: (c) => c.email?.toLowerCase(), suggestedType: "text" },
   { key: "municipio", label: "Município", icon: "🏙️", getValue: (c) => c.endereco?.municipio, suggestedType: "text" },
   { key: "uf", label: "UF", icon: "🗺️", getValue: (c) => c.endereco?.uf, suggestedType: "text" },
   { key: "bairro", label: "Bairro", icon: "📍", getValue: (c) => c.endereco?.bairro, suggestedType: "text" },
@@ -142,10 +143,16 @@ export const ImportLeadsDialog = ({
     const newMappings: Record<string, FieldMapping> = {};
     
     SOURCE_FIELDS.forEach(field => {
+      // E-mail já é salvo no campo padrão do contato — não duplicar em campo personalizado
+      if (field.key === "email") {
+        newMappings[field.key] = { sourceKey: field.key, targetType: "ignore" };
+        return;
+      }
       // Check if there's an existing custom field with matching key
       const existingField = fieldDefinitions?.find(
         f => f.field_key === field.key || f.field_name.toLowerCase() === field.label.toLowerCase()
       );
+      
       
       if (existingField) {
         newMappings[field.key] = {
