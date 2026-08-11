@@ -157,6 +157,19 @@ Deno.serve(async (req) => {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+      // Mirror into the account's Sent folder (SMTP alone never does this).
+      if (channel.imap_host && channel.imap_port) {
+        await appendToSentFolder(
+          {
+            host: channel.imap_host,
+            port: Number(channel.imap_port),
+            secure: Number(channel.imap_port) === 993,
+            user: channel.auth_username,
+            pass: channel.auth_password,
+          },
+          [raw],
+        );
+      }
       providerMessageId = `imap-${Date.now()}-${crypto.randomUUID()}`;
     } else {
       return new Response(JSON.stringify({ error: `provider ${channel.provider} not supported` }), {
