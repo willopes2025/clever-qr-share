@@ -96,6 +96,13 @@ export const AIAgentFormDialog = ({
   const [taskExtraInstructions, setTaskExtraInstructions] = useState("");
   const [taskNotifyUserIds, setTaskNotifyUserIds] = useState<string[]>([]);
 
+  // Multi-agent ("Equipe Digital de IA") fields
+  const [roleKey, setRoleKey] = useState<string | null>(null);
+  const [objective, setObjective] = useState("");
+  const [notAllowed, setNotAllowed] = useState("");
+  const [isOrchestrator, setIsOrchestrator] = useState(false);
+  const [allowedTools, setAllowedTools] = useState<string[]>([]);
+
   const { members } = useTeamMembers();
   const activeMembers = (members || []).filter((m) => m.status === "active" && m.user_id);
 
