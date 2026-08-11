@@ -135,6 +135,9 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Raw MIME of SMTP-sent messages, appended to the IMAP Sent folder after the batch.
+      const sentRaws: string[] = [];
+
       for (const rec of batch) {
         processed++;
         await admin.from('email_campaign_recipients').update({ status: 'sending', attempts: (rec.attempts ?? 0) + 1 }).eq('id', rec.id);
