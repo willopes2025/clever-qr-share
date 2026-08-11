@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { ensureFreshGmailToken, buildRawMime, EmailChannel } from '../_shared/gmail.ts';
 import { ensureFreshMsToken, MsChannel } from '../_shared/microsoft.ts';
 import { sendMailSmtp, buildSimpleMime } from '../_shared/smtp-native.ts';
+import { appendToSentFolder } from '../_shared/imap-native.ts';
 import { loadAttachments, AttachmentMeta } from '../_shared/email-attachments.ts';
 
 Deno.serve(async (req) => {
@@ -156,6 +157,19 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: `SMTP falhou: ${msg}` }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
+      }
+      // Mirror into the account's Sent folder (SMTP alone never does this).
+      if (channel.imap_host && channel.imap_port) {
+        await appendToSentFolder(
+          {
+            host: channel.imap_host,
+            port: Number(channel.imap_port),
+            secure: Number(channel.imap_port) === 993,
+            user: channel.auth_username,
+            pass: channel.auth_password,
+          },
+          [raw],
+        );
       }
       providerMessageId = `imap-${Date.now()}-${crypto.randomUUID()}`;
     } else {

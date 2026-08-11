@@ -4,6 +4,7 @@ import { ensureFreshGmailToken, buildRawMime, EmailChannel } from '../_shared/gm
 import { ensureFreshMsToken, MsChannel } from '../_shared/microsoft.ts';
 import { sendMailSmtp, buildSimpleMime } from '../_shared/smtp-native.ts';
 import { loadAttachments, AttachmentMeta } from '../_shared/email-attachments.ts';
+import { appendToSentFolder } from '../_shared/imap-native.ts';
 import { resolveOrgTimezone } from '../_shared/timezone.ts';
 
 const MAX_PER_TICK = 200;
@@ -134,6 +135,9 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Raw MIME of SMTP-sent messages, appended to the IMAP Sent folder after the batch.
+      const sentRaws: string[] = [];
+
       for (const rec of batch) {
         processed++;
         await admin.from('email_campaign_recipients').update({ status: 'sending', attempts: (rec.attempts ?? 0) + 1 }).eq('id', rec.id);
@@ -232,6 +236,7 @@ Deno.serve(async (req) => {
               { from: channel.email_address, to: [rec.email], raw },
             );
             sent++;
+            sentRaws.push(raw);
             await admin.from('email_campaign_recipients').update({
               status: 'sent', sent_at: new Date().toISOString(),
               provider_message_id: `imap-${Date.now()}-${crypto.randomUUID()}`, error_message: null,
@@ -241,6 +246,21 @@ Deno.serve(async (req) => {
           await markFailure(String(e));
         }
       }
+
+      // Mirror SMTP sends into the account's Sent folder (best-effort).
+      if (provider === 'imap' && sentRaws.length > 0 && channel.imap_host && channel.imap_port) {
+        await appendToSentFolder(
+          {
+            host: channel.imap_host,
+            port: Number(channel.imap_port),
+            secure: Number(channel.imap_port) === 993,
+            user: channel.auth_username,
+            pass: channel.auth_password,
+          },
+          sentRaws,
+        );
+      }
+
 
       // Update stats + last_dispatch
       const { data: counts } = await admin.from('email_campaign_recipients')
