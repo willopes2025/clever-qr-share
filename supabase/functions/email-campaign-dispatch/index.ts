@@ -4,6 +4,7 @@ import { ensureFreshGmailToken, buildRawMime, EmailChannel } from '../_shared/gm
 import { ensureFreshMsToken, MsChannel } from '../_shared/microsoft.ts';
 import { sendMailSmtp, buildSimpleMime } from '../_shared/smtp-native.ts';
 import { loadAttachments, AttachmentMeta } from '../_shared/email-attachments.ts';
+import { appendToSentFolder } from '../_shared/imap-native.ts';
 import { resolveOrgTimezone } from '../_shared/timezone.ts';
 
 const MAX_PER_TICK = 200;
