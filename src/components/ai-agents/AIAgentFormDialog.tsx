@@ -356,6 +356,11 @@ export const AIAgentFormDialog = ({
       setTaskTitleTemplate((data as any).task_title_template || "");
       setTaskExtraInstructions((data as any).task_extra_instructions || "");
       setTaskNotifyUserIds(((data as any).task_notify_user_ids as string[]) || []);
+      setRoleKey((data as any).role_key ?? null);
+      setObjective((data as any).objective || "");
+      setNotAllowed((data as any).not_allowed || "");
+      setIsOrchestrator((data as any).is_orchestrator ?? false);
+      setAllowedTools(((data as any).allowed_tools as string[]) || []);
     } catch (error: any) {
       toast.error("Erro ao carregar agente: " + error.message);
     }
