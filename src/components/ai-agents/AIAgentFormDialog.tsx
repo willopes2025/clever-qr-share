@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow, GraduationCap, ListTodo, Bell, X, Image as ImageIcon } from "lucide-react";
+import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow, GraduationCap, ListTodo, Bell, X, Briefcase, Image as ImageIcon } from "lucide-react";
+import { AgentRoleToolsTab } from "@/components/ai-agents/AgentRoleToolsTab";
 import { AgentMediaLibraryTab } from "@/components/ai-agents/AgentMediaLibraryTab";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -95,6 +96,13 @@ export const AIAgentFormDialog = ({
   const [taskTitleTemplate, setTaskTitleTemplate] = useState("");
   const [taskExtraInstructions, setTaskExtraInstructions] = useState("");
   const [taskNotifyUserIds, setTaskNotifyUserIds] = useState<string[]>([]);
+
+  // Multi-agent ("Equipe Digital de IA") fields
+  const [roleKey, setRoleKey] = useState<string | null>(null);
+  const [objective, setObjective] = useState("");
+  const [notAllowed, setNotAllowed] = useState("");
+  const [isOrchestrator, setIsOrchestrator] = useState(false);
+  const [allowedTools, setAllowedTools] = useState<string[]>([]);
 
   const { members } = useTeamMembers();
   const activeMembers = (members || []).filter((m) => m.status === "active" && m.user_id);
@@ -295,6 +303,11 @@ export const AIAgentFormDialog = ({
     setTaskDefaultPriority("medium");
     setTaskTitleTemplate("");
     setTaskExtraInstructions("");
+    setRoleKey(null);
+    setObjective("");
+    setNotAllowed("");
+    setIsOrchestrator(false);
+    setAllowedTools([]);
   };
 
   const loadAgentData = async (id: string) => {
@@ -344,6 +357,11 @@ export const AIAgentFormDialog = ({
       setTaskTitleTemplate((data as any).task_title_template || "");
       setTaskExtraInstructions((data as any).task_extra_instructions || "");
       setTaskNotifyUserIds(((data as any).task_notify_user_ids as string[]) || []);
+      setRoleKey((data as any).role_key ?? null);
+      setObjective((data as any).objective || "");
+      setNotAllowed((data as any).not_allowed || "");
+      setIsOrchestrator((data as any).is_orchestrator ?? false);
+      setAllowedTools(((data as any).allowed_tools as string[]) || []);
     } catch (error: any) {
       toast.error("Erro ao carregar agente: " + error.message);
     }
@@ -392,6 +410,12 @@ export const AIAgentFormDialog = ({
         task_title_template: taskTitleTemplate.trim() || null,
         task_extra_instructions: taskExtraInstructions.trim() || null,
         task_notify_user_ids: taskNotifyUserIds,
+        organization_id: organization?.id ?? null,
+        role_key: roleKey,
+        objective: objective.trim() || null,
+        not_allowed: notAllowed.trim() || null,
+        is_orchestrator: isOrchestrator,
+        allowed_tools: allowedTools,
       } as any;
 
       if (agentId) {
@@ -530,6 +554,10 @@ export const AIAgentFormDialog = ({
 
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="flex w-full flex-wrap h-auto gap-1 justify-start">
+                  <TabsTrigger value="role" className="flex items-center gap-1">
+                    <Briefcase className="h-4 w-4" />
+                    <span className="hidden sm:inline">Função</span>
+                  </TabsTrigger>
                   <TabsTrigger value="personality" className="flex items-center gap-1">
                     <Bot className="h-4 w-4" />
                     <span className="hidden sm:inline">Personalidade</span>
@@ -572,6 +600,24 @@ export const AIAgentFormDialog = ({
                     <span className="hidden sm:inline">Tarefas</span>
                   </TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="role" className="mt-4">
+                  <AgentRoleToolsTab
+                    agentId={agentId}
+                    organizationId={organization?.id ?? null}
+                    roleKey={roleKey}
+                    onRoleKeyChange={setRoleKey}
+                    objective={objective}
+                    onObjectiveChange={setObjective}
+                    notAllowed={notAllowed}
+                    onNotAllowedChange={setNotAllowed}
+                    isOrchestrator={isOrchestrator}
+                    onIsOrchestratorChange={setIsOrchestrator}
+                    allowedTools={allowedTools}
+                    onAllowedToolsChange={setAllowedTools}
+                  />
+                </TabsContent>
+
 
                 <TabsContent value="personality" className="space-y-4 mt-4">
                   <div>
