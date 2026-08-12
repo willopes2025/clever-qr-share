@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Mail, Play, Pause, Plus, RefreshCw, ArrowLeft, Send } from "lucide-react";
+import { Loader2, Mail, Play, Pause, Plus, RefreshCw, ArrowLeft, Send, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -20,6 +20,7 @@ import { Link } from "react-router-dom";
 
 import { EmailAttachmentsField, type EmailAttachmentMeta } from "@/components/email/EmailAttachmentsField";
 import { VisualEmailDesigner } from "@/components/email/VisualEmailDesigner";
+import { EditCampaignDialog } from "@/components/email/EditCampaignDialog";
 import type { EmailDesign } from "@/lib/email-design";
 
 interface Channel { id: string; email_address: string; display_name: string | null; status: string; }
@@ -36,6 +37,7 @@ interface Campaign {
   status: string; stats: Record<string, number>;
   attachments: EmailAttachmentMeta[] | null;
   design_json: EmailDesign | null;
+  send_days: number[] | null; send_start_hour: number | null; send_end_hour: number | null;
   started_at: string | null; completed_at: string | null; created_at: string;
 }
 interface Recipient {
@@ -54,6 +56,7 @@ export default function EmailCampaigns() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [openTemplate, setOpenTemplate] = useState<Template | null>(null);
   const [openNewTemplate, setOpenNewTemplate] = useState(false);
+  const [editCampaignId, setEditCampaignId] = useState<string | null>(null);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -115,7 +118,7 @@ export default function EmailCampaigns() {
             ) : (
               <div className="grid gap-2">
                 {campaigns.map(c => (
-                  <CampaignRow key={c.id} campaign={c} onOpen={() => setSelectedCampaignId(c.id)} onChanged={loadAll} />
+                  <CampaignRow key={c.id} campaign={c} onOpen={() => setSelectedCampaignId(c.id)} onEdit={() => setEditCampaignId(c.id)} onChanged={loadAll} />
                 ))}
               </div>
             )}
@@ -153,6 +156,13 @@ export default function EmailCampaigns() {
       <CampaignDetailDialog campaign={selectedCampaign}
         onClose={() => setSelectedCampaignId(null)} onChanged={loadAll} />
 
+      <EditCampaignDialog
+        campaign={campaigns.find(c => c.id === editCampaignId) ?? null}
+        channels={channels}
+        onClose={() => setEditCampaignId(null)}
+        onSaved={loadAll} />
+
+
       <TemplateDialog open={openNewTemplate || !!openTemplate}
         template={openTemplate}
         onOpenChange={(b) => { if (!b) { setOpenNewTemplate(false); setOpenTemplate(null); } }}
@@ -161,7 +171,7 @@ export default function EmailCampaigns() {
   );
 }
 
-function CampaignRow({ campaign, onOpen, onChanged }: { campaign: Campaign; onOpen: () => void; onChanged: () => void }) {
+function CampaignRow({ campaign, onOpen, onEdit, onChanged }: { campaign: Campaign; onOpen: () => void; onEdit: () => void; onChanged: () => void }) {
   const stats = campaign.stats || {};
   const total = (stats.total as number) || 0;
   const sent = (stats.sent as number) || 0;
@@ -194,11 +204,16 @@ function CampaignRow({ campaign, onOpen, onChanged }: { campaign: Campaign; onOp
             {sent}/{total} enviados · {pending} pendentes · {failed} falharam · {pct}%
           </div>
         </div>
-        {campaign.status !== "completed" && (
-          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); toggle(); }}>
-            {campaign.status === "running" ? <><Pause className="h-4 w-4 mr-1" />Pausar</> : <><Play className="h-4 w-4 mr-1" />Iniciar</>}
+        <div className="flex items-center gap-2 shrink-0">
+          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+            <Pencil className="h-4 w-4 mr-1" />Editar
           </Button>
-        )}
+          {campaign.status !== "completed" && (
+            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); toggle(); }}>
+              {campaign.status === "running" ? <><Pause className="h-4 w-4 mr-1" />Pausar</> : <><Play className="h-4 w-4 mr-1" />Iniciar</>}
+            </Button>
+          )}
+        </div>
       </div>
     </Card>
   );
