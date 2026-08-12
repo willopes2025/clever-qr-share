@@ -20,6 +20,7 @@ import { Link } from "react-router-dom";
 
 import { EmailAttachmentsField, type EmailAttachmentMeta } from "@/components/email/EmailAttachmentsField";
 import { VisualEmailDesigner } from "@/components/email/VisualEmailDesigner";
+import { EditCampaignDialog } from "@/components/email/EditCampaignDialog";
 import type { EmailDesign } from "@/lib/email-design";
 
 interface Channel { id: string; email_address: string; display_name: string | null; status: string; }
