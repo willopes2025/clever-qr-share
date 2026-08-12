@@ -156,6 +156,13 @@ export default function EmailCampaigns() {
       <CampaignDetailDialog campaign={selectedCampaign}
         onClose={() => setSelectedCampaignId(null)} onChanged={loadAll} />
 
+      <EditCampaignDialog
+        campaign={campaigns.find(c => c.id === editCampaignId) ?? null}
+        channels={channels}
+        onClose={() => setEditCampaignId(null)}
+        onSaved={loadAll} />
+
+
       <TemplateDialog open={openNewTemplate || !!openTemplate}
         template={openTemplate}
         onOpenChange={(b) => { if (!b) { setOpenNewTemplate(false); setOpenTemplate(null); } }}
