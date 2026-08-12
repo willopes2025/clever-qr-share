@@ -164,7 +164,7 @@ export default function EmailCampaigns() {
   );
 }
 
-function CampaignRow({ campaign, onOpen, onChanged }: { campaign: Campaign; onOpen: () => void; onChanged: () => void }) {
+function CampaignRow({ campaign, onOpen, onEdit, onChanged }: { campaign: Campaign; onOpen: () => void; onEdit: () => void; onChanged: () => void }) {
   const stats = campaign.stats || {};
   const total = (stats.total as number) || 0;
   const sent = (stats.sent as number) || 0;
