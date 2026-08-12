@@ -1,0 +1,1 @@
+ALTER TABLE public.email_channels ADD COLUMN IF NOT EXISTS sync_cursors jsonb NOT NULL DEFAULT '{}'::jsonb;

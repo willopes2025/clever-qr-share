@@ -24,7 +24,12 @@ Deno.serve(async (req) => {
     }
 
     const results: any[] = [];
+    const startedAt = Date.now();
     for (const id of channelIds) {
+      if (Date.now() - startedAt > 45000) {
+        results.push({ channel_id: id, skipped: 'time_budget' });
+        continue;
+      }
       try {
         const { data: channel } = await admin.from('email_channels').select('*').eq('id', id).single();
         if (!channel) continue;
@@ -136,6 +141,8 @@ async function syncMicrosoft(admin: any, channel: MsChannel & any) {
 
 // ---------- IMAP ----------
 async function syncImap(admin: any, channel: any) {
+  const MAX_PER_MAILBOX = 10;     // keep CPU well under the edge limit
+  const MAX_RAW_BYTES = 1_500_000; // skip huge messages (attachments)
   const client = new NativeImap({
     host: channel.imap_host,
     port: Number(channel.imap_port),
@@ -145,64 +152,83 @@ async function syncImap(admin: any, channel: any) {
   });
   await client.connect();
   let imported = 0;
+  const cursors: Record<string, number> = { ...(channel.sync_cursors ?? {}) };
   try {
-    for (const mailbox of ['INBOX', 'Sent', 'INBOX.Sent', 'Sent Items', '[Gmail]/Enviados']) {
+    let sentMailbox = 'INBOX.Sent';
+    try { sentMailbox = await client.findSentMailbox(); } catch { /* default */ }
+    const mailboxes = Array.from(new Set(['INBOX', sentMailbox]));
+
+    for (const mailbox of mailboxes) {
+      const started = Date.now();
       try {
         await client.command(`SELECT "${mailbox.replace(/"/g, '\\"')}"`);
       } catch { continue; }
-      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      const cursor = Number(cursors[mailbox] ?? 0);
       let uids: number[] = [];
       try {
-        const searchResp = await client.command(`UID SEARCH SINCE ${imapDate(since)}`);
-        uids = parseSearchUids(searchResp);
+        const query = cursor > 0
+          ? `UID SEARCH UID ${cursor + 1}:*`
+          : `UID SEARCH SINCE ${imapDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))}`;
+        uids = parseSearchUids(await client.command(query, 30000)).filter((u) => u > cursor);
       } catch { continue; }
-      const recent = uids.slice(-50);
-      if (recent.length === 0) continue;
+      if (uids.length === 0) continue;
 
-      // Filter out uids already stored, then fetch in one batch.
-      const providerIds = recent.map((u) => `${mailbox}:${u}`);
+      uids.sort((a, b) => a - b);
+      const batch = uids.slice(0, MAX_PER_MAILBOX);
+      const providerIds = batch.map((u) => `${mailbox}:${u}`);
       const { data: existingRows } = await admin.from('email_messages')
         .select('provider_message_id').eq('channel_id', channel.id).in('provider_message_id', providerIds);
       const existingSet = new Set((existingRows ?? []).map((r: any) => r.provider_message_id));
-      const missing = recent.filter((u) => !existingSet.has(`${mailbox}:${u}`));
-      if (missing.length === 0) continue;
+      const missing = batch.filter((u) => !existingSet.has(`${mailbox}:${u}`));
 
-      const fetched = await client.fetchRawByUids(missing);
-      for (const { uid, raw } of fetched) {
-        const providerId = `${mailbox}:${uid}`;
-        try {
-          const parsed = await simpleParser(Buffer.from(raw));
-          const fromEmail = parsed.from?.value?.[0]?.address ?? '';
-          const fromName = parsed.from?.value?.[0]?.name ?? null;
-          const toList = (parsed.to as any)?.value?.map((v: any) => v.address).filter(Boolean) ?? [];
-          const ccList = (parsed.cc as any)?.value?.map((v: any) => v.address).filter(Boolean) ?? [];
-          const subject = parsed.subject ?? '';
-          const receivedAt = (parsed.date ?? new Date()).toISOString();
-          const isInbound = fromEmail.toLowerCase() !== channel.email_address.toLowerCase();
-          const threadKey = parsed.messageId ?? providerId;
-          const localThreadId = await upsertThread(admin, channel, threadKey, subject, isInbound, fromEmail, toList[0] ?? '', receivedAt);
-          await admin.from('email_messages').insert({
-            organization_id: channel.organization_id, channel_id: channel.id, thread_id: localThreadId,
-            direction: isInbound ? 'inbound' : 'outbound', provider_message_id: providerId,
-            from_address: fromEmail, from_name: fromName, to_addresses: toList, cc_addresses: ccList,
-            subject, body_html: parsed.html || null, body_text: parsed.text || null,
-            snippet: (parsed.text ?? '').slice(0, 200),
-            is_read: !isInbound,
-            received_at: isInbound ? receivedAt : null, sent_at: !isInbound ? receivedAt : null,
-            status: 'delivered',
-          });
-          imported++;
-        } catch (e) {
-          console.error('parse/insert failed', providerId, e);
+      let highest = cursor;
+      if (missing.length > 0) {
+        const fetched = await client.fetchRawByUids(missing);
+        for (const { uid, raw } of fetched) {
+          const providerId = `${mailbox}:${uid}`;
+          try {
+            if (raw.length > MAX_RAW_BYTES) { highest = Math.max(highest, uid); continue; }
+            const parsed = await simpleParser(Buffer.from(raw));
+            const fromEmail = parsed.from?.value?.[0]?.address ?? '';
+            const fromName = parsed.from?.value?.[0]?.name ?? null;
+            const toList = (parsed.to as any)?.value?.map((v: any) => v.address).filter(Boolean) ?? [];
+            const ccList = (parsed.cc as any)?.value?.map((v: any) => v.address).filter(Boolean) ?? [];
+            const subject = parsed.subject ?? '';
+            const receivedAt = (parsed.date ?? new Date()).toISOString();
+            const isInbound = fromEmail.toLowerCase() !== channel.email_address.toLowerCase();
+            const threadKey = parsed.messageId ?? providerId;
+            const localThreadId = await upsertThread(admin, channel, threadKey, subject, isInbound, fromEmail, toList[0] ?? '', receivedAt);
+            await admin.from('email_messages').insert({
+              organization_id: channel.organization_id, channel_id: channel.id, thread_id: localThreadId,
+              direction: isInbound ? 'inbound' : 'outbound', provider_message_id: providerId,
+              from_address: fromEmail, from_name: fromName, to_addresses: toList, cc_addresses: ccList,
+              subject, body_html: parsed.html || null, body_text: parsed.text || null,
+              snippet: (parsed.text ?? '').slice(0, 200),
+              is_read: !isInbound,
+              received_at: isInbound ? receivedAt : null, sent_at: !isInbound ? receivedAt : null,
+              status: 'delivered',
+            });
+            imported++;
+          } catch (e) {
+            console.error('parse/insert failed', providerId, e);
+          }
+          highest = Math.max(highest, uid);
         }
       }
+      highest = Math.max(highest, ...batch);
+      cursors[mailbox] = highest;
+      if (Date.now() - started > 25000) break;
     }
   } finally {
     await client.logout();
   }
-  await admin.from('email_channels').update({ last_synced_at: new Date().toISOString(), status: 'active', last_error: null }).eq('id', channel.id);
+  await admin.from('email_channels').update({
+    last_synced_at: new Date().toISOString(), status: 'active', last_error: null, sync_cursors: cursors,
+  }).eq('id', channel.id);
   return { imported };
 }
+
 
 // ---------- shared helpers ----------
 async function upsertThread(admin: any, channel: any, providerThreadId: string, subject: string, isInbound: boolean, fromEmail: string, toEmail: string, receivedAt: string): Promise<string> {
