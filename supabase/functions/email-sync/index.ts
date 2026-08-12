@@ -24,7 +24,12 @@ Deno.serve(async (req) => {
     }
 
     const results: any[] = [];
+    const startedAt = Date.now();
     for (const id of channelIds) {
+      if (Date.now() - startedAt > 45000) {
+        results.push({ channel_id: id, skipped: 'time_budget' });
+        continue;
+      }
       try {
         const { data: channel } = await admin.from('email_channels').select('*').eq('id', id).single();
         if (!channel) continue;
