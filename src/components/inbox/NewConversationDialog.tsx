@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { useContacts } from "@/hooks/useContacts";
 import { useCreateConversation } from "@/hooks/useCreateConversation";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
+import { useMetaWhatsAppNumbers } from "@/hooks/useMetaWhatsAppNumbers";
 import { formatPhoneNumber, validateBrazilianPhone, extractDigits } from "@/lib/phone-utils";
 import { toast } from "sonner";
 
@@ -32,31 +33,62 @@ interface NewConversationDialogProps {
 export const NewConversationDialog = ({ onConversationCreated }: NewConversationDialogProps) => {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
+  const [selectedChannel, setSelectedChannel] = useState<string>("");
   const [newPhone, setNewPhone] = useState("");
   const [countryCode, setCountryCode] = useState("55");
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const { contacts, isLoading, createContact } = useContacts({ includeContacts: open, includeDeals: false });
   const createConversation = useCreateConversation();
   const { instances, isLoading: isLoadingInstances } = useWhatsAppInstances();
+  const { metaNumbers, isLoading: isLoadingMeta } = useMetaWhatsAppNumbers();
 
-  // Get connected instances only — sempre derivado da lista já filtrada por escopo
-  // organizacional/restrições de membro pelo hook `useWhatsAppInstances`.
+  // Canais disponíveis: instâncias Evolution conectadas + números oficiais Meta ativos
   const connectedInstances = (instances ?? []).filter(i => i.status === 'connected');
+  const activeMetaNumbers = (metaNumbers ?? []).filter(n => n.is_active !== false);
 
-  // Set default instance only AFTER the scoped list has finished loading,
-  // garantindo que nunca selecionamos uma instância que não pertence ao usuário.
+  const channels = [
+    ...connectedInstances.map(i => ({
+      value: `evo:${i.id}`,
+      label: i.instance_name,
+      kind: 'evolution' as const,
+    })),
+    ...activeMetaNumbers.map(n => ({
+      value: `meta:${n.id}`,
+      label: `${n.display_name || n.phone_number || n.phone_number_id} (Oficial)`,
+      kind: 'meta' as const,
+    })),
+  ];
+
+  const isLoadingChannels = isLoadingInstances || isLoadingMeta;
+
   useEffect(() => {
-    if (isLoadingInstances) return;
-    if (connectedInstances.length === 0) {
-      if (selectedInstanceId) setSelectedInstanceId("");
+    if (isLoadingChannels) return;
+    if (channels.length === 0) {
+      if (selectedChannel) setSelectedChannel("");
       return;
     }
-    const stillValid = connectedInstances.some(i => i.id === selectedInstanceId);
-    if (!stillValid) {
-      setSelectedInstanceId(connectedInstances[0].id);
+    if (!channels.some(c => c.value === selectedChannel)) {
+      setSelectedChannel(channels[0].value);
     }
-  }, [isLoadingInstances, connectedInstances, selectedInstanceId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingChannels, JSON.stringify(channels.map(c => c.value)), selectedChannel]);
+
+  const buildConversationPayload = (contactId: string) => {
+    if (selectedChannel.startsWith('meta:')) {
+      const metaId = selectedChannel.slice(5);
+      const meta = activeMetaNumbers.find(n => n.id === metaId);
+      return {
+        contactId,
+        provider: 'meta' as const,
+        metaPhoneNumberId: meta?.phone_number_id,
+      };
+    }
+    return {
+      contactId,
+      instanceId: selectedChannel.slice(4),
+      provider: 'evolution' as const,
+    };
+  };
 
   const filteredContacts = contacts?.filter(contact => {
     const name = contact.name || "";
@@ -66,13 +98,10 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
   }) || [];
 
   const handleSelectContact = async (contactId: string) => {
-    if (!selectedInstanceId) return;
+    if (!selectedChannel) return;
     
     try {
-      const result = await createConversation.mutateAsync({ 
-        contactId,
-        instanceId: selectedInstanceId 
-      });
+      const result = await createConversation.mutateAsync(buildConversationPayload(contactId));
       if (result) {
         onConversationCreated(result.id);
         setOpen(false);
@@ -113,8 +142,8 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
   };
 
   const handleCreateAndChat = async () => {
-    if (!selectedInstanceId) {
-      toast.error("Selecione uma instância primeiro");
+    if (!selectedChannel) {
+      toast.error("Selecione um número primeiro");
       return;
     }
 
@@ -135,10 +164,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
       
       if (existingContact) {
         // Contact exists, just create/open conversation
-        const result = await createConversation.mutateAsync({ 
-          contactId: existingContact.id,
-          instanceId: selectedInstanceId 
-        });
+        const result = await createConversation.mutateAsync(buildConversationPayload(existingContact.id));
         if (result) {
           onConversationCreated(result.id);
           setOpen(false);
@@ -156,10 +182,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
       });
 
       if (newContact) {
-        const result = await createConversation.mutateAsync({ 
-          contactId: newContact.data.id,
-          instanceId: selectedInstanceId 
-        });
+        const result = await createConversation.mutateAsync(buildConversationPayload(newContact.data.id));
         
         if (result) {
           onConversationCreated(result.id);
@@ -176,10 +199,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
         const existingContact = findExistingContactByPhone(fullNumber);
         if (existingContact) {
           try {
-            const result = await createConversation.mutateAsync({ 
-              contactId: existingContact.id,
-              instanceId: selectedInstanceId 
-            });
+            const result = await createConversation.mutateAsync(buildConversationPayload(existingContact.id));
             if (result) {
               onConversationCreated(result.id);
               setOpen(false);
@@ -218,7 +238,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
           {/* Instance Selector */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Enviar via</Label>
-            <Select value={selectedInstanceId} onValueChange={setSelectedInstanceId}>
+            <Select value={selectedChannel} onValueChange={setSelectedChannel}>
               <SelectTrigger className="w-full">
                 <div className="flex items-center min-w-0 flex-1">
                   <Smartphone className="h-4 w-4 mr-2 text-muted-foreground shrink-0" />
@@ -228,18 +248,18 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
                 </div>
               </SelectTrigger>
               <SelectContent className="w-[var(--radix-select-trigger-width)]">
-                {isLoadingInstances ? (
+                {isLoadingChannels ? (
                   <div className="p-2 text-sm text-muted-foreground text-center">
-                    Carregando instâncias...
+                    Carregando números...
                   </div>
-                ) : connectedInstances.length === 0 ? (
+                ) : channels.length === 0 ? (
                   <div className="p-2 text-sm text-muted-foreground text-center">
-                    Nenhuma instância conectada
+                    Nenhum número disponível
                   </div>
                 ) : (
-                  connectedInstances.map((instance) => (
-                    <SelectItem key={instance.id} value={instance.id}>
-                      <span className="truncate block">{instance.instance_name}</span>
+                  channels.map((channel) => (
+                    <SelectItem key={channel.value} value={channel.value}>
+                      <span className="truncate block">{channel.label}</span>
                     </SelectItem>
                   ))
                 )}
@@ -276,7 +296,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
               />
               <Button 
                 onClick={handleCreateAndChat}
-                disabled={!newPhone || isCreatingNew || !selectedInstanceId}
+                disabled={!newPhone || isCreatingNew || !selectedChannel}
                 size="sm"
                 className="gap-1.5 shrink-0"
               >
@@ -315,13 +335,13 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
                   </div>
                 ))}
               </div>
-            ) : isLoadingInstances ? (
+            ) : isLoadingChannels ? (
               <div className="text-center py-8 text-muted-foreground">
-                Carregando instâncias autorizadas...
+                Carregando números autorizados...
               </div>
-            ) : connectedInstances.length === 0 ? (
+            ) : channels.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                Conecte uma instância do WhatsApp primeiro
+                Conecte uma instância ou número oficial Meta primeiro
               </div>
             ) : filteredContacts.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
@@ -337,7 +357,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
                       key={contact.id}
                       onClick={() => handleSelectContact(contact.id)}
                       className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors text-left"
-                      disabled={createConversation.isPending || !selectedInstanceId}
+                      disabled={createConversation.isPending || !selectedChannel}
                     >
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-medium shrink-0">
                         {contactDisplay.initial}
