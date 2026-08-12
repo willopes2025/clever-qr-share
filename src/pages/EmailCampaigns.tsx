@@ -56,6 +56,7 @@ export default function EmailCampaigns() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [openTemplate, setOpenTemplate] = useState<Template | null>(null);
   const [openNewTemplate, setOpenNewTemplate] = useState(false);
+  const [editCampaignId, setEditCampaignId] = useState<string | null>(null);
 
   useEffect(() => { loadAll(); }, []);
 
