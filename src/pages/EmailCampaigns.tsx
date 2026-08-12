@@ -118,7 +118,7 @@ export default function EmailCampaigns() {
             ) : (
               <div className="grid gap-2">
                 {campaigns.map(c => (
-                  <CampaignRow key={c.id} campaign={c} onOpen={() => setSelectedCampaignId(c.id)} onChanged={loadAll} />
+                  <CampaignRow key={c.id} campaign={c} onOpen={() => setSelectedCampaignId(c.id)} onEdit={() => setEditCampaignId(c.id)} onChanged={loadAll} />
                 ))}
               </div>
             )}
