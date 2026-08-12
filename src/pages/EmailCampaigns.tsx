@@ -37,6 +37,7 @@ interface Campaign {
   status: string; stats: Record<string, number>;
   attachments: EmailAttachmentMeta[] | null;
   design_json: EmailDesign | null;
+  send_days: number[] | null; send_start_hour: number | null; send_end_hour: number | null;
   started_at: string | null; completed_at: string | null; created_at: string;
 }
 interface Recipient {
