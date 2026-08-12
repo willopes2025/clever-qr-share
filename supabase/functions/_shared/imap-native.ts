@@ -91,69 +91,76 @@ export class NativeImap {
     await this.conn.write(this.encoder.encode(`${tag} UID FETCH ${list} (UID BODY.PEEK[])\r\n`));
 
     const results: Array<{ uid: number; raw: Uint8Array }> = [];
-    // We need to parse literals. Work in bytes buffer.
-    const bytesBuf: number[] = [];
-    // seed with any leftover buf as bytes
-    if (this.buf.length) {
-      const seed = this.encoder.encode(this.buf);
-      for (const b of seed) bytesBuf.push(b);
-      this.buf = "";
-    }
+    const latin1 = new TextDecoder("latin1");
+
+    // Linear byte buffer (avoid per-byte array pushes / full-buffer decodes).
+    let bytes: Uint8Array = this.buf.length ? this.encoder.encode(this.buf) : new Uint8Array(0);
+    this.buf = "";
+    let offset = 0; // consumed prefix
+
+    const append = (chunk: Uint8Array) => {
+      const remaining = bytes.length - offset;
+      const next = new Uint8Array(remaining + chunk.length);
+      next.set(bytes.subarray(offset), 0);
+      next.set(chunk, remaining);
+      bytes = next;
+      offset = 0;
+    };
+    const indexOfCRLF = (from: number): number => {
+      for (let i = from; i + 1 < bytes.length; i++) {
+        if (bytes[i] === 13 && bytes[i + 1] === 10) return i;
+      }
+      return -1;
+    };
+
     const deadline = Date.now() + 120000;
-    const tagLineRe = new RegExp(`(?:^|\\n)${tag} (OK|NO|BAD)([^\\r\\n]*)\\r?\\n`, "i");
+    const headerRe = /^\*\s+\d+\s+FETCH\s+\(.*?UID\s+(\d+).*?BODY\[\]\s+\{(\d+)\}$/i;
+    const tagRe = new RegExp(`^${tag} (OK|NO|BAD)(.*)$`, "i");
 
     while (Date.now() < deadline) {
-      // read some
+      let progressed = true;
+      while (progressed) {
+        progressed = false;
+        const eol = indexOfCRLF(offset);
+        if (eol < 0) break;
+        const line = latin1.decode(bytes.subarray(offset, eol));
+        const lineEnd = eol + 2;
+
+        const t = line.match(tagRe);
+        if (t) {
+          offset = lineEnd;
+          if (t[1].toUpperCase() !== "OK") throw new Error(`IMAP ${t[1]}: ${t[2].trim()}`);
+          this.buf = latin1.decode(bytes.subarray(offset));
+          return results;
+        }
+
+        const h = line.match(headerRe);
+        if (h) {
+          const uid = parseInt(h[1], 10);
+          const literalLen = parseInt(h[2], 10);
+          if (bytes.length - lineEnd < literalLen) break; // need more data
+          results.push({ uid, raw: bytes.slice(lineEnd, lineEnd + literalLen) });
+          offset = lineEnd + literalLen;
+          progressed = true;
+          continue;
+        }
+
+        // Unrelated line (continuation of response, closing paren, etc.)
+        offset = lineEnd;
+        progressed = true;
+      }
+
       const chunkArr = new Uint8Array(65536);
       const n = await Promise.race([
         this.conn.read(chunkArr),
         new Promise<null>((_, rej) => setTimeout(() => rej(new Error("READ_TIMEOUT")), Math.max(500, deadline - Date.now()))),
       ]);
       if (n == null || n === 0) throw new Error("CONNECTION_CLOSED");
-      for (let i = 0; i < (n as number); i++) bytesBuf.push(chunkArr[i]);
-
-      // Try to parse
-      // Convert to string only for scanning headers; but literals may contain binary.
-      // Strategy: walk through buffer parsing untagged responses one by one.
-      let progressed = true;
-      while (progressed) {
-        progressed = false;
-        const asStr = new TextDecoder("latin1").decode(new Uint8Array(bytesBuf));
-        // check tag completion
-        const tagMatch = asStr.match(tagLineRe);
-        // find start of an untagged FETCH response
-        const fetchMatch = asStr.match(/\*\s+(\d+)\s+FETCH\s+\(([^)]*?)UID\s+(\d+)[^)]*?BODY\[\]\s+\{(\d+)\}\r\n/i);
-        if (fetchMatch) {
-          const uid = parseInt(fetchMatch[3], 10);
-          const literalLen = parseInt(fetchMatch[4], 10);
-          const headerEnd = fetchMatch.index! + fetchMatch[0].length;
-          const literalStart = headerEnd;
-          if (bytesBuf.length < literalStart + literalLen + 3) {
-            // need more data
-            break;
-          }
-          const raw = new Uint8Array(bytesBuf.slice(literalStart, literalStart + literalLen));
-          results.push({ uid, raw });
-          // consume up through the closing ')\r\n' after literal
-          const after = literalStart + literalLen;
-          // find next \r\n after `)`
-          const afterStr = new TextDecoder("latin1").decode(new Uint8Array(bytesBuf.slice(after, after + 32)));
-          const closeMatch = afterStr.match(/^\s*\)\s*\r\n/);
-          const consumeEnd = after + (closeMatch ? closeMatch[0].length : 0);
-          bytesBuf.splice(0, consumeEnd);
-          progressed = true;
-          continue;
-        }
-        if (tagMatch) {
-          const end = (tagMatch.index ?? 0) + tagMatch[0].length;
-          bytesBuf.splice(0, end);
-          if (tagMatch[1].toUpperCase() !== "OK") throw new Error(`IMAP ${tagMatch[1]}: ${tagMatch[2].trim()}`);
-          return results;
-        }
-      }
+      append(chunkArr.subarray(0, n as number));
     }
     throw new Error("FETCH_TIMEOUT");
   }
+
 
   /** Discover the "Sent" mailbox, preferring the \Sent special-use flag. */
   async findSentMailbox(): Promise<string> {
