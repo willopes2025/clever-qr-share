@@ -197,11 +197,16 @@ function CampaignRow({ campaign, onOpen, onEdit, onChanged }: { campaign: Campai
             {sent}/{total} enviados · {pending} pendentes · {failed} falharam · {pct}%
           </div>
         </div>
-        {campaign.status !== "completed" && (
-          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); toggle(); }}>
-            {campaign.status === "running" ? <><Pause className="h-4 w-4 mr-1" />Pausar</> : <><Play className="h-4 w-4 mr-1" />Iniciar</>}
+        <div className="flex items-center gap-2 shrink-0">
+          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+            <Pencil className="h-4 w-4 mr-1" />Editar
           </Button>
-        )}
+          {campaign.status !== "completed" && (
+            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); toggle(); }}>
+              {campaign.status === "running" ? <><Pause className="h-4 w-4 mr-1" />Pausar</> : <><Play className="h-4 w-4 mr-1" />Iniciar</>}
+            </Button>
+          )}
+        </div>
       </div>
     </Card>
   );
