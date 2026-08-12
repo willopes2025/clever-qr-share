@@ -14,7 +14,17 @@ export const useCreateConversation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ contactId, instanceId }: { contactId: string; instanceId?: string }) => {
+    mutationFn: async ({
+      contactId,
+      instanceId,
+      provider,
+      metaPhoneNumberId,
+    }: {
+      contactId: string;
+      instanceId?: string;
+      provider?: 'evolution' | 'meta';
+      metaPhoneNumberId?: string;
+    }) => {
       if (!user?.id) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
@@ -24,6 +34,8 @@ export const useCreateConversation = () => {
             user_id: user.id,
             contact_id: contactId,
             instance_id: instanceId || null,
+            ...(provider ? { provider } : {}),
+            ...(provider === 'meta' ? { meta_phone_number_id: metaPhoneNumberId ?? null } : {}),
           },
           { onConflict: "user_id,contact_id" }
         )
