@@ -645,10 +645,18 @@ function CampaignDetailDialog({ campaign, onClose, onChanged }: {
               </Select>
               {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
             </div>
-            <ScrollArea className="flex-1 border rounded-md">
+            <div
+              className="flex-1 min-h-0 overflow-y-auto border rounded-md"
+              style={{ scrollbarWidth: "thin", scrollbarGutter: "stable" }}
+            >
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-card border-b">
-                  <tr><th className="text-left p-2">E-mail</th><th className="text-left p-2">Status</th><th className="text-left p-2">Quando</th><th className="text-left p-2">Erro</th></tr>
+                <thead className="sticky top-0 bg-card border-b z-10">
+                  <tr>
+                    <th className="text-left p-2">E-mail</th>
+                    <th className="text-left p-2">Status</th>
+                    <th className="text-left p-2 whitespace-nowrap">Data/hora do envio</th>
+                    <th className="text-left p-2">Erro</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {recipients.map(r => (
@@ -661,14 +669,24 @@ function CampaignDetailDialog({ campaign, onClose, onChanged }: {
                           r.status === "sending" ? "secondary" : "outline"
                         }>{r.status}</Badge>
                       </td>
-                      <td className="p-2 text-muted-foreground">{r.sent_at ? formatDistanceToNow(new Date(r.sent_at), { addSuffix: true, locale: ptBR }) : ""}</td>
+                      <td className="p-2 text-muted-foreground whitespace-nowrap">
+                        {r.sent_at ? (
+                          <div className="leading-tight">
+                            <div>{format(new Date(r.sent_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}</div>
+                            <div className="text-[10px] opacity-70">{formatDistanceToNow(new Date(r.sent_at), { addSuffix: true, locale: ptBR })}</div>
+                          </div>
+                        ) : (
+                          <span className="opacity-60">—</span>
+                        )}
+                      </td>
                       <td className="p-2 text-destructive truncate max-w-xs">{r.error_message ?? ""}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               {recipients.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">Sem destinatários neste filtro.</div>}
-            </ScrollArea>
+            </div>
+
           </>
         )}
         <DialogFooter>
