@@ -3780,6 +3780,7 @@ export type Database = {
           smtp_use_tls: boolean | null
           smtp_username: string | null
           status: string
+          sync_cursors: Json
           updated_at: string
         }
         Insert: {
@@ -3814,6 +3815,7 @@ export type Database = {
           smtp_use_tls?: boolean | null
           smtp_username?: string | null
           status?: string
+          sync_cursors?: Json
           updated_at?: string
         }
         Update: {
@@ -3848,6 +3850,7 @@ export type Database = {
           smtp_use_tls?: boolean | null
           smtp_username?: string | null
           status?: string
+          sync_cursors?: Json
           updated_at?: string
         }
         Relationships: [
