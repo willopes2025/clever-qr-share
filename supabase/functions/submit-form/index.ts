@@ -48,6 +48,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Block submissions for forms owned by inactive accounts
+    const { data: accountActive } = await supabase.rpc('is_account_active', { _user_id: (form as any).user_id });
+    if (accountActive === false) {
+      return new Response(
+        JSON.stringify({ error: 'Formulário indisponível' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Fetch form fields for mapping
     const { data: fields, error: fieldsError } = await supabase
       .from('form_fields')
