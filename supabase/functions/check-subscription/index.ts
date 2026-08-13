@@ -344,7 +344,20 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Conta marcada manualmente como inativa/expirada: bloquear e NÃO sobrescrever
+    if (isManuallyBlocked(existingSub)) {
+      logStep("Manual subscription blocked", { userId, status: existingSub.status });
+      return new Response(JSON.stringify({
+        ...blockedSubscription(existingSub),
+        is_organization_member: false,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     // Se existe assinatura manual ativa, usar ela e NÃO sobrescrever com Stripe
+
     if (existingSub?.manual_override && existingSub?.status === 'active') {
       const periodEnd = existingSub.current_period_end 
         ? new Date(existingSub.current_period_end) 
