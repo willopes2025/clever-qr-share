@@ -358,6 +358,36 @@ Deno.serve(async (req) => {
             }
           }
 
+          // Still none? Create one so the reminder is registered in the inbox.
+          if (!conversationId && reminder.contact_id) {
+            const { data: newConv, error: convErr } = await supabase
+              .from('conversations')
+              .insert({
+                user_id: userId,
+                contact_id: reminder.contact_id,
+                status: 'open',
+                last_message_at: new Date().toISOString(),
+              })
+              .select('id')
+              .single();
+
+            if (convErr) {
+              console.error(`[CONV] Failed to create conversation for reminder ${reminder.id}:`, convErr);
+            } else if (newConv) {
+              conversationId = newConv.id;
+              console.log(`[CONV] Created conversation ${conversationId} for reminder ${reminder.id}`);
+            }
+          }
+
+          if (conversationId && conversationId !== reminder.conversation_id) {
+            await supabase
+              .from('billing_reminders')
+              .update({ conversation_id: conversationId })
+              .eq('id', reminder.id);
+            reminder.conversation_id = conversationId;
+          }
+
+
           // Determine provider
           let useMetaForThis = false;
           let metaPhoneNumberId: string | null = null;
