@@ -75,6 +75,7 @@ async function getSubscriptionForUser(
 ): Promise<{
   subscribed: boolean;
   plan: string;
+  status: string;
   max_instances: number | null;
   max_contacts: number | null;
   max_messages: number | null;
@@ -93,8 +94,15 @@ async function getSubscriptionForUser(
     .eq("user_id", userId)
     .single();
 
+  // Conta marcada manualmente como inativa/expirada: respeitar e NÃO sobrescrever
+  if (isManuallyBlocked(existingSub)) {
+    logStep("Manual subscription blocked", { userId, status: existingSub.status });
+    return blockedSubscription(existingSub);
+  }
+
   // Se existe assinatura manual ativa, usar ela
   if (existingSub?.manual_override && existingSub?.status === 'active') {
+
     const periodEnd = existingSub.current_period_end 
       ? new Date(existingSub.current_period_end) 
       : null;
