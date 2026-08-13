@@ -2,13 +2,16 @@ import { useState } from "react";
 import { AppLayout } from "@/layouts/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, FileEdit, Loader2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Plus, Search, FileEdit, Loader2, AlertTriangle } from "lucide-react";
 import { useForms } from "@/hooks/useForms";
+import { useAccountActive } from "@/hooks/useAccountActive";
 import { FormsList } from "@/components/forms/FormsList";
 import { CreateFormDialog } from "@/components/forms/CreateFormDialog";
 
 const Forms = () => {
   const { forms, isLoading } = useForms();
+  const { isAccountActive } = useAccountActive();
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
