@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { MobileAppLayout } from "@/mobile/layouts/MobileAppLayout";
+import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -22,6 +23,7 @@ export const AppLayout = ({ children, className, pageTitle }: AppLayoutProps) =>
   if (isMobile) {
     return (
       <MobileAppLayout pageTitle={pageTitle} className={className}>
+        <ImpersonationBanner />
         {children}
       </MobileAppLayout>
     );
@@ -29,6 +31,7 @@ export const AppLayout = ({ children, className, pageTitle }: AppLayoutProps) =>
 
   return (
     <DashboardLayout className={className}>
+      <ImpersonationBanner />
       {children}
     </DashboardLayout>
   );
