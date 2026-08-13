@@ -522,6 +522,7 @@ export const useCampaignMutations = () => {
     createCampaign,
     updateCampaign,
     deleteCampaign,
+    deleteCampaigns,
     startCampaign,
     cancelCampaign,
     resumeCampaign,
