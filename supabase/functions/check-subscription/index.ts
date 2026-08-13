@@ -140,6 +140,7 @@ async function getSubscriptionForUser(
       
       return {
         subscribed: true,
+        status: "active",
         plan: existingSub.plan,
         max_instances: existingSub.max_instances,
         max_contacts: existingSub.max_contacts,
@@ -166,6 +167,7 @@ async function getSubscriptionForUser(
     logStep("No Stripe customer found for user", { userId, email: userEmail });
     return {
       subscribed: true,
+      status: "active",
       plan: FREE_PLAN.plan,
       max_instances: FREE_PLAN.maxInstances,
       max_contacts: FREE_PLAN.maxContacts,
@@ -198,6 +200,7 @@ async function getSubscriptionForUser(
 
   return {
     subscribed: true,
+    status: "active",
     plan: planInfo.plan,
     max_instances: planInfo.maxInstances,
     max_contacts: planInfo.maxContacts,
@@ -323,6 +326,7 @@ Deno.serve(async (req: Request) => {
       // Return 200 with fallback signal so client doesn't crash / blank screen
       return new Response(JSON.stringify({
         subscribed: true,
+        status: "active",
         plan: FREE_PLAN.plan,
         max_instances: FREE_PLAN.maxInstances,
         max_contacts: FREE_PLAN.maxContacts,
@@ -355,6 +359,7 @@ Deno.serve(async (req: Request) => {
         
         return new Response(JSON.stringify({
           subscribed: true,
+          status: "active",
           plan: existingSub.plan,
           max_instances: existingSub.max_instances,
           max_contacts: existingSub.max_contacts,
@@ -402,6 +407,7 @@ Deno.serve(async (req: Request) => {
 
       return new Response(JSON.stringify({ 
         subscribed: true,
+        status: "active",
         plan: FREE_PLAN.plan,
         max_instances: FREE_PLAN.maxInstances,
         max_contacts: FREE_PLAN.maxContacts,
@@ -473,6 +479,7 @@ Deno.serve(async (req: Request) => {
 
     return new Response(JSON.stringify({
       subscribed: true,
+      status: "active",
       plan: planInfo.plan,
       max_instances: planInfo.maxInstances,
       max_contacts: planInfo.maxContacts,
