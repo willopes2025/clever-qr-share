@@ -753,6 +753,7 @@ export const useBroadcastLists = () => {
     createList,
     updateList,
     deleteList,
+    deleteLists,
     addContactsToList,
     removeContactsFromList,
     createSend,

@@ -174,6 +174,39 @@ export const useMessageTemplates = () => {
     }
   });
 
+  const deleteManyMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      let deleted = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < ids.length; i += 50) {
+        const chunk = ids.slice(i, i + 50);
+        const { error } = await supabase
+          .from('message_templates')
+          .delete()
+          .in('id', chunk);
+
+        if (error) errors.push(error.message);
+        else deleted += chunk.length;
+      }
+
+      return { deleted, failed: ids.length - deleted, errors };
+    },
+    onSuccess: ({ deleted, failed, errors }) => {
+      queryClient.invalidateQueries({ queryKey: ['message-templates'] });
+      if (failed > 0) {
+        toast.warning(`${deleted} template(s) excluído(s), ${failed} com erro`, {
+          description: errors[0],
+        });
+      } else {
+        toast.success(`${deleted} template(s) excluído(s) com sucesso!`);
+      }
+    },
+    onError: (error) => {
+      toast.error('Erro ao excluir templates: ' + error.message);
+    }
+  });
+
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
       const { error } = await supabase
