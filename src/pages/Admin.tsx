@@ -23,6 +23,7 @@ import OwnerFinanceiro from "@/components/owner/OwnerFinanceiro";
 import OwnerOperacional from "@/components/owner/OwnerOperacional";
 import { useActivitySession } from "@/hooks/useActivitySession";
 import { invokeAdminFunction } from "@/lib/supabase-functions";
+import { startImpersonation } from "@/lib/impersonation";
 
 interface UserWithSubscription {
   id: string;
@@ -57,6 +58,20 @@ const Admin = () => {
   const [historySubscriptionId, setHistorySubscriptionId] = useState<string | null>(null);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [transferTargetUser, setTransferTargetUser] = useState<{ id: string; email: string } | null>(null);
+  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
+
+  const handleImpersonate = async (target: UserWithSubscription) => {
+    if (!window.confirm(`Entrar no sistema como ${target.email}?`)) return;
+    setImpersonatingUserId(target.id);
+    try {
+      await startImpersonation(target.id);
+      toast.success(`Você agora está acessando como ${target.email}`);
+      window.location.href = "/dashboard";
+    } catch (e) {
+      toast.error("Erro ao acessar conta: " + (e as Error).message);
+      setImpersonatingUserId(null);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -278,6 +293,8 @@ const Admin = () => {
                     onViewHistory={handleViewHistory}
                     onDeleteUser={handleDeleteUser}
                     onTransferTokens={handleTransferTokens}
+                    onImpersonate={handleImpersonate}
+                    impersonatingUserId={impersonatingUserId}
                     deletingUserId={deletingUserId}
                     formatTokens={formatTokens}
                   />
