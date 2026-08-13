@@ -43,6 +43,29 @@ const FREE_PLAN: PlanInfo = {
   maxLeads: 50,
 };
 
+const ACTIVE_STATUSES = ["active", "trialing"];
+
+// Conta marcada manualmente (pelo admin) com status não ativo => bloqueada
+function isManuallyBlocked(sub: any): boolean {
+  return !!sub && sub.manual_override === true && !ACTIVE_STATUSES.includes(sub.status);
+}
+
+function blockedSubscription(sub: any) {
+  return {
+    subscribed: false,
+    plan: sub?.plan || FREE_PLAN.plan,
+    status: sub?.status || "inactive",
+    max_instances: 0,
+    max_contacts: 0,
+    max_messages: 0,
+    max_leads: 0,
+    leads_used: sub?.leads_used || 0,
+    leads_reset_at: sub?.leads_reset_at || null,
+    subscription_end: sub?.current_period_end || null,
+  };
+}
+
+
 // Helper to check if leads need to be reset
 async function checkAndResetLeads(supabaseClient: any, userId: string) {
   const { data: sub } = await supabaseClient
@@ -75,6 +98,7 @@ async function getSubscriptionForUser(
 ): Promise<{
   subscribed: boolean;
   plan: string;
+  status: string;
   max_instances: number | null;
   max_contacts: number | null;
   max_messages: number | null;
@@ -93,8 +117,15 @@ async function getSubscriptionForUser(
     .eq("user_id", userId)
     .single();
 
+  // Conta marcada manualmente como inativa/expirada: respeitar e NÃO sobrescrever
+  if (isManuallyBlocked(existingSub)) {
+    logStep("Manual subscription blocked", { userId, status: existingSub.status });
+    return blockedSubscription(existingSub);
+  }
+
   // Se existe assinatura manual ativa, usar ela
   if (existingSub?.manual_override && existingSub?.status === 'active') {
+
     const periodEnd = existingSub.current_period_end 
       ? new Date(existingSub.current_period_end) 
       : null;
@@ -109,6 +140,7 @@ async function getSubscriptionForUser(
       
       return {
         subscribed: true,
+        status: "active",
         plan: existingSub.plan,
         max_instances: existingSub.max_instances,
         max_contacts: existingSub.max_contacts,
@@ -135,6 +167,7 @@ async function getSubscriptionForUser(
     logStep("No Stripe customer found for user", { userId, email: userEmail });
     return {
       subscribed: true,
+      status: "active",
       plan: FREE_PLAN.plan,
       max_instances: FREE_PLAN.maxInstances,
       max_contacts: FREE_PLAN.maxContacts,
@@ -167,6 +200,7 @@ async function getSubscriptionForUser(
 
   return {
     subscribed: true,
+    status: "active",
     plan: planInfo.plan,
     max_instances: planInfo.maxInstances,
     max_contacts: planInfo.maxContacts,
@@ -292,6 +326,7 @@ Deno.serve(async (req: Request) => {
       // Return 200 with fallback signal so client doesn't crash / blank screen
       return new Response(JSON.stringify({
         subscribed: true,
+        status: "active",
         plan: FREE_PLAN.plan,
         max_instances: FREE_PLAN.maxInstances,
         max_contacts: FREE_PLAN.maxContacts,
@@ -309,7 +344,20 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Conta marcada manualmente como inativa/expirada: bloquear e NÃO sobrescrever
+    if (isManuallyBlocked(existingSub)) {
+      logStep("Manual subscription blocked", { userId, status: existingSub.status });
+      return new Response(JSON.stringify({
+        ...blockedSubscription(existingSub),
+        is_organization_member: false,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     // Se existe assinatura manual ativa, usar ela e NÃO sobrescrever com Stripe
+
     if (existingSub?.manual_override && existingSub?.status === 'active') {
       const periodEnd = existingSub.current_period_end 
         ? new Date(existingSub.current_period_end) 
@@ -324,6 +372,7 @@ Deno.serve(async (req: Request) => {
         
         return new Response(JSON.stringify({
           subscribed: true,
+          status: "active",
           plan: existingSub.plan,
           max_instances: existingSub.max_instances,
           max_contacts: existingSub.max_contacts,
@@ -371,6 +420,7 @@ Deno.serve(async (req: Request) => {
 
       return new Response(JSON.stringify({ 
         subscribed: true,
+        status: "active",
         plan: FREE_PLAN.plan,
         max_instances: FREE_PLAN.maxInstances,
         max_contacts: FREE_PLAN.maxContacts,
@@ -442,6 +492,7 @@ Deno.serve(async (req: Request) => {
 
     return new Response(JSON.stringify({
       subscribed: true,
+      status: "active",
       plan: planInfo.plan,
       max_instances: planInfo.maxInstances,
       max_contacts: planInfo.maxContacts,
