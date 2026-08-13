@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Users, Filter, MoreVertical, Pencil, Trash2, Eye, Send } from 'lucide-react';
@@ -12,16 +13,30 @@ interface BroadcastListListViewProps {
   onEdit: (list: BroadcastListWithContacts) => void;
   onDelete: (list: BroadcastListWithContacts) => void;
   onSend: (list: BroadcastListWithContacts) => void;
+  selectedIds?: string[];
+  onToggleSelect?: (id: string, checked: boolean) => void;
+  onToggleSelectAll?: () => void;
+  allSelected?: boolean;
 }
 
 export const BroadcastListListView = ({
   lists, onView, onEdit, onDelete, onSend,
+  selectedIds, onToggleSelect, onToggleSelectAll, allSelected,
 }: BroadcastListListViewProps) => {
   return (
     <div className="border rounded-lg overflow-hidden">
       <table className="w-full">
         <thead>
           <tr className="border-b bg-muted/50 text-left text-sm text-muted-foreground">
+            {onToggleSelect && (
+              <th className="px-4 py-3 w-[40px]">
+                <Checkbox
+                  checked={!!allSelected}
+                  onCheckedChange={() => onToggleSelectAll?.()}
+                  aria-label="Selecionar todas"
+                />
+              </th>
+            )}
             <th className="px-4 py-3 font-medium">Nome</th>
             <th className="px-4 py-3 font-medium">Tipo</th>
             <th className="px-4 py-3 font-medium">Contatos</th>
@@ -33,6 +48,15 @@ export const BroadcastListListView = ({
         <tbody>
           {lists.map((list) => (
             <tr key={list.id} className="border-b last:border-b-0 hover:bg-muted/30 transition-colors">
+              {onToggleSelect && (
+                <td className="px-4 py-3">
+                  <Checkbox
+                    checked={selectedIds?.includes(list.id) || false}
+                    onCheckedChange={(c) => onToggleSelect(list.id, !!c)}
+                    aria-label={`Selecionar ${list.name}`}
+                  />
+                </td>
+              )}
               <td className="px-4 py-3">
                 <span className="font-medium">{list.name}</span>
               </td>

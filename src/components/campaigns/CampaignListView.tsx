@@ -1,5 +1,6 @@
 import { Campaign } from '@/hooks/useCampaigns';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -19,6 +20,10 @@ interface CampaignListViewProps {
   onCancel: (campaign: Campaign) => void;
   onTrack: (campaign: Campaign) => void;
   onResume: (campaign: Campaign) => void;
+  selectedIds?: string[];
+  onToggleSelect?: (id: string, checked: boolean) => void;
+  onToggleSelectAll?: () => void;
+  allSelected?: boolean;
 }
 
 const statusConfig = {
@@ -32,12 +37,22 @@ const statusConfig = {
 
 export const CampaignListView = ({
   campaigns, onEdit, onDelete, onStart, onCancel, onTrack, onResume,
+  selectedIds, onToggleSelect, onToggleSelectAll, allSelected,
 }: CampaignListViewProps) => {
   return (
     <div className="border rounded-lg overflow-hidden">
       <table className="w-full">
         <thead>
           <tr className="border-b bg-muted/50 text-left text-sm text-muted-foreground">
+            {onToggleSelect && (
+              <th className="px-4 py-3 w-[40px]">
+                <Checkbox
+                  checked={!!allSelected}
+                  onCheckedChange={() => onToggleSelectAll?.()}
+                  aria-label="Selecionar todas"
+                />
+              </th>
+            )}
             <th className="px-4 py-3 font-medium">Nome</th>
             <th className="px-4 py-3 font-medium">Status</th>
             <th className="px-4 py-3 font-medium hidden md:table-cell">Template</th>
@@ -66,6 +81,15 @@ export const CampaignListView = ({
 
             return (
               <tr key={campaign.id} className="border-b last:border-b-0 hover:bg-muted/30 transition-colors">
+                {onToggleSelect && (
+                  <td className="px-4 py-3">
+                    <Checkbox
+                      checked={selectedIds?.includes(campaign.id) || false}
+                      onCheckedChange={(c) => onToggleSelect(campaign.id, !!c)}
+                      aria-label={`Selecionar ${campaign.name}`}
+                    />
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <div>
                     <span className="font-medium">{campaign.name}</span>

@@ -394,6 +394,50 @@ export const useCampaignMutations = () => {
     },
   });
 
+  const deleteCampaigns = useMutation({
+    mutationFn: async (ids: string[]) => {
+      let deleted = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < ids.length; i += 50) {
+        const chunk = ids.slice(i, i + 50);
+
+        const { error: msgError } = await supabase
+          .from('campaign_messages')
+          .delete()
+          .in('campaign_id', chunk);
+        if (msgError) {
+          errors.push(msgError.message);
+          continue;
+        }
+
+        const { error } = await supabase
+          .from('campaigns')
+          .delete()
+          .in('id', chunk);
+
+        if (error) errors.push(error.message);
+        else deleted += chunk.length;
+      }
+
+      return { deleted, failed: ids.length - deleted, errors };
+    },
+    onSuccess: ({ deleted, failed, errors }) => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      if (failed > 0) {
+        toast.warning(`${deleted} campanha(s) excluída(s), ${failed} com erro`, {
+          description: errors[0],
+        });
+      } else {
+        toast.success(`${deleted} campanha(s) excluída(s) com sucesso!`);
+      }
+    },
+    onError: (error) => {
+      toast.error('Erro ao excluir campanhas: ' + error.message);
+    },
+  });
+
+
   const startCampaign = useMutation({
     mutationFn: async ({ 
       campaignId, 
@@ -478,6 +522,7 @@ export const useCampaignMutations = () => {
     createCampaign,
     updateCampaign,
     deleteCampaign,
+    deleteCampaigns,
     startCampaign,
     cancelCampaign,
     resumeCampaign,

@@ -618,6 +618,50 @@ export const useBroadcastLists = () => {
     },
   });
 
+  // Delete multiple broadcast lists (chunks of 50)
+  const deleteLists = useMutation({
+    mutationFn: async (ids: string[]) => {
+      let deleted = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < ids.length; i += 50) {
+        const chunk = ids.slice(i, i + 50);
+
+        const { error: linkError } = await supabase
+          .from("broadcast_list_contacts")
+          .delete()
+          .in("list_id", chunk);
+        if (linkError) {
+          errors.push(linkError.message);
+          continue;
+        }
+
+        const { error } = await supabase
+          .from("broadcast_lists")
+          .delete()
+          .in("id", chunk);
+
+        if (error) errors.push(error.message);
+        else deleted += chunk.length;
+      }
+
+      return { deleted, failed: ids.length - deleted, errors };
+    },
+    onSuccess: ({ deleted, failed, errors }) => {
+      queryClient.invalidateQueries({ queryKey: ["broadcast-lists"] });
+      if (failed > 0) {
+        toast.warning(`${deleted} lista(s) excluída(s), ${failed} com erro`, {
+          description: errors[0],
+        });
+      } else {
+        toast.success(`${deleted} lista(s) excluída(s) com sucesso`);
+      }
+    },
+    onError: (error) => {
+      toast.error("Erro ao excluir listas", { description: error.message });
+    },
+  });
+
   // Add contacts to a manual list
   const addContactsToList = useMutation({
     mutationFn: async ({ listId, contactIds }: { listId: string; contactIds: string[] }) => {
@@ -709,6 +753,7 @@ export const useBroadcastLists = () => {
     createList,
     updateList,
     deleteList,
+    deleteLists,
     addContactsToList,
     removeContactsFromList,
     createSend,
