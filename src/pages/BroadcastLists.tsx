@@ -210,8 +210,8 @@ const BroadcastLists = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredLists.map((list) => (
-            <div key={list.id} className="relative">
-              <div className="absolute left-3 top-3 z-10">
+            <div key={list.id} className="relative pl-8">
+              <div className="absolute left-0 top-4 z-10">
                 <Checkbox
                   checked={selection.isSelected(list.id)}
                   onCheckedChange={(c) => selection.toggle(list.id, !!c)}
