@@ -17,6 +17,9 @@ import { ListContactsDialog } from "@/components/broadcasts/ListContactsDialog";
 import { AddContactsDialog } from "@/components/broadcasts/AddContactsDialog";
 import { SendHistoryDialog } from "@/components/broadcasts/SendHistoryDialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { BulkActionsBar } from "@/components/shared/BulkActionsBar";
+import { useBulkSelection } from "@/hooks/useBulkSelection";
 import { toast } from "sonner";
 
 const BroadcastLists = () => {
@@ -39,6 +42,7 @@ const BroadcastLists = () => {
     createList,
     updateList,
     deleteList,
+    deleteLists,
     addContactsToList,
     removeContactsFromList,
   } = useBroadcastLists();
@@ -62,6 +66,14 @@ const BroadcastLists = () => {
     const matchesType = typeFilter === "all" || list.type === typeFilter;
     return matchesSearch && matchesType;
   });
+
+  const selection = useBulkSelection(filteredLists.map((l) => l.id));
+
+  const handleBulkDelete = () => {
+    deleteLists.mutate(selection.selectedIds, {
+      onSuccess: () => selection.clear(),
+    });
+  };
 
   const handleCreateList = (data: Parameters<typeof createList.mutate>[0]) => {
     createList.mutate(data);
@@ -168,9 +180,25 @@ const BroadcastLists = () => {
             </Button>
           )}
         </div>
-      ) : viewMode === 'list' ? (
+      ) : (
+      <>
+      <BulkActionsBar
+        selectedCount={selection.selectedCount}
+        allSelected={selection.allVisibleSelected}
+        onToggleAll={selection.toggleAll}
+        onClear={selection.clear}
+        onDelete={handleBulkDelete}
+        isDeleting={deleteLists.isPending}
+        entityLabel="lista"
+        entityLabelPlural="listas"
+      />
+      {viewMode === 'list' ? (
         <BroadcastListListView
           lists={filteredLists}
+          selectedIds={selection.selectedIds}
+          onToggleSelect={selection.toggle}
+          onToggleSelectAll={selection.toggleAll}
+          allSelected={selection.allVisibleSelected}
           onView={(list) => setViewingList(list)}
           onEdit={(list) => {
             setEditingList(list);
@@ -182,8 +210,16 @@ const BroadcastLists = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredLists.map((list) => (
+            <div key={list.id} className="relative">
+              <div className="absolute left-3 top-3 z-10">
+                <Checkbox
+                  checked={selection.isSelected(list.id)}
+                  onCheckedChange={(c) => selection.toggle(list.id, !!c)}
+                  aria-label={`Selecionar ${list.name}`}
+                  className="bg-background"
+                />
+              </div>
             <BroadcastListCard
-              key={list.id}
               list={list}
               onView={() => setViewingList(list)}
               onEdit={() => {
@@ -193,8 +229,11 @@ const BroadcastLists = () => {
               onDelete={() => setDeleteConfirmList(list)}
               onSend={() => handleSendMessage(list)}
             />
+            </div>
           ))}
         </div>
+      )}
+      </>
       )}
 
       {/* Dialogs */}
