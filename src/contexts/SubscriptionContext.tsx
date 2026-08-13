@@ -288,7 +288,12 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
     getRemainingLeads,
     hasFeatureAccess: (feature: string) => hasFeatureAccess(subscription?.plan || 'free', feature),
     isSubscribed: subscription?.subscribed || false,
+    isAccountActive:
+      !subscription ||
+      (subscription.subscribed !== false &&
+        (!subscription.status || ['active', 'trialing'].includes(subscription.status))),
     currentPlan: (subscription?.plan || 'free') as PlanKey,
+
   };
 
   return (
