@@ -13,6 +13,9 @@ import { CampaignTracker } from "@/components/campaigns/CampaignTracker";
 import { CampaignListView } from "@/components/campaigns/CampaignListView";
 import { SelectInstanceDialog } from "@/components/campaigns/SelectInstanceDialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { BulkActionsBar } from "@/components/shared/BulkActionsBar";
+import { useBulkSelection } from "@/hooks/useBulkSelection";
 
 const Campaigns = () => {
   const [search, setSearch] = useState('');
@@ -26,13 +29,21 @@ const Campaigns = () => {
   const [resumingCampaign, setResumingCampaign] = useState<Campaign | null>(null);
 
   const { data: campaigns, isLoading } = useCampaigns();
-  const { createCampaign, updateCampaign, deleteCampaign, startCampaign, cancelCampaign, resumeCampaign } = useCampaignMutations();
+  const { createCampaign, updateCampaign, deleteCampaign, deleteCampaigns, startCampaign, cancelCampaign, resumeCampaign } = useCampaignMutations();
 
   const filteredCampaigns = campaigns?.filter(campaign => {
     const matchesSearch = campaign.name.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'all' || campaign.status === statusFilter;
     return matchesSearch && matchesStatus;
   }) || [];
+
+  const selection = useBulkSelection(filteredCampaigns.map((c) => c.id));
+
+  const handleBulkDelete = () => {
+    deleteCampaigns.mutate(selection.selectedIds, {
+      onSuccess: () => selection.clear(),
+    });
+  };
 
   const handleCreate = async (data: {
     name: string;
@@ -262,9 +273,25 @@ const Campaigns = () => {
             </Button>
           )}
         </div>
-      ) : viewMode === 'list' ? (
+      ) : (
+      <>
+      <BulkActionsBar
+        selectedCount={selection.selectedCount}
+        allSelected={selection.allVisibleSelected}
+        onToggleAll={selection.toggleAll}
+        onClear={selection.clear}
+        onDelete={handleBulkDelete}
+        isDeleting={deleteCampaigns.isPending}
+        entityLabel="campanha"
+        entityLabelPlural="campanhas"
+      />
+      {viewMode === 'list' ? (
         <CampaignListView
           campaigns={filteredCampaigns}
+          selectedIds={selection.selectedIds}
+          onToggleSelect={selection.toggle}
+          onToggleSelectAll={selection.toggleAll}
+          allSelected={selection.allVisibleSelected}
           onEdit={(c) => setEditingCampaign(c)}
           onDelete={(c) => setDeletingCampaign(c)}
           onStart={(c) => handleStart(c)}
@@ -275,8 +302,16 @@ const Campaigns = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredCampaigns.map((campaign) => (
+            <div key={campaign.id} className="relative pl-8">
+              <div className="absolute left-0 top-4 z-10">
+                <Checkbox
+                  checked={selection.isSelected(campaign.id)}
+                  onCheckedChange={(c) => selection.toggle(campaign.id, !!c)}
+                  aria-label={`Selecionar ${campaign.name}`}
+                  className="bg-background"
+                />
+              </div>
             <CampaignCard
-              key={campaign.id}
               campaign={campaign}
               onEdit={() => setEditingCampaign(campaign)}
               onDelete={() => setDeletingCampaign(campaign)}
@@ -285,8 +320,11 @@ const Campaigns = () => {
               onTrack={() => setTrackingCampaign(campaign)}
               onResume={() => handleResume(campaign)}
             />
+            </div>
           ))}
         </div>
+      )}
+      </>
       )}
 
       {/* Form Dialog */}

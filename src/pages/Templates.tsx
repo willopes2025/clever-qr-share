@@ -103,7 +103,7 @@ const Templates = () => {
   const selection = useBulkSelection(filteredTemplates.map((t) => t.id));
 
   const handleBulkDelete = () => {
-    deleteTemplates(selection.selectedIds, { onSuccess: () => selection.clear() } as never);
+    deleteTemplates(selection.selectedIds);
     selection.clear();
   };
 
