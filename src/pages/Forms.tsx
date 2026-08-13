@@ -40,6 +40,17 @@ const Forms = () => {
           </Button>
         </div>
 
+        {!isAccountActive && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Formulários desativados</AlertTitle>
+            <AlertDescription>
+              Sua conta está inativa, por isso os formulários públicos não abrem nem recebem respostas.
+              Ao regularizar a conta, todos voltam a funcionar automaticamente.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Search */}
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
