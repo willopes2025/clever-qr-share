@@ -5206,6 +5206,33 @@ export type Database = {
         }
         Relationships: []
       }
+      impersonation_log: {
+        Row: {
+          actor_user_id: string
+          ended_at: string | null
+          id: string
+          started_at: string
+          target_email: string | null
+          target_user_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          target_email?: string | null
+          target_user_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          target_email?: string | null
+          target_user_id?: string
+        }
+        Relationships: []
+      }
       inbox_messages: {
         Row: {
           ad_reply: Json | null

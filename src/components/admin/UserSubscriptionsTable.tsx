@@ -1,7 +1,7 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatDateOnly } from "@/lib/date-utils";
-import { Edit, History, UserPlus, Trash2, Coins } from "lucide-react";
+import { Edit, History, UserPlus, Trash2, Coins, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -58,6 +58,8 @@ interface UserSubscriptionsTableProps {
   onViewHistory: (subscriptionId: string) => void;
   onDeleteUser: (userId: string) => void;
   onTransferTokens?: (user: UserWithSubscription) => void;
+  onImpersonate?: (user: UserWithSubscription) => void;
+  impersonatingUserId?: string | null;
   deletingUserId?: string | null;
   formatTokens?: (tokens: number) => string;
 }
@@ -85,6 +87,8 @@ export const UserSubscriptionsTable = ({
   onViewHistory,
   onDeleteUser,
   onTransferTokens,
+  onImpersonate,
+  impersonatingUserId,
   deletingUserId,
   formatTokens = (t) => t.toLocaleString('pt-BR'),
 }: UserSubscriptionsTableProps) => {
@@ -201,6 +205,22 @@ export const UserSubscriptionsTable = ({
                   </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {onImpersonate && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onImpersonate(user)}
+                                disabled={impersonatingUserId === user.id}
+                                className="h-8 w-8 p-0 rounded-xl hover:bg-amber-500/10 text-amber-600"
+                              >
+                                <LogIn className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Entrar como este usuário</TooltipContent>
+                          </Tooltip>
+                        )}
                         {onTransferTokens && (
                           <Tooltip>
                             <TooltipTrigger asChild>
