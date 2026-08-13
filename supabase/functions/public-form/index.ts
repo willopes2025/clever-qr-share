@@ -150,6 +150,38 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Block forms owned by inactive accounts
+    const { data: accountActive } = await supabase.rpc('is_account_active', { _user_id: (form as any).user_id });
+    if (accountActive === false) {
+      const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formulário indisponível</title>
+  <style>
+    body { font-family: Inter, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f5f5f5; }
+    .container { text-align: center; padding: 2rem; }
+    h1 { color: #333; margin-bottom: 1rem; }
+    p { color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Formulário indisponível no momento</h1>
+    <p>Este formulário está temporariamente desativado. Entre em contato com o responsável.</p>
+  </div>
+</body>
+</html>`;
+      return new Response(html, {
+        status: 403,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
+
     // Fetch form fields
     const { data: fields, error: fieldsError } = await supabase
       .from('form_fields')
