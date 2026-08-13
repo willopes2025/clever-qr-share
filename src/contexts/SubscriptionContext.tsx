@@ -15,7 +15,9 @@ interface SubscriptionContextType {
   getRemainingLeads: () => number;
   hasFeatureAccess: (feature: string) => boolean;
   isSubscribed: boolean;
+  isAccountActive: boolean;
   currentPlan: PlanKey;
+
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
