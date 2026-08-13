@@ -43,6 +43,29 @@ const FREE_PLAN: PlanInfo = {
   maxLeads: 50,
 };
 
+const ACTIVE_STATUSES = ["active", "trialing"];
+
+// Conta marcada manualmente (pelo admin) com status não ativo => bloqueada
+function isManuallyBlocked(sub: any): boolean {
+  return !!sub && sub.manual_override === true && !ACTIVE_STATUSES.includes(sub.status);
+}
+
+function blockedSubscription(sub: any) {
+  return {
+    subscribed: false,
+    plan: sub?.plan || FREE_PLAN.plan,
+    status: sub?.status || "inactive",
+    max_instances: 0,
+    max_contacts: 0,
+    max_messages: 0,
+    max_leads: 0,
+    leads_used: sub?.leads_used || 0,
+    leads_reset_at: sub?.leads_reset_at || null,
+    subscription_end: sub?.current_period_end || null,
+  };
+}
+
+
 // Helper to check if leads need to be reset
 async function checkAndResetLeads(supabaseClient: any, userId: string) {
   const { data: sub } = await supabaseClient
