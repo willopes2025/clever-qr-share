@@ -246,6 +246,7 @@ const Templates = () => {
                   onToggleActive={(id, is_active) => toggleActive({ id, is_active })}
                   onManageVariations={handleManageVariations}
                 />
+                </div>
               ))}
             </div>
             ) : (
@@ -267,8 +268,12 @@ const Templates = () => {
                   onToggleActive={(id, is_active) => toggleActive({ id, is_active })}
                   onManageVariations={handleManageVariations}
                 />
+                  </div>
+                </div>
               ))}
             </div>
+            )}
+            </>
           )}
         </TabsContent>
 
