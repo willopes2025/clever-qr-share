@@ -8850,6 +8850,7 @@ export type Database = {
         Args: { _code: string }
         Returns: undefined
       }
+      is_account_active: { Args: { _user_id: string }; Returns: boolean }
       is_instance_org_admin: {
         Args: { _instance_user_id: string; _user_id: string }
         Returns: boolean

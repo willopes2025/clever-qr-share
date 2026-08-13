@@ -55,14 +55,20 @@ Deno.serve(async (req) => {
       if (link) {
         const { data: form } = await supabase
           .from("forms")
-          .select("name, page_title, meta_description, og_image_url, logo_url, description")
+          .select("user_id, name, page_title, meta_description, og_image_url, logo_url, description")
           .eq("id", (link as any).form_id)
           .maybeSingle();
 
         if (form) {
-          title = (form as any).page_title || (form as any).name || title;
-          description = (form as any).meta_description || (form as any).description || description;
-          image = (form as any).og_image_url || (form as any).logo_url || "";
+          const { data: accountActive } = await supabase.rpc("is_account_active", { _user_id: (form as any).user_id });
+          if (accountActive === false) {
+            title = "Formulário indisponível";
+            description = "Este formulário está temporariamente desativado.";
+          } else {
+            title = (form as any).page_title || (form as any).name || title;
+            description = (form as any).meta_description || (form as any).description || description;
+            image = (form as any).og_image_url || (form as any).logo_url || "";
+          }
         }
         const paramsPath = encodeStaticPath(((link as any).static_params || {}) as Record<string, unknown>);
         const query = new URLSearchParams();
