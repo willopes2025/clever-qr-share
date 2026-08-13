@@ -3,6 +3,8 @@ import { useSubscriptionContext } from '@/contexts/SubscriptionContext';
 export interface SubscriptionInfo {
   subscribed: boolean;
   plan: string;
+  status?: string;
+
   max_instances: number | null;
   max_contacts: number | null;
   max_messages: number | null;
