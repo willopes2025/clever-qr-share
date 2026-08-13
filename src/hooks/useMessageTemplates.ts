@@ -231,6 +231,8 @@ export const useMessageTemplates = () => {
     createTemplate: createMutation.mutate,
     updateTemplate: updateMutation.mutate,
     deleteTemplate: deleteMutation.mutate,
+    deleteTemplates: deleteManyMutation.mutate,
+    isDeletingMany: deleteManyMutation.isPending,
     toggleActive: toggleActiveMutation.mutate,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
