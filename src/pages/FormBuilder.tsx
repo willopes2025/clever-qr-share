@@ -14,6 +14,7 @@ import { FormSettingsTab } from "@/components/forms/settings/FormSettingsTab";
 import { FormAppearanceTab } from "@/components/forms/settings/FormAppearanceTab";
 import { FormShareDialog } from "@/components/forms/settings/FormShareDialog";
 import { SubmissionsList } from "@/components/forms/submissions/SubmissionsList";
+import { useAccountActive } from "@/hooks/useAccountActive";
 
 const FormBuilder = () => {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +23,7 @@ const FormBuilder = () => {
   const { data: form, isLoading: formLoading } = useFormById(id);
   const { fields, isLoading: fieldsLoading, createField, updateField, deleteField, updateFieldsOrder } = useFormFields(id);
   const { updateForm } = useForms();
+  const { isAccountActive } = useAccountActive();
   
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -58,6 +60,10 @@ const FormBuilder = () => {
 
   const handlePublish = () => {
     if (!form) return;
+    if (!isAccountActive) {
+      toast.error("Conta inativa: os formulários estão desativados até a regularização.");
+      return;
+    }
     updateForm.mutate({
       id: form.id,
       status: form.status === 'published' ? 'draft' : 'published',
@@ -140,6 +146,8 @@ const FormBuilder = () => {
             </Button>
             <Button 
               size="sm" 
+              disabled={!isAccountActive}
+              title={!isAccountActive ? "Conta inativa: formulários desativados" : undefined}
               onClick={handlePublish}
               variant={form.status === 'published' ? 'secondary' : 'default'}
             >
