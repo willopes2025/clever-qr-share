@@ -224,5 +224,9 @@ export function hasFeatureAccess(plan: string, feature: string): boolean {
   return allowedPlans.includes(plan as PlanKey) || allowedPlans.includes(normalizedPlan);
 }
 
-// Re-export the hook from context for backward compatibility
-export const useSubscription = useSubscriptionContext;
+// Re-export the hook from context for backward compatibility.
+// Wrapped in a function (instead of a const alias) to avoid TDZ errors
+// caused by the circular import between this module and SubscriptionContext.
+export function useSubscription() {
+  return useSubscriptionContext();
+}
