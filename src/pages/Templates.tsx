@@ -5,6 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Checkbox } from '@/components/ui/checkbox';
+import { BulkActionsBar } from '@/components/shared/BulkActionsBar';
+import { useBulkSelection } from '@/hooks/useBulkSelection';
 import { 
   useMessageTemplates, 
   MessageTemplate, 
@@ -38,6 +41,8 @@ const Templates = () => {
     createTemplate, 
     updateTemplate, 
     deleteTemplate,
+    deleteTemplates,
+    isDeletingMany,
     toggleActive,
     isCreating,
     isUpdating 
@@ -94,6 +99,13 @@ const Templates = () => {
     const matchesCategory = categoryFilter === 'all' || template.category === categoryFilter;
     return matchesSearch && matchesCategory;
   });
+
+  const selection = useBulkSelection(filteredTemplates.map((t) => t.id));
+
+  const handleBulkDelete = () => {
+    deleteTemplates(selection.selectedIds, { onSuccess: () => selection.clear() } as never);
+    selection.clear();
+  };
 
   return (
     <AppLayout pageTitle="Templates" className="p-4 md:p-8 space-y-6 cyber-grid">
@@ -201,11 +213,31 @@ const Templates = () => {
                 </Button>
               )}
             </div>
-          ) : viewMode === 'grid' ? (
+          ) : (
+            <>
+            <BulkActionsBar
+              selectedCount={selection.selectedCount}
+              allSelected={selection.allVisibleSelected}
+              onToggleAll={selection.toggleAll}
+              onClear={selection.clear}
+              onDelete={handleBulkDelete}
+              isDeleting={isDeletingMany}
+              entityLabel="template"
+              entityLabelPlural="templates"
+            />
+            {viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredTemplates.map((template) => (
+                <div key={template.id} className="relative pl-8">
+                  <div className="absolute left-0 top-4 z-10">
+                    <Checkbox
+                      checked={selection.isSelected(template.id)}
+                      onCheckedChange={(c) => selection.toggle(template.id, !!c)}
+                      aria-label={`Selecionar ${template.name}`}
+                      className="bg-background"
+                    />
+                  </div>
                 <TemplateCard
-                  key={template.id}
                   template={template}
                   variationsCount={variationsCounts?.[template.id] || 0}
                   onEdit={handleEdit}
@@ -216,11 +248,17 @@ const Templates = () => {
                 />
               ))}
             </div>
-          ) : (
+            ) : (
             <div className="flex flex-col gap-3">
               {filteredTemplates.map((template) => (
+                <div key={template.id} className="flex items-center gap-3">
+                  <Checkbox
+                    checked={selection.isSelected(template.id)}
+                    onCheckedChange={(c) => selection.toggle(template.id, !!c)}
+                    aria-label={`Selecionar ${template.name}`}
+                  />
+                  <div className="flex-1 min-w-0">
                 <TemplateListItem
-                  key={template.id}
                   template={template}
                   variationsCount={variationsCounts?.[template.id] || 0}
                   onEdit={handleEdit}
