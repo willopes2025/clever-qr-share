@@ -247,19 +247,30 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Mark the dispatch time BEFORE the best-effort Sent mirroring, so a failure
+      // there can never bypass the configured batch interval.
+      await admin.from('email_campaigns').update({
+        last_dispatch_at: new Date().toISOString(),
+      }).eq('id', campaign.id);
+
       // Mirror SMTP sends into the account's Sent folder (best-effort).
       if (provider === 'imap' && sentRaws.length > 0 && channel.imap_host && channel.imap_port) {
-        await appendToSentFolder(
-          {
-            host: channel.imap_host,
-            port: Number(channel.imap_port),
-            secure: Number(channel.imap_port) === 993,
-            user: channel.auth_username,
-            pass: channel.auth_password,
-          },
-          sentRaws,
-        );
+        try {
+          await appendToSentFolder(
+            {
+              host: channel.imap_host,
+              port: Number(channel.imap_port),
+              secure: Number(channel.imap_port) === 993,
+              user: channel.auth_username,
+              pass: channel.auth_password,
+            },
+            sentRaws,
+          );
+        } catch (appendErr) {
+          console.error('IMAP Sent mirroring skipped for campaign', campaign.id, String(appendErr));
+        }
       }
+
 
 
       // Update stats + last_dispatch
