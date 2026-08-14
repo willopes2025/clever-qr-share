@@ -18,6 +18,25 @@ async function rawRequest(
   path: string,
   opts: { headers?: Record<string, string>; body?: string } = {},
 ): Promise<{ status: number; body: string }> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await rawRequestOnce(method, path, opts);
+    } catch (err) {
+      lastErr = err;
+      const msg = String((err as Error)?.message || err);
+      if (!/close_notify|UnexpectedEof|unexpected eof|connection|reset|broken pipe|os error/i.test(msg)) throw err;
+      await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
+async function rawRequestOnce(
+  method: string,
+  path: string,
+  opts: { headers?: Record<string, string>; body?: string } = {},
+): Promise<{ status: number; body: string }> {
   const conn = await Deno.connectTls({ hostname: GP_HOST, port: 443 });
   try {
     const headers: Record<string, string> = {
@@ -39,11 +58,41 @@ async function rawRequest(
 
     const chunks: Uint8Array[] = [];
     const buf = new Uint8Array(65536);
+    let received = 0;
+    const decoder = new TextDecoder();
+    const isComplete = () => {
+      if (received === 0) return false;
+      const merged = new Uint8Array(received);
+      let o = 0;
+      for (const c of chunks) { merged.set(c, o); o += c.length; }
+      const text = decoder.decode(merged);
+      const sepIdx = text.indexOf('\r\n\r\n');
+      if (sepIdx < 0) return false;
+      const h = text.slice(0, sepIdx);
+      const b = text.slice(sepIdx + 4);
+      if (/transfer-encoding:\s*chunked/i.test(h)) return /0\r\n\r\n$/.test(b) || /\r\n0\r\n/.test(b);
+      const m = h.match(/content-length:\s*(\d+)/i);
+      if (m) return new TextEncoder().encode(b).byteLength >= Number(m[1]);
+      return false;
+    };
+
     while (true) {
-      const n = await conn.read(buf);
+      let n: number | null;
+      try {
+        n = await conn.read(buf);
+      } catch (err) {
+        // Some servers close the TLS connection without sending close_notify.
+        // Treat it as a normal EOF when we already have a full response.
+        const msg = String((err as Error)?.message || err);
+        if (received > 0 && /close_notify|UnexpectedEof|unexpected eof|connection closed/i.test(msg)) break;
+        throw err;
+      }
       if (n === null) break;
       chunks.push(buf.slice(0, n));
+      received += n;
+      if (isComplete()) break;
     }
+
 
     const total = chunks.reduce((s, c) => s + c.length, 0);
     const all = new Uint8Array(total);
