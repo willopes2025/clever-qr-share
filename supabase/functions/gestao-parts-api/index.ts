@@ -18,6 +18,25 @@ async function rawRequest(
   path: string,
   opts: { headers?: Record<string, string>; body?: string } = {},
 ): Promise<{ status: number; body: string }> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await rawRequestOnce(method, path, opts);
+    } catch (err) {
+      lastErr = err;
+      const msg = String((err as Error)?.message || err);
+      if (!/close_notify|UnexpectedEof|unexpected eof|connection|reset|broken pipe|os error/i.test(msg)) throw err;
+      await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
+async function rawRequestOnce(
+  method: string,
+  path: string,
+  opts: { headers?: Record<string, string>; body?: string } = {},
+): Promise<{ status: number; body: string }> {
   const conn = await Deno.connectTls({ hostname: GP_HOST, port: 443 });
   try {
     const headers: Record<string, string> = {
