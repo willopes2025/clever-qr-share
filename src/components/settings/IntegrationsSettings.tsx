@@ -39,6 +39,7 @@ import {
   Phone,
   MessageSquare,
   ArrowLeft,
+  Cog,
 } from "lucide-react";
 import { useIntegrations, IntegrationProvider } from "@/hooks/useIntegrations";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -53,7 +54,7 @@ interface IntegrationConfig {
   name: string;
   description: string;
   icon: React.ElementType;
-  category: 'productivity' | 'payments' | 'ecommerce' | 'crm' | 'automation' | 'analytics' | 'voip' | 'whatsapp';
+  category: 'productivity' | 'payments' | 'ecommerce' | 'crm' | 'automation' | 'analytics' | 'voip' | 'whatsapp' | 'erp';
   minPlan: 'essencial' | 'profissional' | 'agencia' | 'avancado';
   fields: {
     key: string;
@@ -291,6 +292,21 @@ const integrationConfigs: IntegrationConfig[] = [
     docsUrl: 'https://docs.asaas.com/',
     customComponent: true,
   },
+  // ERP - Gestão Parts
+  {
+    id: 'gestao_parts',
+    name: 'Gestão Parts',
+    description: 'ERP SSPlus: consulte peças, estoque, preços, clientes, pedidos e financeiro',
+    icon: Cog,
+    category: 'erp',
+    minPlan: 'profissional',
+    fields: [
+      { key: 'username', label: 'Usuário', type: 'text', placeholder: 'rrmartinswidezapws' },
+      { key: 'password', label: 'Senha', type: 'password', placeholder: '••••••••' },
+      { key: 'base_url', label: 'URL da API (opcional)', type: 'text', placeholder: 'https://api.gestaoparts.com.br' },
+    ],
+    docsUrl: 'https://api.gestaoparts.com.br/docs',
+  },
 ];
 
 const categoryLabels: Record<string, string> = {
@@ -303,6 +319,7 @@ const categoryLabels: Record<string, string> = {
   automation: 'Automação',
   analytics: 'Analytics',
   voip: 'VoIP',
+  erp: 'ERP',
 };
 
 const planLabels: Record<string, string> = {

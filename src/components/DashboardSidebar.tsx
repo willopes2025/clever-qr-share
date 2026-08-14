@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, FileBarChart, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit, Glasses, Instagram, Webhook, MessagesSquare, CheckSquare, GraduationCap, Mail } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, FileBarChart, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit, Glasses, Instagram, Webhook, MessagesSquare, CheckSquare, GraduationCap, Mail, Cog } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,7 @@ import { SessionStatusBadge } from "@/components/productivity/SessionStatusBadge
 
 import { useAsaas } from "@/hooks/useAsaas";
 import { useSsotica } from "@/hooks/useSsotica";
+import { useGestaoParts } from "@/hooks/useGestaoParts";
 import { useActivitySession } from "@/hooks/useActivitySession";
 
 const RESTRICTED_EMAILS = ["contato@wideic.com"];
@@ -116,6 +117,7 @@ export const DashboardSidebar = () => {
   const { profile } = useProfile();
   const { hasAsaas } = useAsaas();
   const { hasSsotica } = useSsotica();
+  const { hasGestaoParts } = useGestaoParts();
 
   // Build dynamic nav groups with Financeiro/ssOtica if connected
   // For organization members: show these items based on permissions (even if integration isn't connected yet)
@@ -128,6 +130,9 @@ export const DashboardSidebar = () => {
       }
       if (hasSsotica) {
         dynamicItems.push({ icon: Glasses, label: "ssOtica", path: "/ssotica", permission: "view_ssotica" as const });
+      }
+      if (hasGestaoParts) {
+        dynamicItems.push({ icon: Cog, label: "Gestão Parts", path: "/gestao-parts", permission: "view_gestao_parts" as const });
       }
       
       return {

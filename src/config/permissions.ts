@@ -81,6 +81,8 @@ export type PermissionKey =
   | 'delete_payment_links_asaas'
   // SSOtica
   | 'view_ssotica'
+  // Gestão Parts
+  | 'view_gestao_parts'
   // Settings
   | 'manage_subscription'
   | 'manage_settings'
@@ -122,6 +124,7 @@ export type PermissionCategory =
   | 'ai_agents'
   | 'finances'
   | 'ssotica'
+  | 'gestao_parts'
   | 'settings'
   | 'team'
   | 'notifications';
@@ -144,6 +147,7 @@ export const PERMISSION_CATEGORIES: Record<PermissionCategory, string> = {
   ai_agents: 'Agentes IA',
   finances: 'Financeiro',
   ssotica: 'ssOtica',
+  gestao_parts: 'Gestão Parts',
   settings: 'Configurações',
   team: 'Equipe',
   notifications: 'Notificações',
@@ -249,6 +253,9 @@ export const PERMISSIONS: Permission[] = [
   
   // SSOtica
   { key: 'view_ssotica', label: 'Ver ssOtica', description: 'Visualizar dados do ssOtica', defaultForAdmin: true, defaultForMember: false, category: 'ssotica' },
+
+  // Gestão Parts
+  { key: 'view_gestao_parts', label: 'Ver Gestão Parts', description: 'Visualizar dados do ERP Gestão Parts', defaultForAdmin: true, defaultForMember: false, category: 'gestao_parts' },
   
   // Settings
   { key: 'manage_subscription', label: 'Gerenciar Assinatura', description: 'Gerenciar plano e pagamentos', defaultForAdmin: true, defaultForMember: false, category: 'settings' },
@@ -289,6 +296,7 @@ export const SIDEBAR_PERMISSIONS: SidebarItem[] = [
   { path: '/ai-agents', permission: 'view_ai_agents' },
   { path: '/financeiro', permission: 'view_finances' },
   { path: '/ssotica', permission: 'view_ssotica' },
+  { path: '/gestao-parts', permission: 'view_gestao_parts' },
   { path: '/subscription', permission: 'manage_subscription' },
   { path: '/settings', permission: 'manage_settings' },
 ];

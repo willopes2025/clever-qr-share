@@ -22,6 +22,7 @@ import { DealFormDialog } from "@/components/funnels/DealFormDialog";
 import { MoveDealFunnelDialog } from "@/components/funnels/MoveDealFunnelDialog";
 import { DealTasksSection } from "@/components/funnels/DealTasksSection";
 import { SsoticaDealSection } from "@/components/funnels/SsoticaDealSection";
+import { GestaoPartsDealSection } from "@/components/funnels/GestaoPartsDealSection";
 import { useSsoticaSync } from "@/hooks/useSsoticaSync";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { useNavigate } from "react-router-dom";
@@ -303,6 +304,14 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
           onForceSync={forceSsoticaSync}
           hasSsotica={hasSsotica}
         />
+
+        {/* Gestão Parts Section */}
+        <GestaoPartsDealSection
+          contactPhone={activeDeal?.contact?.phone}
+          contactCustomFields={activeDeal?.contact?.custom_fields as Record<string, unknown> | undefined}
+          dealCustomFields={activeDeal?.custom_fields as Record<string, unknown> | undefined}
+        />
+
 
         {/* Notes Section */}
         <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>

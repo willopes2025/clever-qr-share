@@ -36,7 +36,8 @@ export type IntegrationProvider =
   | 'vono_voip'
   | 'meta_whatsapp'
   | 'asaas'
-  | 'ssotica';
+  | 'ssotica'
+  | 'gestao_parts';
 
 export const useIntegrations = () => {
   const { user } = useAuth();
