@@ -42,6 +42,7 @@ const AIAgents = lazy(() => import("./pages/AIAgents"));
 const Financeiro = lazy(() => import("./pages/Financeiro"));
 const DebtorsManagement = lazy(() => import("./pages/DebtorsManagement"));
 const Ssotica = lazy(() => import("./pages/Ssotica"));
+const GestaoParts = lazy(() => import("./pages/GestaoParts"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const DataDeletion = lazy(() => import("./pages/DataDeletion"));
@@ -273,6 +274,13 @@ const App = () => (
                       <ProtectedRoute>
                         <PermissionGate permission="view_ssotica">
                           <Ssotica />
+                        </PermissionGate>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/gestao-parts" element={
+                      <ProtectedRoute>
+                        <PermissionGate permission="view_gestao_parts">
+                          <GestaoParts />
                         </PermissionGate>
                       </ProtectedRoute>
                     } />

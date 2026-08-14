@@ -304,6 +304,14 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
           hasSsotica={hasSsotica}
         />
 
+        {/* Gestão Parts Section */}
+        <GestaoPartsDealSection
+          contactPhone={activeDeal?.contact?.phone}
+          contactCustomFields={activeDeal?.contact?.custom_fields as Record<string, unknown> | undefined}
+          dealCustomFields={activeDeal?.custom_fields as Record<string, unknown> | undefined}
+        />
+
+
         {/* Notes Section */}
         <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
           <CollapsibleTrigger asChild>
