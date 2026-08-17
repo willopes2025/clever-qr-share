@@ -249,8 +249,27 @@ Deno.serve(async (req) => {
 
       // Mark the dispatch time BEFORE the best-effort Sent mirroring, so a failure
       // there can never bypass the configured batch interval.
+      // Stats are computed here too: the IMAP mirroring below can hang or time out,
+      // which previously left the campaign stats frozen at their creation values.
+      const countFor = async (status?: string) => {
+        let cq = admin.from('email_campaign_recipients')
+          .select('id', { count: 'exact', head: true })
+          .eq('campaign_id', campaign.id);
+        if (status) cq = cq.eq('status', status);
+        const { count } = await cq;
+        return count ?? 0;
+      };
+      const [total, sentCount, pendingCount, failedCount, sendingCount] = await Promise.all([
+        countFor(), countFor('sent'), countFor('pending'), countFor('failed'), countFor('sending'),
+      ]);
+      const stats = { total, sent: sentCount, pending: pendingCount, failed: failedCount, sending: sendingCount };
+
       await admin.from('email_campaigns').update({
         last_dispatch_at: new Date().toISOString(),
+        stats,
+        ...(stats.pending === 0 && stats.sending === 0
+          ? { status: 'completed', completed_at: new Date().toISOString() }
+          : {}),
       }).eq('id', campaign.id);
 
       // Mirror SMTP sends into the account's Sent folder (best-effort).
@@ -271,21 +290,6 @@ Deno.serve(async (req) => {
         }
       }
 
-
-
-      // Update stats + last_dispatch
-      const { data: counts } = await admin.from('email_campaign_recipients')
-        .select('status').eq('campaign_id', campaign.id);
-      const stats = { pending: 0, sent: 0, failed: 0, sending: 0, total: counts?.length ?? 0 };
-      for (const r of (counts ?? [])) stats[(r as { status: keyof typeof stats }).status] = (stats[(r as { status: keyof typeof stats }).status] ?? 0) + 1;
-
-      await admin.from('email_campaigns').update({
-        last_dispatch_at: new Date().toISOString(),
-        stats,
-        ...(stats.pending === 0 && stats.sending === 0
-          ? { status: 'completed', completed_at: new Date().toISOString() }
-          : {}),
-      }).eq('id', campaign.id);
     }
 
     return new Response(JSON.stringify({ ok: true, processed, sent, failed }), {
