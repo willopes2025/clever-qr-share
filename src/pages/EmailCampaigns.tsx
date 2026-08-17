@@ -244,10 +244,11 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
   const [editorTab, setEditorTab] = useState<"simple" | "visual" | "html">("simple");
   const [simpleText, setSimpleText] = useState("");
   const [orgId, setOrgId] = useState<string | null>(null);
-  const [sourceType, setSourceType] = useState<"paste" | "form" | "broadcast" | "contacts_all">("paste");
+  const [sourceType, setSourceType] = useState<"paste" | "form" | "broadcast" | "contacts_all" | "tags">("paste");
   const [pastedEmails, setPastedEmails] = useState("");
   const [formId, setFormId] = useState<string>("");
   const [listId, setListId] = useState<string>("");
+  const [tagIds, setTagIds] = useState<string[]>([]);
   const [batchSize, setBatchSize] = useState(20);
   const [batchInterval, setBatchInterval] = useState(60);
   const [sendDays, setSendDays] = useState<number[]>([1, 2, 3, 4, 5]);
@@ -257,6 +258,9 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
   const [saving, setSaving] = useState(false);
   const [forms, setForms] = useState<{ id: string; name: string }[]>([]);
   const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
+  const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
+  const [preview, setPreview] = useState<{ loading: boolean; evaluated: number; valid: number } | null>(null);
+  const lastScan = useRef<{ evaluated: number; valid: number }>({ evaluated: 0, valid: 0 });
 
   useEffect(() => {
     if (!open) return;
