@@ -114,7 +114,7 @@ export const ImportLeadsDialog = ({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [newTagName, setNewTagName] = useState("");
   const [isImporting, setIsImporting] = useState(false);
-  const [skipWithoutPhone, setSkipWithoutPhone] = useState(true);
+  const [skipWithoutPhone, setSkipWithoutPhone] = useState(false);
   
   // Mapping state
   const [mappings, setMappings] = useState<Record<string, FieldMapping>>({});
