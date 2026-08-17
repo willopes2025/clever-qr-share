@@ -471,14 +471,18 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
     try {
       const recipients = await collectRecipients();
       if (recipients.length === 0) {
-        const hint = sourceType === "paste"
+        const { evaluated } = lastScan.current;
+        const base = sourceType === "paste"
           ? "Cole ao menos um e-mail válido."
           : sourceType === "form"
             ? "Nenhuma resposta desse formulário possui e-mail cadastrado."
             : sourceType === "broadcast"
               ? "Nenhum contato dessa lista possui e-mail cadastrado."
-              : "Nenhum contato possui e-mail cadastrado.";
-        toast.error(`Nenhum destinatário válido — ${hint}`);
+              : sourceType === "tags"
+                ? (tagIds.length === 0 ? "Escolha ao menos uma etiqueta." : "Nenhum contato dessas etiquetas possui e-mail cadastrado.")
+                : "Nenhum contato possui e-mail cadastrado.";
+        const detail = evaluated > 0 ? ` (${evaluated} contato(s) avaliado(s), todos sem e-mail)` : "";
+        toast.error(`Nenhum destinatário válido — ${base}${detail}`);
         setSaving(false); return;
       }
 
