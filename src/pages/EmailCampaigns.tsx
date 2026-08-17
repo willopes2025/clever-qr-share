@@ -604,6 +604,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
                 <SelectItem value="paste">Colar lista de e-mails</SelectItem>
                 <SelectItem value="form">Formulário / QR code</SelectItem>
                 <SelectItem value="broadcast">Lista de transmissão</SelectItem>
+                <SelectItem value="tags">Etiquetas (tags) dos contatos</SelectItem>
                 <SelectItem value="contacts_all">Todos os contatos com e-mail</SelectItem>
               </SelectContent>
             </Select>
@@ -629,6 +630,34 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
                 <SelectContent>{lists.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+          )}
+          {sourceType === "tags" && (
+            <div><Label>Etiquetas</Label>
+              <div className="flex flex-wrap gap-2 mt-1 max-h-40 overflow-y-auto rounded-md border p-2">
+                {tags.length === 0 && <span className="text-xs text-muted-foreground">Nenhuma etiqueta cadastrada.</span>}
+                {tags.map(t => {
+                  const active = tagIds.includes(t.id);
+                  return (
+                    <Badge
+                      key={t.id}
+                      variant={active ? "default" : "outline"}
+                      className="cursor-pointer"
+                      onClick={() => setTagIds(prev => active ? prev.filter(id => id !== t.id) : [...prev, t.id])}
+                    >
+                      {t.name}
+                    </Badge>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {preview && (
+            <p className="text-xs text-muted-foreground">
+              {preview.loading
+                ? "Calculando destinatários…"
+                : `${preview.valid} destinatário(s) com e-mail de ${preview.evaluated} contato(s) selecionado(s)${preview.evaluated > preview.valid ? ` — ${preview.evaluated - preview.valid} sem e-mail ou repetido(s)` : ""}`}
+            </p>
           )}
 
           <div className="grid grid-cols-2 gap-3">
