@@ -268,6 +268,8 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
       .then(({ data }) => setForms((data ?? []) as { id: string; name: string }[]));
     supabase.from("broadcast_lists").select("id,name").order("name")
       .then(({ data }) => setLists((data ?? []) as { id: string; name: string }[]));
+    supabase.from("tags").select("id,name").order("name")
+      .then(({ data }) => setTags((data ?? []) as { id: string; name: string }[]));
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       const { data: o } = await supabase.rpc("resolve_user_organization_id", { _user_id: data.user.id });
