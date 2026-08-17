@@ -10,6 +10,13 @@ type TokenInspection = { appId: string | null; error?: string; code?: number };
 /** Descobre o app_id usando uma credencial de aplicativo, como exigido pelo debug_token. */
 async function resolveAppIdForToken(token: string): Promise<TokenInspection> {
   try {
+    // /app identifica o aplicativo emissor sem exigir que ele seja o app principal do projeto.
+    const appRes = await fetch(`${GRAPH_API_BASE}/app?fields=id`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const appJson = await appRes.json();
+    if (appRes.ok && appJson?.id) return { appId: String(appJson.id) };
+
     const appSecret = Deno.env.get("META_WHATSAPP_APP_SECRET") ?? "";
     const appAccessToken = appSecret ? `${ACTIVE_META_APP_ID}|${appSecret}` : token;
     const res = await fetch(
@@ -20,7 +27,7 @@ async function resolveAppIdForToken(token: string): Promise<TokenInspection> {
     if (res.ok && appId) return { appId: String(appId) };
     return {
       appId: null,
-      error: json?.error?.message || "A Meta não retornou o aplicativo do token",
+      error: json?.error?.message || appJson?.error?.message || "A Meta não retornou o aplicativo do token",
       code: json?.error?.code,
     };
   } catch (err) {
