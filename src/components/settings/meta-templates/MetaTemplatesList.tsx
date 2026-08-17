@@ -91,7 +91,7 @@ export function MetaTemplatesList() {
     ).values()
   );
 
-  const handleCreate = (data: { templateData: Parameters<typeof createTemplate>[0]["templateData"]; submitToMeta: boolean }) => {
+  const handleCreate = (data: { templateData: Parameters<typeof createTemplate>[0]["templateData"]; submitToMeta: boolean; wabaId?: string }) => {
     createTemplate(data, {
       onSuccess: () => setShowForm(false),
     });
@@ -251,6 +251,8 @@ export function MetaTemplatesList() {
           onOpenChange={setShowForm}
           onSubmit={handleCreate}
           isSubmitting={isCreating}
+          wabaOptions={wabaOptions}
+          initialWabaId={filterWabaId}
         />
 
         <MetaTemplateDeleteDialog

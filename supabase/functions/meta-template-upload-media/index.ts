@@ -35,37 +35,33 @@ async function getOrgUserIds(client: ReturnType<typeof createClient>, userId: st
   return Array.from(ids);
 }
 
-/** Todos os tokens Meta que a organização possui (por número + integração + env). */
-async function collectTokens(
-  userClient: ReturnType<typeof createClient>,
+/** Resolve apenas o token da conta escolhida, evitando credenciais de outra WABA. */
+async function getTokenForWaba(
   admin: ReturnType<typeof createClient>,
   userIds: string[],
-): Promise<string[]> {
-  const tokens: string[] = [];
+  wabaId: string,
+): Promise<{ token: string | null; label: string }> {
+  const { data: numbers, error: numbersError } = await admin
+    .from("meta_whatsapp_numbers")
+    .select("phone_number_id, phone_number, display_name")
+    .in("user_id", userIds)
+    .eq("waba_id", wabaId)
+    .eq("is_active", true);
+  if (numbersError || !numbers?.length) return { token: null, label: `WABA ...${wabaId.slice(-6)}` };
 
+  const phoneNumberIds = numbers.map((row: { phone_number_id: string }) => row.phone_number_id);
   const { data: numberTokens } = await admin
     .from("meta_number_tokens")
     .select("access_token")
-    .in("user_id", userIds);
-  (numberTokens ?? []).forEach((r: { access_token?: string }) => {
-    if (r?.access_token) tokens.push(r.access_token);
-  });
-
-  const { data: integrations } = await userClient
-    .from("integrations")
-    .select("credentials")
     .in("user_id", userIds)
-    .eq("provider", "meta_whatsapp")
-    .eq("is_active", true);
-  (integrations ?? []).forEach((i: { credentials?: { access_token?: string } }) => {
-    const t = i?.credentials?.access_token;
-    if (t) tokens.push(t);
-  });
-
-  const envToken = Deno.env.get("META_WHATSAPP_ACCESS_TOKEN");
-  if (envToken) tokens.push(envToken);
-
-  return Array.from(new Set(tokens.filter(Boolean)));
+    .in("phone_number_id", phoneNumberIds)
+    .limit(1)
+    .maybeSingle();
+  const first = numbers[0] as { phone_number?: string; display_name?: string };
+  return {
+    token: numberTokens?.access_token ?? null,
+    label: first.display_name || first.phone_number || `WABA ...${wabaId.slice(-6)}`,
+  };
 }
 
 async function tryUpload(
@@ -117,7 +113,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
+    const wabaId = String(formData.get("wabaId") ?? "").trim();
     if (!file) return json({ error: "Arquivo não enviado" }, 400);
+    if (!/^\d{5,30}$/.test(wabaId)) return json({ error: "Selecione uma conta Meta válida antes do upload" }, 400);
 
     const buffer = await file.arrayBuffer();
     const payload = {
@@ -127,33 +125,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
     };
 
     const userIds = await getOrgUserIds(supabaseClient, user.id);
-    const tokens = await collectTokens(supabaseClient, admin, userIds);
-    if (tokens.length === 0) return json({ error: "Nenhum token Meta configurado para esta organização" }, 400);
-
-    const envAppId = Deno.env.get("META_APP_ID");
-    const errors: string[] = [];
-
-    for (const token of tokens) {
-      // O app_id precisa ser o dono do token — senão o Meta responde
-      // "Object with ID ... does not exist ... missing permissions".
-      const appId = (await resolveAppIdForToken(token)) || envAppId;
-      if (!appId) {
-        errors.push("Não foi possível identificar o App ID do token Meta");
-        continue;
-      }
-      const result = await tryUpload(appId, token, payload);
-      if (result.handle) {
-        console.log("[meta-template-upload-media] upload ok", { appId, fileName: payload.name });
-        return json({ handle: result.handle, file_name: payload.name, file_type: payload.type });
-      }
-      errors.push(`${appId}: ${result.error}`);
+    const { token, label } = await getTokenForWaba(admin, userIds, wabaId);
+    if (!token) {
+      return json({ error: `A conta Meta “${label}” não possui um token exclusivo configurado. Atualize o token desse número nas configurações Meta.` }, 400);
     }
 
-    console.error("[meta-template-upload-media] all attempts failed", errors);
+    const appId = await resolveAppIdForToken(token);
+    if (!appId) {
+      return json({ error: `Não foi possível validar o aplicativo Meta da conta “${label}”. Atualize o token desse número nas configurações Meta.` }, 400);
+    }
+    const result = await tryUpload(appId, token, payload);
+    if (result.handle) {
+      console.log("[meta-template-upload-media] upload ok", { appId, wabaId, fileName: payload.name });
+      return json({ handle: result.handle, file_name: payload.name, file_type: payload.type });
+    }
+
+    const metaError = result.error ?? "Falha desconhecida no Meta";
+    console.error("[meta-template-upload-media] upload failed", { appId, wabaId, error: metaError });
+    if (/application has been deleted|aplicativo.*exclu[ií]do/i.test(metaError)) {
+      return json({
+        error: `O token da conta Meta “${label}” foi emitido por um aplicativo excluído. Gere um novo token permanente em um App Meta ativo e atualize o token desse número nas configurações Meta.`,
+      }, 400);
+    }
     return json(
       {
-        error: `Falha no upload ao Meta. ${errors[0] ?? ""} Verifique se o token Meta tem a permissão do app correto.`,
-        details: errors,
+        error: `A Meta recusou o upload para a conta “${label}”: ${metaError}`,
       },
       400,
     );
