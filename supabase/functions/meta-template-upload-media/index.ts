@@ -1,25 +1,38 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const GRAPH_API_VERSION = "v19.0";
 const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
+const ACTIVE_META_APP_ID = "25248752291487782";
 
-/** Descobre o app_id ao qual o token pertence (evita usar META_APP_ID de outro app). */
-async function resolveAppIdForToken(token: string): Promise<string | null> {
+type TokenInspection = { appId: string | null; error?: string; code?: number };
+
+/** Descobre o app_id usando uma credencial de aplicativo, como exigido pelo debug_token. */
+async function resolveAppIdForToken(token: string): Promise<TokenInspection> {
   try {
+    // /app identifica o aplicativo emissor sem exigir que ele seja o app principal do projeto.
+    const appRes = await fetch(`${GRAPH_API_BASE}/app?fields=id`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const appJson = await appRes.json();
+    if (appRes.ok && appJson?.id) return { appId: String(appJson.id) };
+
+    const appSecret = Deno.env.get("META_WHATSAPP_APP_SECRET") ?? "";
+    const appAccessToken = appSecret ? `${ACTIVE_META_APP_ID}|${appSecret}` : token;
     const res = await fetch(
-      `${GRAPH_API_BASE}/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(token)}`,
+      `${GRAPH_API_BASE}/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(appAccessToken)}`,
     );
     const json = await res.json();
     const appId = json?.data?.app_id;
-    return appId ? String(appId) : null;
+    if (res.ok && appId) return { appId: String(appId) };
+    return {
+      appId: null,
+      error: json?.error?.message || appJson?.error?.message || "A Meta não retornou o aplicativo do token",
+      code: json?.error?.code,
+    };
   } catch (err) {
     console.error("[meta-template-upload-media] debug_token failed", err);
-    return null;
+    return { appId: null, error: err instanceof Error ? err.message : "Falha ao validar token" };
   }
 }
 
@@ -40,19 +53,21 @@ async function getTokenForWaba(
   admin: ReturnType<typeof createClient>,
   userIds: string[],
   wabaId: string,
-): Promise<{ token: string | null; label: string }> {
+): Promise<{ token: string | null; label: string; phoneNumberId: string | null }> {
   const { data: numbers, error: numbersError } = await admin
     .from("meta_whatsapp_numbers")
     .select("phone_number_id, phone_number, display_name")
     .in("user_id", userIds)
     .eq("waba_id", wabaId)
     .eq("is_active", true);
-  if (numbersError || !numbers?.length) return { token: null, label: `WABA ...${wabaId.slice(-6)}` };
+  if (numbersError || !numbers?.length) {
+    return { token: null, label: `WABA ...${wabaId.slice(-6)}`, phoneNumberId: null };
+  }
 
   const phoneNumberIds = numbers.map((row: { phone_number_id: string }) => row.phone_number_id);
   const { data: numberTokens } = await admin
     .from("meta_number_tokens")
-    .select("access_token")
+    .select("access_token, phone_number_id")
     .in("user_id", userIds)
     .in("phone_number_id", phoneNumberIds)
     .limit(1)
@@ -61,7 +76,21 @@ async function getTokenForWaba(
   return {
     token: numberTokens?.access_token ?? null,
     label: first.display_name || first.phone_number || `WABA ...${wabaId.slice(-6)}`,
+    phoneNumberId: numberTokens?.phone_number_id ?? phoneNumberIds[0] ?? null,
   };
+}
+
+async function validateTokenForNumber(token: string, phoneNumberId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${GRAPH_API_BASE}/${phoneNumberId}?fields=id`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json();
+    if (res.ok && body?.id) return null;
+    return body?.error?.message || "O token não possui acesso ao número selecionado";
+  } catch (err) {
+    return err instanceof Error ? err.message : "Falha ao validar acesso ao número";
+  }
 }
 
 async function tryUpload(
@@ -125,15 +154,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
     };
 
     const userIds = await getOrgUserIds(supabaseClient, user.id);
-    const { token, label } = await getTokenForWaba(admin, userIds, wabaId);
+    const { token, label, phoneNumberId } = await getTokenForWaba(admin, userIds, wabaId);
     if (!token) {
       return json({ error: `A conta Meta “${label}” não possui um token exclusivo configurado. Atualize o token desse número nas configurações Meta.` }, 400);
     }
 
-    const appId = await resolveAppIdForToken(token);
-    if (!appId) {
-      return json({ error: `Não foi possível validar o aplicativo Meta da conta “${label}”. Atualize o token desse número nas configurações Meta.` }, 400);
+    if (!phoneNumberId) {
+      return json({ error: `Nenhum número ativo foi encontrado para a conta Meta “${label}”.` }, 400);
     }
+
+    const tokenError = await validateTokenForNumber(token, phoneNumberId);
+    if (tokenError) {
+      console.error("[meta-template-upload-media] number token rejected", { wabaId, phoneNumberId, error: tokenError });
+      return json({ error: `O token da conta Meta “${label}” expirou, foi revogado ou não tem acesso ao número selecionado. Atualize o token nas configurações Meta. Detalhe: ${tokenError}` }, 400);
+    }
+
+    const inspection = await resolveAppIdForToken(token);
+    if (!inspection.appId) {
+      console.error("[meta-template-upload-media] app inspection failed", { wabaId, phoneNumberId, code: inspection.code, error: inspection.error });
+      const deletedApp = /application has been deleted|aplicativo.*exclu[ií]do/i.test(inspection.error ?? "");
+      return json({
+        error: deletedApp
+          ? `O token da conta Meta “${label}” pertence a um aplicativo excluído. Reconecte esse número por um aplicativo Meta ativo.`
+          : `A Meta não permitiu identificar o aplicativo da conta “${label}”. Atualize o token permanente com as permissões whatsapp_business_management e whatsapp_business_messaging. Detalhe: ${inspection.error ?? "erro desconhecido"}`,
+      }, 400);
+    }
+    const appId = inspection.appId;
     const result = await tryUpload(appId, token, payload);
     if (result.handle) {
       console.log("[meta-template-upload-media] upload ok", { appId, wabaId, fileName: payload.name });
