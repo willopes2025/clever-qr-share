@@ -495,7 +495,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
         template_id: templateId || null, subject, body_html: bodyHtml,
         design_json: design as never,
         attachments: attachments as never,
-        source_type: sourceType, source_config: { formId, listId },
+        source_type: sourceType, source_config: { formId, listId, tagIds },
         batch_size: batchSize, batch_interval_seconds: batchInterval,
         send_days: sendDays.length > 0 ? sendDays : [0, 1, 2, 3, 4, 5, 6],
         send_start_hour: startHour, send_end_hour: endHour,
