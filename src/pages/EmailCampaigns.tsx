@@ -306,7 +306,40 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
     return walk(obj);
   }
 
-  async function collectRecipients(): Promise<{ email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[]> {
+  type Recipient = { email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> };
+  type ContactRow = { id: string; name: string | null; email: string | null; custom_fields: unknown };
+
+  /** Turns contact rows into recipients, deduplicated by e-mail. */
+  function contactsToRecipients(rows: ContactRow[]): Recipient[] {
+    const out: Recipient[] = [];
+    const seen = new Set<string>();
+    for (const c of rows) {
+      const email = findEmailIn(c.email) ?? findEmailIn(c.custom_fields);
+      if (!email || seen.has(email)) continue;
+      seen.add(email);
+      out.push({ email, name: c.name ?? undefined, contact_id: c.id, variables: { name: c.name, nome: c.name } });
+    }
+    return out;
+  }
+
+  /** Contacts carrying at least one of the selected tags (paginated + deduplicated). */
+  async function fetchContactsByTags(ids: string[]): Promise<ContactRow[]> {
+    const PAGE_SIZE = 1000;
+    const map = new Map<string, ContactRow>();
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase.from("contact_tags")
+        .select("contact:contacts(id,name,email,custom_fields)")
+        .in("tag_id", ids)
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      const page = (data ?? []) as { contact: ContactRow | null }[];
+      for (const r of page) if (r.contact) map.set(r.contact.id, r.contact);
+      if (page.length < PAGE_SIZE) break;
+    }
+    return Array.from(map.values());
+  }
+
+  async function collectRecipients(): Promise<Recipient[]> {
     const PAGE_SIZE = 1000;
 
     if (sourceType === "paste") {
@@ -315,31 +348,36 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
       pastedEmails.split(/[\s,;\n]+/).map(s => s.trim().toLowerCase()).forEach(e => {
         if (e && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) && !set.has(e)) { set.add(e); list.push({ email: e }); }
       });
+      lastScan.current = { evaluated: list.length, valid: list.length };
       return list;
     }
+    if (sourceType === "tags") {
+      if (tagIds.length === 0) { lastScan.current = { evaluated: 0, valid: 0 }; return []; }
+      const rows = await fetchContactsByTags(tagIds);
+      const out = contactsToRecipients(rows);
+      lastScan.current = { evaluated: rows.length, valid: out.length };
+      return out;
+    }
     if (sourceType === "contacts_all") {
-      const out: { email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[] = [];
-      const seen = new Set<string>();
+      const rows: ContactRow[] = [];
       for (let from = 0; ; from += PAGE_SIZE) {
         const { data, error } = await supabase.from("contacts")
           .select("id,name,email,custom_fields")
           .order("created_at", { ascending: false })
           .range(from, from + PAGE_SIZE - 1);
         if (error) throw error;
-        const page = (data ?? []) as { id: string; name: string | null; email: string | null; custom_fields: unknown }[];
-        for (const c of page) {
-          const email = findEmailIn(c.email) ?? findEmailIn(c.custom_fields);
-          if (!email || seen.has(email)) continue;
-          seen.add(email);
-          out.push({ email, name: c.name ?? undefined, contact_id: c.id, variables: { name: c.name, nome: c.name } });
-        }
+        const page = (data ?? []) as ContactRow[];
+        rows.push(...page);
         if (page.length < PAGE_SIZE) break;
       }
+      const out = contactsToRecipients(rows);
+      lastScan.current = { evaluated: rows.length, valid: out.length };
       return out;
     }
     if (sourceType === "form" && formId) {
-      const out: { email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[] = [];
+      const out: Recipient[] = [];
       const seen = new Set<string>();
+      let evaluated = 0;
       for (let from = 0; ; from += PAGE_SIZE) {
         const { data, error } = await supabase.from("form_submissions")
           .select("contact_id, data, contact:contacts(id,name,email,custom_fields)")
@@ -348,6 +386,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
           .range(from, from + PAGE_SIZE - 1);
         if (error) throw error;
         const page = (data ?? []) as { contact_id: string | null; data: Record<string, unknown>; contact: { id: string; name: string | null; email: string | null; custom_fields: unknown } | null }[];
+        evaluated += page.length;
         for (const s of page) {
           const email = findEmailIn(s.contact?.email) ?? findEmailIn(s.data) ?? findEmailIn(s.contact?.custom_fields);
           if (!email || seen.has(email)) continue;
@@ -356,30 +395,72 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
         }
         if (page.length < PAGE_SIZE) break;
       }
+      lastScan.current = { evaluated, valid: out.length };
       return out;
     }
     if (sourceType === "broadcast" && listId) {
-      const out: { email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[] = [];
-      const seen = new Set<string>();
-      for (let from = 0; ; from += PAGE_SIZE) {
-        const { data, error } = await supabase.from("broadcast_list_contacts")
-          .select("contact:contacts(id,name,email,custom_fields)")
-          .eq("list_id", listId)
-          .range(from, from + PAGE_SIZE - 1);
-        if (error) throw error;
-        const page = (data ?? []) as { contact: { id: string; name: string | null; email: string | null; custom_fields: unknown } | null }[];
-        for (const r of page) {
-          const email = findEmailIn(r.contact?.email) ?? findEmailIn(r.contact?.custom_fields);
-          if (!email || seen.has(email)) continue;
-          seen.add(email);
-          out.push({ email, name: r.contact?.name ?? undefined, contact_id: r.contact?.id, variables: { name: r.contact?.name, nome: r.contact?.name } });
+      // Dynamic lists have no materialized members — resolve them from the saved filters.
+      const { data: list } = await supabase.from("broadcast_lists")
+        .select("type, filter_criteria").eq("id", listId).maybeSingle();
+      const criteria = (list?.filter_criteria ?? {}) as {
+        tags?: string[]; status?: string; optedOut?: boolean;
+      };
+
+      let rows: ContactRow[] = [];
+      if (list?.type === "dynamic") {
+        if (Array.isArray(criteria.tags) && criteria.tags.length > 0) {
+          rows = await fetchContactsByTags(criteria.tags);
+        } else {
+          for (let from = 0; ; from += PAGE_SIZE) {
+            let q = supabase.from("contacts").select("id,name,email,custom_fields");
+            if (criteria.status) q = q.eq("status", criteria.status);
+            if (criteria.optedOut !== undefined) q = q.eq("opted_out", criteria.optedOut);
+            const { data, error } = await q.range(from, from + PAGE_SIZE - 1);
+            if (error) throw error;
+            const page = (data ?? []) as ContactRow[];
+            rows.push(...page);
+            if (page.length < PAGE_SIZE) break;
+          }
         }
-        if (page.length < PAGE_SIZE) break;
+      } else {
+        const map = new Map<string, ContactRow>();
+        for (let from = 0; ; from += PAGE_SIZE) {
+          const { data, error } = await supabase.from("broadcast_list_contacts")
+            .select("contact:contacts(id,name,email,custom_fields)")
+            .eq("list_id", listId)
+            .range(from, from + PAGE_SIZE - 1);
+          if (error) throw error;
+          const page = (data ?? []) as { contact: ContactRow | null }[];
+          for (const r of page) if (r.contact) map.set(r.contact.id, r.contact);
+          if (page.length < PAGE_SIZE) break;
+        }
+        rows = Array.from(map.values());
       }
+
+      const out = contactsToRecipients(rows);
+      lastScan.current = { evaluated: rows.length, valid: out.length };
       return out;
     }
+    lastScan.current = { evaluated: 0, valid: 0 };
     return [];
   }
+
+  /** Recalculates the recipient preview whenever the selected source changes. */
+  useEffect(() => {
+    if (!open) return;
+    if (sourceType === "paste") { setPreview(null); return; }
+    if (sourceType === "form" && !formId) { setPreview(null); return; }
+    if (sourceType === "broadcast" && !listId) { setPreview(null); return; }
+    if (sourceType === "tags" && tagIds.length === 0) { setPreview(null); return; }
+
+    let cancelled = false;
+    setPreview({ loading: true, evaluated: 0, valid: 0 });
+    collectRecipients()
+      .then(() => { if (!cancelled) setPreview({ loading: false, ...lastScan.current }); })
+      .catch(() => { if (!cancelled) setPreview(null); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, sourceType, formId, listId, tagIds.join(",")]);
 
 
   async function submit(startNow: boolean) {
