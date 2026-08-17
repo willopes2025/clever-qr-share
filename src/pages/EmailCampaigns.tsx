@@ -715,6 +715,7 @@ function CampaignDetailDialog({ campaign, onClose, onChanged }: {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<string>("all");
+  const [counts, setCounts] = useState({ total: 0, sent: 0, pending: 0, failed: 0, sending: 0 });
 
   useEffect(() => {
     if (!campaign) return;
@@ -731,12 +732,27 @@ function CampaignDetailDialog({ campaign, onClose, onChanged }: {
     if (filter !== "all") q = q.eq("status", filter);
     const { data } = await q;
     setRecipients((data ?? []) as Recipient[]);
+
+    // Exact counts straight from the DB (campaign.stats can be stale).
+    const countFor = async (status?: string) => {
+      let cq = supabase.from("email_campaign_recipients")
+        .select("id", { count: "exact", head: true })
+        .eq("campaign_id", campaign.id);
+      if (status) cq = cq.eq("status", status);
+      const { count } = await cq;
+      return count ?? 0;
+    };
+    const [total, sent, pending, failed, sending] = await Promise.all([
+      countFor(), countFor("sent"), countFor("pending"), countFor("failed"), countFor("sending"),
+    ]);
+    setCounts({ total, sent, pending, failed, sending });
+
     setLoading(false);
     onChanged();
   }
 
-  const stats = campaign?.stats || {};
-  const total = useMemo(() => (stats.total as number) || 0, [stats]);
+  const total = counts.total;
+
 
   return (
     <Dialog open={!!campaign} onOpenChange={(b) => !b && onClose()}>
