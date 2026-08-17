@@ -31,8 +31,10 @@ import { CreateTemplateData } from "@/hooks/useMetaTemplates";
 interface MetaTemplateFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: { templateData: CreateTemplateData; submitToMeta: boolean }) => void;
+  onSubmit: (data: { templateData: CreateTemplateData; submitToMeta: boolean; wabaId?: string }) => void;
   isSubmitting: boolean;
+  wabaOptions: Array<{ waba_id: string; label: string }>;
+  initialWabaId?: string | null;
 }
 
 const CATEGORIES = [
@@ -61,12 +63,13 @@ const BUTTON_TYPES = [
   { value: "PHONE_NUMBER", label: "Telefone" },
 ];
 
-export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }: MetaTemplateFormProps) {
+export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting, wabaOptions, initialWabaId }: MetaTemplateFormProps) {
   const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [activeTab, setActiveTab] = useState("basic");
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [mediaFileName, setMediaFileName] = useState<string>("");
+  const [selectedWabaId, setSelectedWabaId] = useState(initialWabaId || wabaOptions[0]?.waba_id || "");
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<CreateTemplateData>({
     name: "",
@@ -139,6 +142,7 @@ export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }:
         name: sanitizedName,
       },
       submitToMeta,
+      wabaId: selectedWabaId || undefined,
     });
   };
 
@@ -157,14 +161,21 @@ export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }:
       buttons: [],
     });
     setMediaFileName("");
+    setSelectedWabaId(initialWabaId || wabaOptions[0]?.waba_id || "");
     setActiveTab("basic");
   };
 
   const handleMediaUpload = async (file: File) => {
+    if (!selectedWabaId) {
+      const { toast } = await import("sonner");
+      toast.error("Selecione a conta Meta antes de enviar a mídia");
+      return;
+    }
     setUploadingMedia(true);
     try {
       const fd = new FormData();
       fd.append("file", file);
+      fd.append("wabaId", selectedWabaId);
       const { supabase } = await import("@/integrations/supabase/client");
       const { data: { session } } = await supabase.auth.getSession();
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-template-upload-media`;
@@ -256,6 +267,22 @@ export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }:
               </TabsList>
 
               <TabsContent value="basic" className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label>Conta Meta *</Label>
+                  <Select value={selectedWabaId} onValueChange={setSelectedWabaId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a conta Meta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {wabaOptions.map((option) => (
+                        <SelectItem key={option.waba_id} value={option.waba_id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome do Template *</Label>
                   <Input
@@ -381,7 +408,7 @@ export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }:
                           type="button"
                           size="sm"
                           variant="outline"
-                          disabled={uploadingMedia}
+                           disabled={uploadingMedia || !selectedWabaId}
                           onClick={() => mediaInputRef.current?.click()}
                         >
                           {uploadingMedia
@@ -693,14 +720,14 @@ export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }:
           <Button
             variant="outline"
             onClick={() => handleSubmit(false)}
-            disabled={isSubmitting || !formData.name || !formData.body_text}
+            disabled={isSubmitting || !formData.name || !formData.body_text || !selectedWabaId}
           >
             <Save className="h-4 w-4 mr-2" />
             Salvar Rascunho
           </Button>
           <Button
             onClick={() => handleSubmit(true)}
-            disabled={isSubmitting || !formData.name || !formData.body_text}
+            disabled={isSubmitting || !formData.name || !formData.body_text || !selectedWabaId}
           >
             <Send className="h-4 w-4 mr-2" />
             {isSubmitting ? "Enviando..." : "Enviar para Aprovação"}
