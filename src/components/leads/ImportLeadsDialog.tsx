@@ -517,7 +517,7 @@ export const ImportLeadsDialog = ({
                       onCheckedChange={(c) => setSkipWithoutPhone(!!c)}
                     />
                     <Label htmlFor="skip_without_phone" className="text-sm">
-                      Ignorar empresas sem telefone
+                      Ignorar empresas sem telefone (desmarcado, elas são importadas para uso por e-mail)
                     </Label>
                   </div>
                 )}
