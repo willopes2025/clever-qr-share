@@ -419,9 +419,15 @@ export const useContacts = (options: UseContactsOptions = {}) => {
       });
 
       // Deduplicate within the import file (keep last occurrence)
+      // Contacts without phone are keyed by email so they are not merged together
       const uniqueContacts = Array.from(
-        normalizedContacts.reduce((map, contact) => {
-          map.set(contact.phone, contact);
+        normalizedContacts.reduce((map, contact, index) => {
+          const key = contact.phone
+            ? contact.phone
+            : contact.email
+              ? `email:${contact.email.toLowerCase()}`
+              : `row:${index}`;
+          map.set(key, contact);
           return map;
         }, new Map<string, typeof normalizedContacts[0]>()).values()
       );
