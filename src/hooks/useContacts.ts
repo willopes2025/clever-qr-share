@@ -833,6 +833,7 @@ export const useContacts = (options: UseContactsOptions = {}) => {
         new: insertedData.length,
         updated: updatedData.length,
         skipped: skippedCount,
+        duplicatesInFile: contacts.length - uniqueContacts.length,
       };
     },
     onSuccess: (stats) => {
