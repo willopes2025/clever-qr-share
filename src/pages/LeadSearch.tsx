@@ -160,7 +160,10 @@ const LeadSearch = () => {
         body: { filters: overrideFilters ?? filters, page, limit: 100 }
       });
 
-      if (error) throw error;
+      if (error) {
+        const detail = await extractFunctionError(error, 'Não foi possível concluir a pesquisa de leads.');
+        throw new Error(detail);
+      }
       
       if (!data.success) {
         throw new Error(data.error || 'Erro na pesquisa');
@@ -177,11 +180,19 @@ const LeadSearch = () => {
       }
     } catch (error) {
       console.error('Search error:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao pesquisar empresas');
+      const message = error instanceof Error ? error.message : 'Erro ao pesquisar empresas';
+      const isLimit = /limite de leads/i.test(message);
+      toast.error(isLimit ? 'Limite de leads do plano atingido' : 'Erro ao pesquisar empresas', {
+        description: isLimit
+          ? `${message} Novos leads só poderão ser pesquisados/importados após o upgrade ou a renovação mensal do plano.`
+          : message,
+        duration: 10000,
+      });
     } finally {
       setIsSearching(false);
     }
   };
+
 
   const handleSelectCompany = (cnpj: string) => {
     setSelectedCompanies(prev => {
