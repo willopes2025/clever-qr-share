@@ -85,6 +85,17 @@ export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting, w
     buttons: [],
   });
 
+  // As contas Meta podem carregar depois da montagem do diálogo: garante seleção válida.
+  useEffect(() => {
+    if (!open) return;
+    const valid = wabaOptions.some((o) => o.waba_id === selectedWabaId);
+    if (valid) return;
+    const next = (initialWabaId && wabaOptions.some((o) => o.waba_id === initialWabaId))
+      ? initialWabaId
+      : wabaOptions[0]?.waba_id || "";
+    if (next !== selectedWabaId) setSelectedWabaId(next);
+  }, [open, wabaOptions, initialWabaId, selectedWabaId]);
+
   const handleChange = (field: keyof CreateTemplateData, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
