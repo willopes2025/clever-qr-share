@@ -764,9 +764,10 @@ function CampaignDetailDialog({ campaign, onClose, onChanged }: {
           <>
             <div className="grid grid-cols-4 gap-2 text-center">
               <StatCard label="Total" value={total} />
-              <StatCard label="Enviados" value={(stats.sent as number) || 0} tone="success" />
-              <StatCard label="Pendentes" value={(stats.pending as number) || 0} />
-              <StatCard label="Falhas" value={(stats.failed as number) || 0} tone="destructive" />
+              <StatCard label="Enviados" value={counts.sent} tone="success" />
+              <StatCard label="Pendentes" value={counts.pending + counts.sending} />
+              <StatCard label="Falhas" value={counts.failed} tone="destructive" />
+
             </div>
             <div className="flex items-center gap-2">
               <Select value={filter} onValueChange={setFilter}>
