@@ -365,7 +365,19 @@ export const ImportLeadsDialog = ({
       });
 
       const importedCount = (result?.new || 0) + (result?.updated || 0);
-      toast.success(`${importedCount} contatos importados com sucesso!`);
+      const duplicates = result?.duplicatesInFile || 0;
+      const withoutPhone = skipWithoutPhone ? companiesWithoutPhone.length : 0;
+      const details = [
+        `${result?.new || 0} novo(s)`,
+        `${result?.updated || 0} atualizado(s)`,
+        duplicates > 0 ? `${duplicates} com telefone repetido (mesclados)` : null,
+        withoutPhone > 0 ? `${withoutPhone} sem telefone (ignorados)` : null,
+        result?.skipped ? `${result.skipped} ignorado(s)` : null,
+      ].filter(Boolean).join(' • ');
+      toast.success(`${importedCount} de ${companies.length} contatos importados`, {
+        description: details,
+        duration: 10000,
+      });
       onSuccess();
       
       // Reset state
