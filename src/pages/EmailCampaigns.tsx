@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -244,10 +244,11 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
   const [editorTab, setEditorTab] = useState<"simple" | "visual" | "html">("simple");
   const [simpleText, setSimpleText] = useState("");
   const [orgId, setOrgId] = useState<string | null>(null);
-  const [sourceType, setSourceType] = useState<"paste" | "form" | "broadcast" | "contacts_all">("paste");
+  const [sourceType, setSourceType] = useState<"paste" | "form" | "broadcast" | "contacts_all" | "tags">("paste");
   const [pastedEmails, setPastedEmails] = useState("");
   const [formId, setFormId] = useState<string>("");
   const [listId, setListId] = useState<string>("");
+  const [tagIds, setTagIds] = useState<string[]>([]);
   const [batchSize, setBatchSize] = useState(20);
   const [batchInterval, setBatchInterval] = useState(60);
   const [sendDays, setSendDays] = useState<number[]>([1, 2, 3, 4, 5]);
@@ -257,6 +258,9 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
   const [saving, setSaving] = useState(false);
   const [forms, setForms] = useState<{ id: string; name: string }[]>([]);
   const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
+  const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
+  const [preview, setPreview] = useState<{ loading: boolean; evaluated: number; valid: number } | null>(null);
+  const lastScan = useRef<{ evaluated: number; valid: number }>({ evaluated: 0, valid: 0 });
 
   useEffect(() => {
     if (!open) return;
@@ -264,6 +268,8 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
       .then(({ data }) => setForms((data ?? []) as { id: string; name: string }[]));
     supabase.from("broadcast_lists").select("id,name").order("name")
       .then(({ data }) => setLists((data ?? []) as { id: string; name: string }[]));
+    supabase.from("tags").select("id,name").order("name")
+      .then(({ data }) => setTags((data ?? []) as { id: string; name: string }[]));
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       const { data: o } = await supabase.rpc("resolve_user_organization_id", { _user_id: data.user.id });
@@ -300,7 +306,40 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
     return walk(obj);
   }
 
-  async function collectRecipients(): Promise<{ email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[]> {
+  type Recipient = { email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> };
+  type ContactRow = { id: string; name: string | null; email: string | null; custom_fields: unknown };
+
+  /** Turns contact rows into recipients, deduplicated by e-mail. */
+  function contactsToRecipients(rows: ContactRow[]): Recipient[] {
+    const out: Recipient[] = [];
+    const seen = new Set<string>();
+    for (const c of rows) {
+      const email = findEmailIn(c.email) ?? findEmailIn(c.custom_fields);
+      if (!email || seen.has(email)) continue;
+      seen.add(email);
+      out.push({ email, name: c.name ?? undefined, contact_id: c.id, variables: { name: c.name, nome: c.name } });
+    }
+    return out;
+  }
+
+  /** Contacts carrying at least one of the selected tags (paginated + deduplicated). */
+  async function fetchContactsByTags(ids: string[]): Promise<ContactRow[]> {
+    const PAGE_SIZE = 1000;
+    const map = new Map<string, ContactRow>();
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase.from("contact_tags")
+        .select("contact:contacts(id,name,email,custom_fields)")
+        .in("tag_id", ids)
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      const page = (data ?? []) as { contact: ContactRow | null }[];
+      for (const r of page) if (r.contact) map.set(r.contact.id, r.contact);
+      if (page.length < PAGE_SIZE) break;
+    }
+    return Array.from(map.values());
+  }
+
+  async function collectRecipients(): Promise<Recipient[]> {
     const PAGE_SIZE = 1000;
 
     if (sourceType === "paste") {
@@ -309,31 +348,36 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
       pastedEmails.split(/[\s,;\n]+/).map(s => s.trim().toLowerCase()).forEach(e => {
         if (e && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) && !set.has(e)) { set.add(e); list.push({ email: e }); }
       });
+      lastScan.current = { evaluated: list.length, valid: list.length };
       return list;
     }
+    if (sourceType === "tags") {
+      if (tagIds.length === 0) { lastScan.current = { evaluated: 0, valid: 0 }; return []; }
+      const rows = await fetchContactsByTags(tagIds);
+      const out = contactsToRecipients(rows);
+      lastScan.current = { evaluated: rows.length, valid: out.length };
+      return out;
+    }
     if (sourceType === "contacts_all") {
-      const out: { email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[] = [];
-      const seen = new Set<string>();
+      const rows: ContactRow[] = [];
       for (let from = 0; ; from += PAGE_SIZE) {
         const { data, error } = await supabase.from("contacts")
           .select("id,name,email,custom_fields")
           .order("created_at", { ascending: false })
           .range(from, from + PAGE_SIZE - 1);
         if (error) throw error;
-        const page = (data ?? []) as { id: string; name: string | null; email: string | null; custom_fields: unknown }[];
-        for (const c of page) {
-          const email = findEmailIn(c.email) ?? findEmailIn(c.custom_fields);
-          if (!email || seen.has(email)) continue;
-          seen.add(email);
-          out.push({ email, name: c.name ?? undefined, contact_id: c.id, variables: { name: c.name, nome: c.name } });
-        }
+        const page = (data ?? []) as ContactRow[];
+        rows.push(...page);
         if (page.length < PAGE_SIZE) break;
       }
+      const out = contactsToRecipients(rows);
+      lastScan.current = { evaluated: rows.length, valid: out.length };
       return out;
     }
     if (sourceType === "form" && formId) {
-      const out: { email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[] = [];
+      const out: Recipient[] = [];
       const seen = new Set<string>();
+      let evaluated = 0;
       for (let from = 0; ; from += PAGE_SIZE) {
         const { data, error } = await supabase.from("form_submissions")
           .select("contact_id, data, contact:contacts(id,name,email,custom_fields)")
@@ -342,6 +386,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
           .range(from, from + PAGE_SIZE - 1);
         if (error) throw error;
         const page = (data ?? []) as { contact_id: string | null; data: Record<string, unknown>; contact: { id: string; name: string | null; email: string | null; custom_fields: unknown } | null }[];
+        evaluated += page.length;
         for (const s of page) {
           const email = findEmailIn(s.contact?.email) ?? findEmailIn(s.data) ?? findEmailIn(s.contact?.custom_fields);
           if (!email || seen.has(email)) continue;
@@ -350,30 +395,72 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
         }
         if (page.length < PAGE_SIZE) break;
       }
+      lastScan.current = { evaluated, valid: out.length };
       return out;
     }
     if (sourceType === "broadcast" && listId) {
-      const out: { email: string; name?: string; contact_id?: string; variables?: Record<string, unknown> }[] = [];
-      const seen = new Set<string>();
-      for (let from = 0; ; from += PAGE_SIZE) {
-        const { data, error } = await supabase.from("broadcast_list_contacts")
-          .select("contact:contacts(id,name,email,custom_fields)")
-          .eq("list_id", listId)
-          .range(from, from + PAGE_SIZE - 1);
-        if (error) throw error;
-        const page = (data ?? []) as { contact: { id: string; name: string | null; email: string | null; custom_fields: unknown } | null }[];
-        for (const r of page) {
-          const email = findEmailIn(r.contact?.email) ?? findEmailIn(r.contact?.custom_fields);
-          if (!email || seen.has(email)) continue;
-          seen.add(email);
-          out.push({ email, name: r.contact?.name ?? undefined, contact_id: r.contact?.id, variables: { name: r.contact?.name, nome: r.contact?.name } });
+      // Dynamic lists have no materialized members — resolve them from the saved filters.
+      const { data: list } = await supabase.from("broadcast_lists")
+        .select("type, filter_criteria").eq("id", listId).maybeSingle();
+      const criteria = (list?.filter_criteria ?? {}) as {
+        tags?: string[]; status?: string; optedOut?: boolean;
+      };
+
+      let rows: ContactRow[] = [];
+      if (list?.type === "dynamic") {
+        if (Array.isArray(criteria.tags) && criteria.tags.length > 0) {
+          rows = await fetchContactsByTags(criteria.tags);
+        } else {
+          for (let from = 0; ; from += PAGE_SIZE) {
+            let q = supabase.from("contacts").select("id,name,email,custom_fields");
+            if (criteria.status) q = q.eq("status", criteria.status);
+            if (criteria.optedOut !== undefined) q = q.eq("opted_out", criteria.optedOut);
+            const { data, error } = await q.range(from, from + PAGE_SIZE - 1);
+            if (error) throw error;
+            const page = (data ?? []) as ContactRow[];
+            rows.push(...page);
+            if (page.length < PAGE_SIZE) break;
+          }
         }
-        if (page.length < PAGE_SIZE) break;
+      } else {
+        const map = new Map<string, ContactRow>();
+        for (let from = 0; ; from += PAGE_SIZE) {
+          const { data, error } = await supabase.from("broadcast_list_contacts")
+            .select("contact:contacts(id,name,email,custom_fields)")
+            .eq("list_id", listId)
+            .range(from, from + PAGE_SIZE - 1);
+          if (error) throw error;
+          const page = (data ?? []) as { contact: ContactRow | null }[];
+          for (const r of page) if (r.contact) map.set(r.contact.id, r.contact);
+          if (page.length < PAGE_SIZE) break;
+        }
+        rows = Array.from(map.values());
       }
+
+      const out = contactsToRecipients(rows);
+      lastScan.current = { evaluated: rows.length, valid: out.length };
       return out;
     }
+    lastScan.current = { evaluated: 0, valid: 0 };
     return [];
   }
+
+  /** Recalculates the recipient preview whenever the selected source changes. */
+  useEffect(() => {
+    if (!open) return;
+    if (sourceType === "paste") { setPreview(null); return; }
+    if (sourceType === "form" && !formId) { setPreview(null); return; }
+    if (sourceType === "broadcast" && !listId) { setPreview(null); return; }
+    if (sourceType === "tags" && tagIds.length === 0) { setPreview(null); return; }
+
+    let cancelled = false;
+    setPreview({ loading: true, evaluated: 0, valid: 0 });
+    collectRecipients()
+      .then(() => { if (!cancelled) setPreview({ loading: false, ...lastScan.current }); })
+      .catch(() => { if (!cancelled) setPreview(null); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, sourceType, formId, listId, tagIds.join(",")]);
 
 
   async function submit(startNow: boolean) {
@@ -384,14 +471,18 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
     try {
       const recipients = await collectRecipients();
       if (recipients.length === 0) {
-        const hint = sourceType === "paste"
+        const { evaluated } = lastScan.current;
+        const base = sourceType === "paste"
           ? "Cole ao menos um e-mail válido."
           : sourceType === "form"
             ? "Nenhuma resposta desse formulário possui e-mail cadastrado."
             : sourceType === "broadcast"
               ? "Nenhum contato dessa lista possui e-mail cadastrado."
-              : "Nenhum contato possui e-mail cadastrado.";
-        toast.error(`Nenhum destinatário válido — ${hint}`);
+              : sourceType === "tags"
+                ? (tagIds.length === 0 ? "Escolha ao menos uma etiqueta." : "Nenhum contato dessas etiquetas possui e-mail cadastrado.")
+                : "Nenhum contato possui e-mail cadastrado.";
+        const detail = evaluated > 0 ? ` (${evaluated} contato(s) avaliado(s), todos sem e-mail)` : "";
+        toast.error(`Nenhum destinatário válido — ${base}${detail}`);
         setSaving(false); return;
       }
 
@@ -404,7 +495,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
         template_id: templateId || null, subject, body_html: bodyHtml,
         design_json: design as never,
         attachments: attachments as never,
-        source_type: sourceType, source_config: { formId, listId },
+        source_type: sourceType, source_config: { formId, listId, tagIds },
         batch_size: batchSize, batch_interval_seconds: batchInterval,
         send_days: sendDays.length > 0 ? sendDays : [0, 1, 2, 3, 4, 5, 6],
         send_start_hour: startHour, send_end_hour: endHour,
@@ -513,6 +604,7 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
                 <SelectItem value="paste">Colar lista de e-mails</SelectItem>
                 <SelectItem value="form">Formulário / QR code</SelectItem>
                 <SelectItem value="broadcast">Lista de transmissão</SelectItem>
+                <SelectItem value="tags">Etiquetas (tags) dos contatos</SelectItem>
                 <SelectItem value="contacts_all">Todos os contatos com e-mail</SelectItem>
               </SelectContent>
             </Select>
@@ -538,6 +630,34 @@ function CreateCampaignDialog({ open, onOpenChange, channels, templates, onCreat
                 <SelectContent>{lists.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+          )}
+          {sourceType === "tags" && (
+            <div><Label>Etiquetas</Label>
+              <div className="flex flex-wrap gap-2 mt-1 max-h-40 overflow-y-auto rounded-md border p-2">
+                {tags.length === 0 && <span className="text-xs text-muted-foreground">Nenhuma etiqueta cadastrada.</span>}
+                {tags.map(t => {
+                  const active = tagIds.includes(t.id);
+                  return (
+                    <Badge
+                      key={t.id}
+                      variant={active ? "default" : "outline"}
+                      className="cursor-pointer"
+                      onClick={() => setTagIds(prev => active ? prev.filter(id => id !== t.id) : [...prev, t.id])}
+                    >
+                      {t.name}
+                    </Badge>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {preview && (
+            <p className="text-xs text-muted-foreground">
+              {preview.loading
+                ? "Calculando destinatários…"
+                : `${preview.valid} destinatário(s) com e-mail de ${preview.evaluated} contato(s) selecionado(s)${preview.evaluated > preview.valid ? ` — ${preview.evaluated - preview.valid} sem e-mail ou repetido(s)` : ""}`}
+            </p>
           )}
 
           <div className="grid grid-cols-2 gap-3">
