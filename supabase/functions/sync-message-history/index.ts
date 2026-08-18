@@ -201,6 +201,16 @@ async function processBatch(jobId: string) {
   let chatsWithErrors = 0;
 
   try {
+    // Contacts/conversations may belong to any member of the organization
+    // (e.g. created by an attendant). Never duplicate them under the owner.
+    const { data: orgMemberIdsRaw } = await db.rpc('get_organization_member_ids', { _user_id: instanceOwnerId });
+    const memberIds: string[] = Array.isArray(orgMemberIdsRaw) && orgMemberIdsRaw.length
+      ? (orgMemberIdsRaw as Array<{ get_organization_member_ids?: string } | string>)
+          .map((r) => (typeof r === 'string' ? r : r.get_organization_member_ids ?? ''))
+          .filter(Boolean)
+      : [instanceOwnerId];
+    if (!memberIds.includes(instanceOwnerId)) memberIds.push(instanceOwnerId);
+
     // Pre-load existing contacts for this batch in one query.
     const phones = slice.map((chat) => {
       const jid = (chat.id || chat.remoteJid)!;
@@ -211,17 +221,18 @@ async function processBatch(jobId: string) {
     const { data: existingContacts } = await db
       .from('contacts')
       .select('id, phone')
-      .eq('user_id', instanceOwnerId)
+      .in('user_id', memberIds)
       .in('phone', phones);
     const contactByPhone = new Map<string, string>((existingContacts ?? []).map((c) => [c.phone as string, c.id as string]));
 
     const { data: existingConvs } = await db
       .from('conversations')
       .select('id, contact_id')
-      .eq('user_id', instanceOwnerId)
+      .in('user_id', memberIds)
       .eq('instance_id', instanceId)
       .in('contact_id', Array.from(contactByPhone.values()).length ? Array.from(contactByPhone.values()) : ['00000000-0000-0000-0000-000000000000']);
     const convByContact = new Map<string, string>((existingConvs ?? []).map((c) => [c.contact_id as string, c.id as string]));
+
 
     for (let i = 0; i < slice.length; i++) {
       const chat = slice[i];
