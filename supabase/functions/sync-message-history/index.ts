@@ -365,6 +365,8 @@ async function processBatch(jobId: string) {
           });
 
           let chatHadError = false;
+          let inboundInserted = 0;
+
           for (let s = 0; s < unique.length; s += 200) {
             const chunk = unique.slice(s, s + 200);
             const ids = chunk.map((r) => r.whatsapp_message_id as string);
@@ -398,9 +400,24 @@ async function processBatch(jobId: string) {
               chatHadError = true;
             } else {
               messagesImported += inserted?.length ?? 0;
+              inboundInserted += toInsert.filter((r) => r.direction === 'inbound').length;
             }
           }
           if (chatHadError) chatsWithErrors++;
+
+          // Imported inbound messages must land as UNREAD so agents can find
+          // and answer them in the Inbox.
+          if (inboundInserted > 0) {
+            const { data: conv } = await db
+              .from('conversations')
+              .select('unread_count')
+              .eq('id', conversationId)
+              .maybeSingle();
+            await db
+              .from('conversations')
+              .update({ unread_count: ((conv?.unread_count as number) ?? 0) + inboundInserted })
+              .eq('id', conversationId);
+          }
         }
 
 
@@ -413,6 +430,7 @@ async function processBatch(jobId: string) {
             : new Date().toISOString(),
           last_message_preview: (lastParsed?.content ?? '').substring(0, 100),
         }).eq('id', conversationId);
+
       } catch (chatError) {
         chatsWithErrors++;
         console.error(`[SYNC] Error processing chat ${remoteJid}:`, chatError);
