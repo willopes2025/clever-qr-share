@@ -127,12 +127,19 @@ export function SyncHistoryDialog({
               {isSyncing && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Sincronizando...</span>
+                    <span className="text-muted-foreground">Sincronizando em segundo plano...</span>
                     <span className="text-neon-cyan">{progress}%</span>
                   </div>
                   <Progress value={progress} className="h-2" />
+                  {job && (
+                    <p className="text-xs text-muted-foreground">
+                      {job.processed_chats} de {job.total_chats} conversas · {job.messages_imported} mensagens importadas
+                      {job.chats_with_errors > 0 ? ` · ${job.chats_with_errors} com erro` : ''}
+                    </p>
+                  )}
                 </div>
               )}
+
 
               <div className="bg-muted/30 rounded-lg p-3 text-sm text-muted-foreground space-y-1">
                 <p className="font-medium text-foreground">ℹ️ Importante:</p>
