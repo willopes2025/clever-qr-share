@@ -358,7 +358,7 @@ async function processBatch(jobId: string) {
   }
 
   const processed = offset + slice.length;
-  const done = processed >= chats.length;
+  const done = processed >= totalChats;
 
   await db.from('message_sync_jobs').update({
     processed_chats: processed,
@@ -371,7 +371,8 @@ async function processBatch(jobId: string) {
     lease_until: null,
   }).eq('id', jobId);
 
-  console.log(`[SYNC] Job ${jobId} batch done: ${processed}/${chats.length} chats, +${messagesImported} msgs`);
+  console.log(`[SYNC] Job ${jobId} batch done: ${processed}/${totalChats} chats, +${messagesImported} msgs, +${contactsCreated} contacts`);
+
 
   if (!done) {
     await new Promise((r) => setTimeout(r, 500)); // cooldown between hops
