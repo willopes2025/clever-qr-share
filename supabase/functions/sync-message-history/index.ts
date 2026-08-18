@@ -12,426 +12,478 @@ interface ChatLike {
   pushName?: string;
 }
 
+const BATCH_SIZE = 25;
+const LEASE_SECONDS = 180;
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
+const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
+
+const admin = () => createClient(supabaseUrl, supabaseServiceKey);
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+// Kick the next batch as a separate invocation so no single request runs long.
+async function invokeNextBatch(jobId: string) {
+  try {
+    await fetch(`${supabaseUrl}/functions/v1/sync-message-history`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseServiceKey,
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({ action: 'process', jobId }),
+    });
+  } catch (e) {
+    console.error('[SYNC] Failed to chain next batch:', e);
+  }
+}
+
+// ============= Build chat list with fallbacks =============
+async function buildChatList(evolutionName: string, instanceOwnerId: string) {
+  let chats: ChatLike[] = [];
+  let chatsSource = 'findChats';
+  let evolutionWarning: string | null = null;
+  const db = admin();
+
+  try {
+    const chatsResponse = await fetch(`${evolutionApiUrl}/chat/findChats/${evolutionName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+      body: JSON.stringify({}),
+    });
+    if (chatsResponse.ok) {
+      const data = await chatsResponse.json();
+      if (Array.isArray(data)) chats = data as ChatLike[];
+    } else {
+      const errorText = await chatsResponse.text();
+      console.error('[SYNC] findChats failed:', errorText);
+      evolutionWarning = `findChats falhou: ${errorText.substring(0, 200)}`;
+    }
+  } catch (e) {
+    console.error('[SYNC] findChats threw:', e);
+    evolutionWarning = `findChats threw: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
+  if (chats.length === 0) {
+    try {
+      const contactsResponse = await fetch(`${evolutionApiUrl}/chat/findContacts/${evolutionName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+        body: JSON.stringify({}),
+      });
+      if (contactsResponse.ok) {
+        const data = await contactsResponse.json();
+        if (Array.isArray(data)) {
+          chats = (data as Array<Record<string, unknown>>)
+            .map((c) => {
+              const candidates = [c.remoteJid, c.owner, c.wuid, c.jid, c.id]
+                .filter((v): v is string => typeof v === 'string');
+              const jid = candidates.find((v) => v.includes('@')) || '';
+              return { id: jid, remoteJid: jid, name: (c.pushName as string) || (c.name as string) || undefined };
+            })
+            .filter((c) => !!c.remoteJid);
+          chatsSource = 'findContacts';
+        }
+      } else {
+        console.error('[SYNC] findContacts failed:', await contactsResponse.text());
+      }
+    } catch (e) {
+      console.error('[SYNC] findContacts threw:', e);
+    }
+  }
+
+  if (chats.length === 0) {
+    const { data: orgMemberIds } = await db.rpc('get_organization_member_ids', { _user_id: instanceOwnerId });
+    const memberIdList: string[] = Array.isArray(orgMemberIds)
+      ? (orgMemberIds as Array<{ get_organization_member_ids?: string } | string>)
+          .map((r) => (typeof r === 'string' ? r : r.get_organization_member_ids ?? ''))
+          .filter(Boolean)
+      : [instanceOwnerId];
+
+    const { data: dbContacts } = await db
+      .from('contacts')
+      .select('id, phone, name')
+      .in('user_id', memberIdList.length ? memberIdList : [instanceOwnerId])
+      .not('phone', 'is', null)
+      .limit(2000);
+
+    if (dbContacts && dbContacts.length > 0) {
+      chats = dbContacts.map((c) => {
+        const phone = String(c.phone).replace(/\D/g, '');
+        return { id: `${phone}@s.whatsapp.net`, remoteJid: `${phone}@s.whatsapp.net`, name: c.name || undefined };
+      });
+      chatsSource = 'db-contacts';
+    }
+  }
+
+  // Keep only real 1:1 chats — filtering here keeps the stored total honest.
+  const filtered = chats.filter((chat) => {
+    const jid = chat.id || chat.remoteJid;
+    if (!jid) return false;
+    if (jid.includes('@g.us') || jid === 'status@broadcast') return false;
+    const phone = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
+    return /^\d{8,15}$/.test(phone);
+  });
+
+  return { chats: filtered, chatsSource, evolutionWarning };
+}
+
+function extractContent(message: Record<string, any> | undefined) {
+  if (!message) return null;
+  if (message.conversation) return { content: message.conversation as string, type: 'text' };
+  if (message.extendedTextMessage?.text) return { content: message.extendedTextMessage.text as string, type: 'text' };
+  if (message.imageMessage) return { content: (message.imageMessage.caption as string) || '📷 Imagem', type: 'image' };
+  if (message.audioMessage) return { content: '🎵 Áudio', type: message.audioMessage.ptt ? 'voice' : 'audio' };
+  if (message.videoMessage) return { content: (message.videoMessage.caption as string) || '🎬 Vídeo', type: 'video' };
+  if (message.documentMessage) return { content: (message.documentMessage.fileName as string) || '📄 Documento', type: 'document' };
+  if (message.stickerMessage) return { content: '🎭 Sticker', type: 'sticker' };
+  return null;
+}
+
+const isValidContactName = (name: string | undefined | null): boolean => {
+  if (!name || name.trim().length < 2) return false;
+  if (name.startsWith('LID_')) return false;
+  if (/^\d+$/.test(name)) return false;
+  if (/^55\d{10,11}$/.test(name)) return false;
+  return true;
+};
+
+// ============= Process one bounded batch of chats =============
+async function processBatch(jobId: string) {
+  const db = admin();
+  const nowIso = new Date().toISOString();
+
+  // Single-flight lease: only one runner may hold the job at a time.
+  const { data: leased } = await db
+    .from('message_sync_jobs')
+    .update({ status: 'running', lease_until: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString() })
+    .eq('id', jobId)
+    .in('status', ['pending', 'running'])
+    .or(`lease_until.is.null,lease_until.lt.${nowIso}`)
+    .select('*')
+    .maybeSingle();
+
+  if (!leased) {
+    console.log(`[SYNC] Job ${jobId} not leasable (finished or already running)`);
+    return;
+  }
+
+  const job = leased as Record<string, any>;
+  const chats: ChatLike[] = Array.isArray(job.chats) ? job.chats : [];
+  const offset: number = job.processed_chats ?? 0;
+  const slice = chats.slice(offset, offset + BATCH_SIZE);
+
+  if (slice.length === 0) {
+    await db.from('message_sync_jobs').update({
+      status: 'completed', finished_at: new Date().toISOString(), lease_until: null,
+    }).eq('id', jobId);
+    return;
+  }
+
+  const instanceOwnerId: string = job.user_id;
+  const instanceId: string = job.instance_id;
+  const evolutionName: string = job.evolution_instance_name || job.instance_name;
+  const startTimestamp = job.start_date ? new Date(job.start_date).getTime() / 1000 : 0;
+
+  let messagesImported = 0;
+  let contactsCreated = 0;
+  let conversationsCreated = 0;
+  let chatsWithErrors = 0;
+
+  try {
+    // Pre-load existing contacts for this batch in one query.
+    const phones = slice.map((chat) => {
+      const jid = (chat.id || chat.remoteJid)!;
+      const raw = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
+      return raw.startsWith('55') ? raw : `55${raw}`;
+    });
+
+    const { data: existingContacts } = await db
+      .from('contacts')
+      .select('id, phone')
+      .eq('user_id', instanceOwnerId)
+      .in('phone', phones);
+    const contactByPhone = new Map<string, string>((existingContacts ?? []).map((c) => [c.phone as string, c.id as string]));
+
+    const { data: existingConvs } = await db
+      .from('conversations')
+      .select('id, contact_id')
+      .eq('user_id', instanceOwnerId)
+      .eq('instance_id', instanceId)
+      .in('contact_id', Array.from(contactByPhone.values()).length ? Array.from(contactByPhone.values()) : ['00000000-0000-0000-0000-000000000000']);
+    const convByContact = new Map<string, string>((existingConvs ?? []).map((c) => [c.contact_id as string, c.id as string]));
+
+    for (let i = 0; i < slice.length; i++) {
+      const chat = slice[i];
+      const remoteJid = (chat.id || chat.remoteJid)!;
+      const normalizedPhone = phones[i];
+
+      try {
+        const messagesResponse = await fetch(`${evolutionApiUrl}/chat/findMessages/${evolutionName}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+          body: JSON.stringify({ where: { key: { remoteJid } } }),
+        });
+
+        if (!messagesResponse.ok) {
+          chatsWithErrors++;
+          continue;
+        }
+
+        const messagesData = await messagesResponse.json();
+        let messages: any[] = [];
+        if (Array.isArray(messagesData)) messages = messagesData;
+        else if (Array.isArray(messagesData?.messages)) messages = messagesData.messages;
+        else if (Array.isArray(messagesData?.messages?.records)) messages = messagesData.messages.records;
+        else if (Array.isArray(messagesData?.records)) messages = messagesData.records;
+
+        const filteredMessages = messages.filter((msg: { messageTimestamp?: number }) => (msg.messageTimestamp || 0) >= startTimestamp);
+        if (filteredMessages.length === 0) continue;
+
+        // Contact
+        let contactId = contactByPhone.get(normalizedPhone);
+        if (!contactId) {
+          const rawName = chat.name || chat.pushName;
+          const { data: newContact, error: contactError } = await db
+            .from('contacts')
+            .insert({
+              user_id: instanceOwnerId,
+              phone: normalizedPhone,
+              name: isValidContactName(rawName) ? rawName! : 'Cliente',
+              status: 'active',
+            })
+            .select('id')
+            .single();
+          if (contactError || !newContact) { chatsWithErrors++; continue; }
+          contactId = newContact.id as string;
+          contactByPhone.set(normalizedPhone, contactId);
+          contactsCreated++;
+        }
+
+        // Conversation
+        let conversationId = convByContact.get(contactId);
+        if (!conversationId) {
+          const { data: newConversation, error: convError } = await db
+            .from('conversations')
+            .insert({ user_id: instanceOwnerId, contact_id: contactId, instance_id: instanceId, status: 'active' })
+            .select('id')
+            .single();
+          if (convError || !newConversation) { chatsWithErrors++; continue; }
+          conversationId = newConversation.id as string;
+          convByContact.set(contactId, conversationId);
+          conversationsCreated++;
+        }
+
+        // Bulk upsert messages (unique index on whatsapp_message_id handles dedup)
+        const rows = filteredMessages.map((msg: any) => {
+          const whatsappMessageId = msg.key?.id;
+          if (!whatsappMessageId) return null;
+          const parsed = extractContent(msg.message);
+          if (!parsed) return null;
+          const direction = msg.key?.fromMe === true ? 'outbound' : 'inbound';
+          const timestamp = msg.messageTimestamp
+            ? new Date(msg.messageTimestamp * 1000).toISOString()
+            : new Date().toISOString();
+          return {
+            conversation_id: conversationId,
+            user_id: instanceOwnerId,
+            direction,
+            content: parsed.content,
+            message_type: parsed.type,
+            status: direction === 'inbound' ? 'received' : 'sent',
+            whatsapp_message_id: whatsappMessageId,
+            sent_at: timestamp,
+            created_at: timestamp,
+          };
+        }).filter(Boolean) as Array<Record<string, unknown>>;
+
+        if (rows.length > 0) {
+          // De-duplicate inside the payload itself (upsert rejects repeated keys).
+          const seen = new Set<string>();
+          const unique = rows.filter((r) => {
+            const key = r.whatsapp_message_id as string;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+
+          for (let s = 0; s < unique.length; s += 200) {
+            const chunk = unique.slice(s, s + 200);
+            const { data: inserted, error: upsertError } = await db
+              .from('inbox_messages')
+              .upsert(chunk, { onConflict: 'whatsapp_message_id', ignoreDuplicates: true })
+              .select('id');
+            if (upsertError) {
+              console.error('[SYNC] upsert error:', upsertError.message);
+              chatsWithErrors++;
+            } else {
+              messagesImported += inserted?.length ?? 0;
+            }
+          }
+        }
+
+        // Conversation preview
+        const lastMsg = filteredMessages[filteredMessages.length - 1];
+        const lastParsed = extractContent(lastMsg?.message);
+        await db.from('conversations').update({
+          last_message_at: lastMsg?.messageTimestamp
+            ? new Date(lastMsg.messageTimestamp * 1000).toISOString()
+            : new Date().toISOString(),
+          last_message_preview: (lastParsed?.content ?? '').substring(0, 100),
+        }).eq('id', conversationId);
+      } catch (chatError) {
+        chatsWithErrors++;
+        console.error(`[SYNC] Error processing chat ${remoteJid}:`, chatError);
+      }
+    }
+  } catch (batchError) {
+    console.error('[SYNC] Batch failed:', batchError);
+    await db.from('message_sync_jobs').update({
+      status: 'failed',
+      error_message: batchError instanceof Error ? batchError.message : String(batchError),
+      finished_at: new Date().toISOString(),
+      lease_until: null,
+    }).eq('id', jobId);
+    return;
+  }
+
+  const processed = offset + slice.length;
+  const done = processed >= chats.length;
+
+  await db.from('message_sync_jobs').update({
+    processed_chats: processed,
+    messages_imported: (job.messages_imported ?? 0) + messagesImported,
+    contacts_created: (job.contacts_created ?? 0) + contactsCreated,
+    conversations_created: (job.conversations_created ?? 0) + conversationsCreated,
+    chats_with_errors: (job.chats_with_errors ?? 0) + chatsWithErrors,
+    status: done ? 'completed' : 'running',
+    finished_at: done ? new Date().toISOString() : null,
+    lease_until: null,
+  }).eq('id', jobId);
+
+  console.log(`[SYNC] Job ${jobId} batch done: ${processed}/${chats.length} chats, +${messagesImported} msgs`);
+
+  if (!done) {
+    await new Promise((r) => setTimeout(r, 500)); // cooldown between hops
+    await invokeNextBatch(jobId);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
+    const db = admin();
+    const body = await req.json();
+    const action = body.action ?? 'start';
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const { instanceName, startDate, userId } = await req.json();
-
-    if (!instanceName || !userId) {
-      return new Response(JSON.stringify({ error: 'instanceName and userId are required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    // ---------- Continue an existing job ----------
+    if (action === 'process') {
+      if (!body.jobId) return json({ error: 'jobId is required' }, 400);
+      EdgeRuntime.waitUntil(processBatch(body.jobId));
+      return json({ accepted: true });
     }
 
-    console.log(`[SYNC] Starting sync for instance ${instanceName} from date ${startDate}`);
+    // ---------- Status polling ----------
+    if (action === 'status') {
+      if (!body.jobId) return json({ error: 'jobId is required' }, 400);
+      const { data: job } = await db
+        .from('message_sync_jobs')
+        .select('id, status, total_chats, processed_chats, messages_imported, contacts_created, conversations_created, chats_with_errors, error_message, chats_source')
+        .eq('id', body.jobId)
+        .maybeSingle();
+      if (!job) return json({ error: 'Job não encontrado' }, 404);
+      return json({ job });
+    }
 
-    const { data: instanceData, error: instanceError } = await supabase
+    // ---------- Start a new job ----------
+    const { instanceName, startDate, userId } = body;
+    if (!instanceName || !userId) {
+      return json({ error: 'instanceName and userId are required' }, 400);
+    }
+
+    const { data: instanceData, error: instanceError } = await db
       .from('whatsapp_instances')
       .select('id, user_id, default_funnel_id, evolution_instance_name')
       .eq('instance_name', instanceName)
-      .single();
+      .maybeSingle();
 
     if (instanceError || !instanceData) {
-      console.error('[SYNC] Instance not found:', instanceError);
-      return new Response(JSON.stringify({ error: 'Instance not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      return json({ error: 'Instância não encontrada' }, 404);
+    }
+
+    // Prevent two concurrent syncs on the same instance.
+    const { data: activeJob } = await db
+      .from('message_sync_jobs')
+      .select('id, processed_chats, total_chats')
+      .eq('instance_id', instanceData.id)
+      .in('status', ['pending', 'running'])
+      .gt('updated_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
+      .maybeSingle();
+
+    if (activeJob) {
+      return json({
+        success: true,
+        alreadyRunning: true,
+        jobId: activeJob.id,
+        message: 'Já existe uma sincronização em andamento para esta instância.',
       });
     }
 
-    const instanceOwnerId = instanceData.user_id;
-    const instanceId = instanceData.id;
-    const startTimestamp = startDate ? new Date(startDate).getTime() / 1000 : 0;
     const evolutionName = instanceData.evolution_instance_name || instanceName;
-    console.log(`[SYNC] Using Evolution API name: ${evolutionName} (display name: ${instanceName})`);
-
-    // ============= STEP 1: Build chat list with fallbacks =============
-    let chats: ChatLike[] = [];
-    let chatsSource = 'findChats';
-    let evolutionWarning: string | null = null;
-
-    // Attempt A: findChats (primary)
-    try {
-      console.log(`[SYNC] [A] Trying findChats for ${evolutionName}...`);
-      const chatsResponse = await fetch(
-        `${evolutionApiUrl}/chat/findChats/${evolutionName}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
-          body: JSON.stringify({}),
-        }
-      );
-
-      if (chatsResponse.ok) {
-        const data = await chatsResponse.json();
-        if (Array.isArray(data)) chats = data as ChatLike[];
-      } else {
-        const errorText = await chatsResponse.text();
-        console.error('[SYNC] [A] findChats failed:', errorText);
-        evolutionWarning = `findChats falhou: ${errorText.substring(0, 200)}`;
-      }
-    } catch (e) {
-      console.error('[SYNC] [A] findChats threw:', e);
-      evolutionWarning = `findChats threw: ${e instanceof Error ? e.message : String(e)}`;
-    }
-
-    // Attempt B: findContacts (fallback when findChats fails)
-    if (chats.length === 0) {
-      try {
-        console.log(`[SYNC] [B] Trying findContacts fallback for ${evolutionName}...`);
-        const contactsResponse = await fetch(
-          `${evolutionApiUrl}/chat/findContacts/${evolutionName}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
-            body: JSON.stringify({}),
-          }
-        );
-        if (contactsResponse.ok) {
-          const data = await contactsResponse.json();
-          if (Array.isArray(data)) {
-            // Evolution `id` is an internal cuid. Real WhatsApp JID lives in `remoteJid`/`owner`/`wuid`/`jid`.
-            chats = (data as Array<Record<string, unknown>>)
-              .map((c) => {
-                const candidates = [c.remoteJid, c.owner, c.wuid, c.jid, c.id]
-                  .filter((v): v is string => typeof v === 'string');
-                const jid = candidates.find((v) => v.includes('@')) || '';
-                return { id: jid, remoteJid: jid, name: (c.pushName as string) || (c.name as string) || undefined };
-              })
-              .filter((c) => !!c.remoteJid);
-            chatsSource = 'findContacts';
-            console.log(`[SYNC] [B] findContacts returned ${chats.length} entries with valid JID`);
-          }
-        } else {
-          const errorText = await contactsResponse.text();
-          console.error('[SYNC] [B] findContacts failed:', errorText);
-        }
-      } catch (e) {
-        console.error('[SYNC] [B] findContacts threw:', e);
-      }
-    }
-
-    // Attempt C: existing DB contacts as fallback
-    if (chats.length === 0) {
-      console.log(`[SYNC] [C] Falling back to existing DB contacts for org of ${instanceOwnerId}...`);
-      const { data: orgMemberIds } = await supabase
-        .rpc('get_organization_member_ids', { _user_id: instanceOwnerId });
-      const memberIdList: string[] = Array.isArray(orgMemberIds)
-        ? (orgMemberIds as Array<{ get_organization_member_ids?: string } | string>).map((r) =>
-            typeof r === 'string' ? r : r.get_organization_member_ids ?? ''
-          ).filter(Boolean)
-        : [instanceOwnerId];
-
-      const { data: dbContacts } = await supabase
-        .from('contacts')
-        .select('id, phone, name')
-        .in('user_id', memberIdList.length ? memberIdList : [instanceOwnerId])
-        .not('phone', 'is', null)
-        .limit(2000);
-
-      if (dbContacts && dbContacts.length > 0) {
-        chats = dbContacts.map((c) => {
-          const phone = String(c.phone).replace(/\D/g, '');
-          return {
-            id: `${phone}@s.whatsapp.net`,
-            remoteJid: `${phone}@s.whatsapp.net`,
-            name: c.name || undefined,
-          };
-        });
-        chatsSource = 'db-contacts';
-        console.log(`[SYNC] [C] Reconstructed ${chats.length} chats from DB contacts`);
-      }
-    }
+    const { chats, chatsSource, evolutionWarning } = await buildChatList(evolutionName, instanceData.user_id);
 
     if (chats.length === 0) {
-      return new Response(JSON.stringify({
+      return json({
         success: false,
         evolutionError: evolutionWarning ||
           'Não foi possível listar conversas da instância. A Evolution API retornou erro interno e não há contatos no banco para tentar individualmente. Tente reconectar a instância (logout + novo QR Code) e tentar novamente em alguns minutos.',
-        synced: { chats: 0, messages: 0, contacts: 0, conversations: 0 },
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`[SYNC] Using ${chats.length} chats (source: ${chatsSource})`);
+    const { data: job, error: jobError } = await db
+      .from('message_sync_jobs')
+      .insert({
+        user_id: instanceData.user_id,
+        instance_id: instanceData.id,
+        instance_name: instanceName,
+        evolution_instance_name: evolutionName,
+        start_date: startDate || null,
+        status: 'pending',
+        chats_source: chatsSource,
+        chats,
+        total_chats: chats.length,
+      })
+      .select('id')
+      .single();
 
-    let totalMessages = 0;
-    let totalContacts = 0;
-    let totalConversations = 0;
-    let chatsWithErrors = 0;
-    let chatsSkippedJid = 0;
-    let chatsSkippedGroup = 0;
-    let chatsSkippedRegex = 0;
-    let chatsProcessed = 0;
-    let sampleLogged = false;
-
-    for (const chat of chats) {
-      const remoteJid = chat.id || chat.remoteJid;
-      if (!remoteJid) { chatsSkippedJid++; continue; }
-      if (remoteJid.includes('@g.us') || remoteJid === 'status@broadcast') { chatsSkippedGroup++; continue; }
-
-      const phone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
-      if (!/^\d{8,15}$/.test(phone)) { chatsSkippedRegex++; continue; }
-      chatsProcessed++;
-
-      try {
-        const messagesResponse = await fetch(
-          `${evolutionApiUrl}/chat/findMessages/${evolutionName}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
-            body: JSON.stringify({ where: { key: { remoteJid } } }),
-          }
-        );
-
-        if (!messagesResponse.ok) {
-          chatsWithErrors++;
-          if (!sampleLogged) {
-            const errTxt = await messagesResponse.text();
-            console.error(`[SYNC] findMessages ${phone} status=${messagesResponse.status} body=${errTxt.substring(0, 400)}`);
-            sampleLogged = true;
-          }
-          continue;
-        }
-
-        const messagesData = await messagesResponse.json();
-        // Evolution responses vary by version:
-        //   - older: array directly, or { messages: [...] }
-        //   - newer: { messages: { records: [...], total, currentPage, ... } }
-        let messages: any[] = [];
-        if (Array.isArray(messagesData)) {
-          messages = messagesData;
-        } else if (Array.isArray(messagesData?.messages)) {
-          messages = messagesData.messages;
-        } else if (Array.isArray(messagesData?.messages?.records)) {
-          messages = messagesData.messages.records;
-        } else if (Array.isArray(messagesData?.records)) {
-          messages = messagesData.records;
-        }
-
-        if (messages.length === 0) {
-          console.log(`[SYNC] No messages for ${phone}. Sample keys=${Object.keys(messagesData || {}).join(',')}`);
-          continue;
-        }
-
-        const filteredMessages = messages.filter((msg: { messageTimestamp?: number }) => {
-          const timestamp = msg.messageTimestamp || 0;
-          return timestamp >= startTimestamp;
-        });
-
-        console.log(`[SYNC] ${phone}: total=${messages.length} after-date=${filteredMessages.length}`);
-        if (filteredMessages.length === 0) continue;
-
-        // Contact
-        let contactId: string;
-        const normalizedPhone = phone.startsWith('55') ? phone : `55${phone}`;
-
-        const { data: existingContact } = await supabase
-          .from('contacts')
-          .select('id')
-          .eq('user_id', instanceOwnerId)
-          .eq('phone', normalizedPhone)
-          .maybeSingle();
-
-        if (existingContact) {
-          contactId = existingContact.id;
-        } else {
-          const isValidContactName = (name: string | undefined | null): boolean => {
-            if (!name || name.trim().length < 2) return false;
-            if (name.startsWith('LID_')) return false;
-            if (/^\d+$/.test(name)) return false;
-            if (/^55\d{10,11}$/.test(name)) return false;
-            return true;
-          };
-          const rawName = chat.name || chat.pushName;
-          const contactName = isValidContactName(rawName) ? rawName! : 'Cliente';
-
-          const { data: newContact, error: contactError } = await supabase
-            .from('contacts')
-            .insert({
-              user_id: instanceOwnerId,
-              phone: normalizedPhone,
-              name: contactName,
-              status: 'active',
-            })
-            .select('id')
-            .single();
-
-          if (contactError || !newContact) {
-            chatsWithErrors++;
-            continue;
-          }
-          contactId = newContact.id;
-          totalContacts++;
-        }
-
-        // Conversation
-        let conversationId: string;
-        const { data: existingConversation } = await supabase
-          .from('conversations')
-          .select('id')
-          .eq('user_id', instanceOwnerId)
-          .eq('contact_id', contactId)
-          .eq('instance_id', instanceId)
-          .maybeSingle();
-
-        if (existingConversation) {
-          conversationId = existingConversation.id;
-        } else {
-          const { data: newConversation, error: convError } = await supabase
-            .from('conversations')
-            .insert({
-              user_id: instanceOwnerId,
-              contact_id: contactId,
-              instance_id: instanceId,
-              status: 'active',
-            })
-            .select('id')
-            .single();
-
-          if (convError || !newConversation) {
-            chatsWithErrors++;
-            continue;
-          }
-          conversationId = newConversation.id;
-          totalConversations++;
-        }
-
-        // Insert messages
-        for (const msg of filteredMessages) {
-          const key = msg.key;
-          const message = msg.message;
-          const whatsappMessageId = key?.id;
-          if (!whatsappMessageId) continue;
-
-          const { data: existingMsg } = await supabase
-            .from('inbox_messages')
-            .select('id')
-            .eq('whatsapp_message_id', whatsappMessageId)
-            .maybeSingle();
-
-          if (existingMsg) continue;
-
-          const isFromMe = key?.fromMe === true;
-          const direction = isFromMe ? 'outbound' : 'inbound';
-
-          let content = '';
-          let messageType = 'text';
-          if (message?.conversation) {
-            content = message.conversation;
-          } else if (message?.extendedTextMessage?.text) {
-            content = message.extendedTextMessage.text;
-          } else if (message?.imageMessage) {
-            messageType = 'image';
-            content = message.imageMessage.caption || '📷 Imagem';
-          } else if (message?.audioMessage) {
-            messageType = message.audioMessage.ptt ? 'voice' : 'audio';
-            content = '🎵 Áudio';
-          } else if (message?.videoMessage) {
-            messageType = 'video';
-            content = message.videoMessage.caption || '🎬 Vídeo';
-          } else if (message?.documentMessage) {
-            messageType = 'document';
-            content = message.documentMessage.fileName || '📄 Documento';
-          } else if (message?.stickerMessage) {
-            messageType = 'sticker';
-            content = '🎭 Sticker';
-          } else {
-            continue;
-          }
-
-          const timestamp = msg.messageTimestamp
-            ? new Date(msg.messageTimestamp * 1000).toISOString()
-            : new Date().toISOString();
-
-          const { error: insertError } = await supabase
-            .from('inbox_messages')
-            .insert({
-              conversation_id: conversationId,
-              user_id: instanceOwnerId,
-              direction,
-              content,
-              message_type: messageType,
-              status: direction === 'inbound' ? 'received' : 'sent',
-              whatsapp_message_id: whatsappMessageId,
-              sent_at: timestamp,
-              created_at: timestamp,
-            });
-
-          if (!insertError) totalMessages++;
-        }
-
-        // Update conversation last message
-        const lastMsg = filteredMessages[filteredMessages.length - 1];
-        const lastTimestamp = lastMsg?.messageTimestamp
-          ? new Date(lastMsg.messageTimestamp * 1000).toISOString()
-          : new Date().toISOString();
-        const lm = lastMsg?.message;
-        let lastContent = '';
-        if (lm?.conversation) lastContent = lm.conversation;
-        else if (lm?.extendedTextMessage?.text) lastContent = lm.extendedTextMessage.text;
-        else if (lm?.imageMessage) lastContent = '📷 Imagem';
-        else if (lm?.audioMessage) lastContent = '🎵 Áudio';
-        else if (lm?.videoMessage) lastContent = '🎬 Vídeo';
-        else if (lm?.documentMessage) lastContent = '📄 Documento';
-
-        await supabase
-          .from('conversations')
-          .update({
-            last_message_at: lastTimestamp,
-            last_message_preview: lastContent.substring(0, 100),
-          })
-          .eq('id', conversationId);
-      } catch (chatError) {
-        chatsWithErrors++;
-        console.error(`[SYNC] Error processing chat ${phone}:`, chatError);
-        continue;
-      }
+    if (jobError || !job) {
+      return json({ error: `Não foi possível iniciar a sincronização: ${jobError?.message ?? 'erro desconhecido'}` }, 500);
     }
 
-    console.log(`[SYNC] Done. messages=${totalMessages} contacts=${totalContacts} conv=${totalConversations} errors=${chatsWithErrors} processed=${chatsProcessed} skippedJid=${chatsSkippedJid} skippedGroup=${chatsSkippedGroup} skippedRegex=${chatsSkippedRegex} source=${chatsSource}`);
-    if (chats.length > 0) {
-      const first = chats[0];
-      console.log(`[SYNC] Chat sample: ${JSON.stringify(first).substring(0, 300)}`);
-    }
+    console.log(`[SYNC] Job ${job.id} created for ${evolutionName} with ${chats.length} chats (source: ${chatsSource})`);
+    EdgeRuntime.waitUntil(processBatch(job.id));
 
-    return new Response(JSON.stringify({
+    return json({
       success: true,
+      jobId: job.id,
+      totalChats: chats.length,
       source: chatsSource,
       evolutionWarning,
-      synced: {
-        chats: chats.length,
-        messages: totalMessages,
-        contacts: totalContacts,
-        conversations: totalConversations,
-        chatsWithErrors,
-        chatsProcessed,
-        chatsSkippedJid,
-        chatsSkippedGroup,
-        chatsSkippedRegex,
-      },
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    }, 202);
   } catch (error) {
     console.error('[SYNC] Error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return json({ error: message }, 500);
   }
 });

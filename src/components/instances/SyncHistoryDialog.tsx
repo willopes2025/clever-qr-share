@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -29,42 +29,45 @@ export function SyncHistoryDialog({
     new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Default: 7 days ago
   );
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [syncResult, setSyncResult] = useState<{
-    messages: number;
-    contacts: number;
-    conversations: number;
-  } | null>(null);
+  const [notified, setNotified] = useState(false);
 
-  const { syncHistory, progress, isSyncing } = useSyncHistory();
+  const { syncHistory, progress, job, isSyncing } = useSyncHistory();
   const { user } = useAuth();
+
+  const syncResult =
+    job && job.status === 'completed'
+      ? {
+          messages: job.messages_imported,
+          contacts: job.contacts_created,
+          conversations: job.conversations_created,
+        }
+      : null;
+
+  useEffect(() => {
+    if (job?.status === 'completed' && !notified) {
+      setNotified(true);
+      onSuccess?.();
+    }
+  }, [job?.status, notified, onSuccess]);
 
   const handleSync = async () => {
     if (!syncDate || !user) return;
 
-    setSyncResult(null);
-    
-    const result = await syncHistory.mutateAsync({
+    setNotified(false);
+
+    await syncHistory.mutateAsync({
       instanceName,
       startDate: syncDate.toISOString(),
       userId: user.id,
     });
-
-    if (result.success && result.synced) {
-      setSyncResult({
-        messages: result.synced.messages,
-        contacts: result.synced.contacts,
-        conversations: result.synced.conversations,
-      });
-      onSuccess?.();
-    }
   };
 
   const handleClose = () => {
     if (!isSyncing) {
-      setSyncResult(null);
       onOpenChange(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -124,12 +127,19 @@ export function SyncHistoryDialog({
               {isSyncing && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Sincronizando...</span>
+                    <span className="text-muted-foreground">Sincronizando em segundo plano...</span>
                     <span className="text-neon-cyan">{progress}%</span>
                   </div>
                   <Progress value={progress} className="h-2" />
+                  {job && (
+                    <p className="text-xs text-muted-foreground">
+                      {job.processed_chats} de {job.total_chats} conversas · {job.messages_imported} mensagens importadas
+                      {job.chats_with_errors > 0 ? ` · ${job.chats_with_errors} com erro` : ''}
+                    </p>
+                  )}
                 </div>
               )}
+
 
               <div className="bg-muted/30 rounded-lg p-3 text-sm text-muted-foreground space-y-1">
                 <p className="font-medium text-foreground">ℹ️ Importante:</p>
