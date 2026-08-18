@@ -323,10 +323,12 @@ async function processBatch(jobId: string) {
           const { data: existingConv } = await db
             .from('conversations')
             .select('id')
-            .eq('user_id', instanceOwnerId)
+            .in('user_id', memberIds)
             .eq('instance_id', instanceId)
             .eq('contact_id', contactId)
+            .limit(1)
             .maybeSingle();
+
           if (existingConv?.id) convByContact.set(contactId, existingConv.id as string);
         }
 
