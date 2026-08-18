@@ -250,24 +250,71 @@ async function processBatch(jobId: string) {
         const filteredMessages = messages.filter((msg: { messageTimestamp?: number }) => (msg.messageTimestamp || 0) >= startTimestamp);
         if (filteredMessages.length === 0) continue;
 
+        // Resolve the REAL phone for @lid chats using remoteJidAlt present in the messages.
+        // Without this, LID chats create junk contacts like "55" + <label id>.
+        let contactPhone = normalizedPhone;
+        let labelId: string | null = null;
+        if (remoteJid.includes('@lid')) {
+          labelId = remoteJid.replace('@lid', '');
+          let resolved: string | null = null;
+          for (const msg of filteredMessages as any[]) {
+            const alt: string | undefined = msg?.key?.remoteJidAlt || msg?.remoteJidAlt;
+            if (!alt || !(alt.includes('@s.whatsapp.net') || alt.includes('@c.us'))) continue;
+            const raw = alt.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
+            const candidate = raw.startsWith('55') ? raw : `55${raw}`;
+            if (/^\d{12,13}$/.test(candidate)) { resolved = candidate; break; }
+          }
+          if (resolved) {
+            contactPhone = resolved;
+          } else {
+            // Never fabricate a phone from a label id.
+            contactPhone = `LID_${labelId}`;
+          }
+        }
+
         // Contact
-        let contactId = contactByPhone.get(normalizedPhone);
+        let contactId = contactByPhone.get(contactPhone);
+        if (!contactId) {
+          const { data: found } = await db
+            .from('contacts')
+            .select('id')
+            .eq('user_id', instanceOwnerId)
+            .eq('phone', contactPhone)
+            .maybeSingle();
+          if (found?.id) {
+            contactId = found.id as string;
+            contactByPhone.set(contactPhone, contactId);
+          }
+        }
         if (!contactId) {
           const rawName = chat.name || chat.pushName;
           const { data: newContact, error: contactError } = await db
             .from('contacts')
             .insert({
               user_id: instanceOwnerId,
-              phone: normalizedPhone,
+              phone: contactPhone,
               name: isValidContactName(rawName) ? rawName! : 'Cliente',
               status: 'active',
+              ...(labelId ? { label_id: labelId } : {}),
             })
             .select('id')
             .single();
           if (contactError || !newContact) { chatsWithErrors++; continue; }
           contactId = newContact.id as string;
-          contactByPhone.set(normalizedPhone, contactId);
+          contactByPhone.set(contactPhone, contactId);
           contactsCreated++;
+        }
+
+        // Conversation lookup may be missing from the prefetched map for LID-resolved contacts.
+        if (!convByContact.has(contactId)) {
+          const { data: existingConv } = await db
+            .from('conversations')
+            .select('id')
+            .eq('user_id', instanceOwnerId)
+            .eq('instance_id', instanceId)
+            .eq('contact_id', contactId)
+            .maybeSingle();
+          if (existingConv?.id) convByContact.set(contactId, existingConv.id as string);
         }
 
         // Conversation
