@@ -63,10 +63,10 @@ export function SyncHistoryDialog({
   };
 
   const handleClose = () => {
-    if (!isSyncing) {
-      onOpenChange(false);
-    }
+    // A sincronização continua em segundo plano mesmo com o diálogo fechado
+    onOpenChange(false);
   };
+
 
 
   return (
@@ -156,10 +156,10 @@ export function SyncHistoryDialog({
                   variant="outline" 
                   onClick={handleClose} 
                   className="flex-1 neon-border"
-                  disabled={isSyncing}
                 >
-                  Cancelar
+                  {isSyncing ? 'Fechar (continua em segundo plano)' : 'Cancelar'}
                 </Button>
+
                 <Button
                   onClick={handleSync}
                   disabled={isSyncing || !syncDate}
