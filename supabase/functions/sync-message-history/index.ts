@@ -289,9 +289,11 @@ async function processBatch(jobId: string) {
           const { data: found } = await db
             .from('contacts')
             .select('id')
-            .eq('user_id', instanceOwnerId)
+            .in('user_id', memberIds)
             .eq('phone', contactPhone)
+            .limit(1)
             .maybeSingle();
+
           if (found?.id) {
             contactId = found.id as string;
             contactByPhone.set(contactPhone, contactId);
