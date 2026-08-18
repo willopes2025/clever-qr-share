@@ -156,10 +156,10 @@ export function SyncHistoryDialog({
                   variant="outline" 
                   onClick={handleClose} 
                   className="flex-1 neon-border"
-                  disabled={isSyncing}
                 >
-                  Cancelar
+                  {isSyncing ? 'Fechar (continua em segundo plano)' : 'Cancelar'}
                 </Button>
+
                 <Button
                   onClick={handleSync}
                   disabled={isSyncing || !syncDate}
