@@ -6035,6 +6035,78 @@ export type Database = {
           },
         ]
       }
+      message_sync_jobs: {
+        Row: {
+          chats: Json
+          chats_source: string | null
+          chats_with_errors: number
+          contacts_created: number
+          conversations_created: number
+          created_at: string
+          error_message: string | null
+          evolution_instance_name: string | null
+          finished_at: string | null
+          id: string
+          instance_id: string | null
+          instance_name: string
+          lease_until: string | null
+          messages_imported: number
+          processed_chats: number
+          start_date: string | null
+          started_at: string
+          status: string
+          total_chats: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chats?: Json
+          chats_source?: string | null
+          chats_with_errors?: number
+          contacts_created?: number
+          conversations_created?: number
+          created_at?: string
+          error_message?: string | null
+          evolution_instance_name?: string | null
+          finished_at?: string | null
+          id?: string
+          instance_id?: string | null
+          instance_name: string
+          lease_until?: string | null
+          messages_imported?: number
+          processed_chats?: number
+          start_date?: string | null
+          started_at?: string
+          status?: string
+          total_chats?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chats?: Json
+          chats_source?: string | null
+          chats_with_errors?: number
+          contacts_created?: number
+          conversations_created?: number
+          created_at?: string
+          error_message?: string | null
+          evolution_instance_name?: string | null
+          finished_at?: string | null
+          id?: string
+          instance_id?: string | null
+          instance_name?: string
+          lease_until?: string | null
+          messages_imported?: number
+          processed_chats?: number
+          start_date?: string | null
+          started_at?: string
+          status?: string
+          total_chats?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       message_templates: {
         Row: {
           ai_prompt: string | null
