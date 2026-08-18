@@ -308,7 +308,7 @@ async function processBatch(jobId: string) {
         }).filter(Boolean) as Array<Record<string, unknown>>;
 
         if (rows.length > 0) {
-          // De-duplicate inside the payload itself (upsert rejects repeated keys).
+          // De-duplicate inside the payload itself.
           const seen = new Set<string>();
           const unique = rows.filter((r) => {
             const key = r.whatsapp_message_id as string;
@@ -317,20 +317,45 @@ async function processBatch(jobId: string) {
             return true;
           });
 
+          let chatHadError = false;
           for (let s = 0; s < unique.length; s += 200) {
             const chunk = unique.slice(s, s + 200);
-            const { data: inserted, error: upsertError } = await db
+            const ids = chunk.map((r) => r.whatsapp_message_id as string);
+
+            // The unique index on whatsapp_message_id is partial, so ON CONFLICT
+            // is not usable via PostgREST. Filter existing ids manually instead.
+            const { data: existing, error: existingError } = await db
               .from('inbox_messages')
-              .upsert(chunk, { onConflict: 'whatsapp_message_id', ignoreDuplicates: true })
+              .select('whatsapp_message_id')
+              .in('whatsapp_message_id', ids);
+
+            if (existingError) {
+              console.error('[SYNC] dedup check error:', existingError.message);
+              chatHadError = true;
+              continue;
+            }
+
+            const existingIds = new Set((existing ?? []).map((e: any) => e.whatsapp_message_id));
+            const toInsert = chunk.filter((r) => !existingIds.has(r.whatsapp_message_id as string));
+            if (toInsert.length === 0) continue;
+
+            const { data: inserted, error: insertError } = await db
+              .from('inbox_messages')
+              .insert(toInsert)
               .select('id');
-            if (upsertError) {
-              console.error('[SYNC] upsert error:', upsertError.message);
-              chatsWithErrors++;
+
+            if (insertError) {
+              // 23505 = duplicate key: another worker inserted it, not a real failure.
+              if ((insertError as any).code === '23505') continue;
+              console.error('[SYNC] insert error:', insertError.message);
+              chatHadError = true;
             } else {
               messagesImported += inserted?.length ?? 0;
             }
           }
+          if (chatHadError) chatsWithErrors++;
         }
+
 
         // Conversation preview
         const lastMsg = filteredMessages[filteredMessages.length - 1];
