@@ -63,10 +63,10 @@ export function SyncHistoryDialog({
   };
 
   const handleClose = () => {
-    if (!isSyncing) {
-      onOpenChange(false);
-    }
+    // A sincronização continua em segundo plano mesmo com o diálogo fechado
+    onOpenChange(false);
   };
+
 
 
   return (
