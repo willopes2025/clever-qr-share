@@ -8964,6 +8964,10 @@ export type Database = {
       }
       is_sdr: { Args: { _user_id: string }; Returns: boolean }
       is_system_owner: { Args: { _user_id: string }; Returns: boolean }
+      lease_message_sync_job: {
+        Args: { _batch_size: number; _job_id: string; _lease_seconds: number }
+        Returns: Json
+      }
       member_has_instance_restriction: {
         Args: { _user_id: string }
         Returns: boolean
