@@ -365,6 +365,8 @@ async function processBatch(jobId: string) {
           });
 
           let chatHadError = false;
+          let inboundInserted = 0;
+
           for (let s = 0; s < unique.length; s += 200) {
             const chunk = unique.slice(s, s + 200);
             const ids = chunk.map((r) => r.whatsapp_message_id as string);
