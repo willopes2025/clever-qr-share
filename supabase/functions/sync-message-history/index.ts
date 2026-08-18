@@ -159,17 +159,18 @@ const isValidContactName = (name: string | undefined | null): boolean => {
 // ============= Process one bounded batch of chats =============
 async function processBatch(jobId: string) {
   const db = admin();
-  const nowIso = new Date().toISOString();
 
-  // Single-flight lease: only one runner may hold the job at a time.
-  const { data: leased } = await db
-    .from('message_sync_jobs')
-    .update({ status: 'running', lease_until: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString() })
-    .eq('id', jobId)
-    .in('status', ['pending', 'running'])
-    .or(`lease_until.is.null,lease_until.lt.${nowIso}`)
-    .select('*')
-    .maybeSingle();
+  // Single-flight lease via atomic DB function (returns the next slice of chats).
+  const { data: leased, error: leaseError } = await db.rpc('lease_message_sync_job', {
+    _job_id: jobId,
+    _lease_seconds: LEASE_SECONDS,
+    _batch_size: BATCH_SIZE,
+  });
+
+  if (leaseError) {
+    console.error(`[SYNC] Lease error for job ${jobId}:`, leaseError);
+    return;
+  }
 
   if (!leased) {
     console.log(`[SYNC] Job ${jobId} not leasable (finished or already running)`);
@@ -177,9 +178,9 @@ async function processBatch(jobId: string) {
   }
 
   const job = leased as Record<string, any>;
-  const chats: ChatLike[] = Array.isArray(job.chats) ? job.chats : [];
+  const totalChats: number = job.total_in_chats ?? job.total_chats ?? 0;
   const offset: number = job.processed_chats ?? 0;
-  const slice = chats.slice(offset, offset + BATCH_SIZE);
+  const slice: ChatLike[] = Array.isArray(job.chats_slice) ? job.chats_slice : [];
 
   if (slice.length === 0) {
     await db.from('message_sync_jobs').update({
@@ -192,6 +193,7 @@ async function processBatch(jobId: string) {
   const instanceId: string = job.instance_id;
   const evolutionName: string = job.evolution_instance_name || job.instance_name;
   const startTimestamp = job.start_date ? new Date(job.start_date).getTime() / 1000 : 0;
+
 
   let messagesImported = 0;
   let contactsCreated = 0;
