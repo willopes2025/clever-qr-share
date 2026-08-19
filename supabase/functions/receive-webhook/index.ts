@@ -1194,44 +1194,45 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         console.error('[PROFILE-PIC] Error fetching profile:', profileError);
       }
 
-      // Create new contact with label_id if available - using UPSERT to handle race conditions
+      // Create new contact with label_id if available.
+      // NOTE: do NOT use upsert with onConflict here — the unique index
+      // (user_id, phone) is PARTIAL (WHERE phone <> ''), so Postgres cannot
+      // infer it and returns 42P10, which silently dropped new leads.
       const { data: newContact, error: contactError } = await supabase
         .from('contacts')
-        .upsert({
+        .insert({
           user_id: userId,
           phone: phone,
           name: contactName,
           status: 'active',
           label_id: labelId,
           avatar_url: avatarUrl,
-        }, { 
-          onConflict: 'user_id,phone',
-          ignoreDuplicates: false 
         })
         .select('id, phone, label_id, name')
         .single();
 
       if (contactError) {
         // May have been created by parallel request - try to fetch existing
-        console.log('Upsert conflict, trying to fetch existing contact:', contactError.message);
+        console.log('Insert failed, trying to fetch existing contact:', contactError.message);
         const { data: existingContact } = await supabase
           .from('contacts')
           .select('id, phone, label_id, name')
           .eq('user_id', userId)
           .eq('phone', phone)
-          .single();
-          
+          .maybeSingle();
+
         if (existingContact) {
           contact = existingContact;
-          console.log('Contact found after upsert conflict:', contact.id);
+          console.log('Contact found after insert conflict:', contact.id);
         } else {
           console.error('Error creating contact and could not find existing:', contactError);
           continue;
         }
       } else {
         contact = newContact;
-        console.log('Created/updated contact:', contact?.id, 'with label_id:', labelId, 'avatar_url:', avatarUrl ? 'yes' : 'no');
+        console.log('Created contact:', contact?.id, 'with label_id:', labelId, 'avatar_url:', avatarUrl ? 'yes' : 'no');
       }
+
     } else {
       // Contact already exists - check if we need to update label_id or name
       const updates: Record<string, string> = {};
