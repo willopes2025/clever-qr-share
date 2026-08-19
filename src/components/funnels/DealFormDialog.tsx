@@ -222,7 +222,23 @@ export const DealFormDialog = ({
       <DialogContent className="max-w-md max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>{deal ? "Editar Deal" : "Novo Deal"}</DialogTitle>
+          {deal && ((deal as any).lead_number || deal.contact?.phone) && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {(deal as any).lead_number && (
+                <Badge variant="outline" className="font-mono text-xs">
+                  Lead #{(deal as any).lead_number}
+                </Badge>
+              )}
+              {deal.contact?.phone && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Phone className="h-3 w-3" />
+                  {formatPhoneDisplay(deal.contact.phone)}
+                </span>
+              )}
+            </div>
+          )}
         </DialogHeader>
+
 
         <div className="flex-1 min-h-0 overflow-y-auto pr-2">
           <form onSubmit={handleSubmit} className="space-y-4">
