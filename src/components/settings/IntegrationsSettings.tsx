@@ -581,8 +581,15 @@ export const IntegrationsSettings = () => {
                       </div>
                     </div>
 
+                    {isConnected && syncError && (
+                      <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-2">
+                        <p className="text-[11px] leading-snug text-destructive">{syncError}</p>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2">
                       {isConnected ? (
+
                         <>
                           <Button
                             size="sm"
