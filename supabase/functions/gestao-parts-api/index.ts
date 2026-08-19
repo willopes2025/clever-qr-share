@@ -526,16 +526,27 @@ Deno.serve(async (req: Request) => {
         });
     }
 
+    if (integrationId) {
+      await supabaseAdmin.from('integrations').update({ sync_error: null }).eq('id', integrationId);
+    }
+
     return new Response(JSON.stringify({ data: result }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     const status = error instanceof GpError ? error.status : 500;
+    const code = error instanceof GpError ? error.code : 'unexpected_error';
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[GestaoParts] Error:', status, message);
-    return new Response(JSON.stringify({ error: message, status }), {
+    console.error('[GestaoParts] Error:', status, code, message);
+
+    if (integrationId && (code === 'company_not_enabled' || code === 'invalid_credentials' || code === 'auth_failed')) {
+      await supabaseAdmin.from('integrations').update({ sync_error: message }).eq('id', integrationId);
+    }
+
+    return new Response(JSON.stringify({ error: message, status, code }), {
       status: status >= 400 && status < 600 ? status : 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+
 });
