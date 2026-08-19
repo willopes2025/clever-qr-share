@@ -185,6 +185,119 @@ const SchedulingSettings = ({ settings, onChange }: { settings: ScheduleConfig; 
   );
 };
 
+
+interface ProductItem { id: string; name: string; unit?: string; price: number }
+
+const ProductCatalogSettings = ({
+  settings,
+  onChange,
+}: {
+  settings: Record<string, any>;
+  onChange: (s: Record<string, any>) => void;
+}) => {
+  const products: ProductItem[] = Array.isArray(settings.products) ? settings.products : [];
+
+  const update = (patch: Record<string, any>) => onChange({ ...settings, ...patch });
+
+  const updateProduct = (index: number, key: keyof ProductItem, value: any) => {
+    const next = products.map((p, i) => (i === index ? { ...p, [key]: value } : p));
+    update({ products: next });
+  };
+
+  const addProduct = () => {
+    update({
+      products: [
+        ...products,
+        { id: `p${Date.now()}`, name: `Produto ${products.length + 1}`, unit: 'un', price: 0 },
+      ],
+    });
+  };
+
+  const removeProduct = (index: number) => {
+    update({ products: products.filter((_, i) => i !== index) });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-medium">Catálogo de produtos</Label>
+        <Button variant="ghost" size="sm" onClick={addProduct}>
+          <Plus className="h-4 w-4 mr-1" />
+          Adicionar
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Defina os produtos e o preço de custo unitário. No formulário, o respondente informa a
+        quantidade e o total é somado automaticamente.
+      </p>
+
+      <div className="space-y-3">
+        {products.map((product, index) => (
+          <div key={product.id || index} className="rounded-md border bg-background p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Input
+                value={product.name}
+                onChange={(e) => updateProduct(index, 'name', e.target.value)}
+                placeholder="Nome do produto"
+                className="flex-1"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                onClick={() => removeProduct(index)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Unidade</Label>
+                <Input
+                  value={product.unit || ''}
+                  onChange={(e) => updateProduct(index, 'unit', e.target.value)}
+                  placeholder="un, par, cx..."
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Preço de custo</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={product.price ?? 0}
+                  onChange={(e) => updateProduct(index, 'price', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+        {products.length === 0 && (
+          <p className="text-xs text-muted-foreground">Nenhum produto cadastrado ainda.</p>
+        )}
+      </div>
+
+      <Separator />
+
+      <div className="flex items-center justify-between">
+        <Label className="text-sm">Mostrar preços ao respondente</Label>
+        <Switch
+          checked={settings.show_prices !== false}
+          onCheckedChange={(checked) => update({ show_prices: checked })}
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <Label className="text-sm">Exigir ao menos 1 item</Label>
+        <Switch
+          checked={!!settings.require_item}
+          onCheckedChange={(checked) => update({ require_item: checked })}
+        />
+      </div>
+    </div>
+  );
+};
+
 const contactFields = [
   { value: 'name', label: 'Nome' },
   { value: 'email', label: 'E-mail' },
@@ -239,6 +352,7 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
   const isLayoutField = ['heading', 'paragraph', 'divider'].includes(localField.field_type);
   const isDistrictField = localField.field_type === 'district';
   const isSchedulingField = localField.field_type === 'scheduling';
+  const isProductTableField = localField.field_type === 'product_table';
 
   const UF_LIST = [
     'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
@@ -384,6 +498,17 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
               <SchedulingSettings
                 settings={(localField.settings as any)?.schedule || {}}
                 onChange={(schedule) => handleChange('settings', { ...(localField.settings || {}), schedule })}
+              />
+            </>
+          )}
+
+          {/* Product table catalog */}
+          {isProductTableField && (
+            <>
+              <Separator />
+              <ProductCatalogSettings
+                settings={(localField.settings as any) || {}}
+                onChange={(next) => handleChange('settings', next)}
               />
             </>
           )}
