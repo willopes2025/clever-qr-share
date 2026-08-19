@@ -204,9 +204,11 @@ async function getToken(username: string, password: string, force = false): Prom
 
 class GpError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code: string;
+  constructor(status: number, message: string, code = 'gp_error') {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
