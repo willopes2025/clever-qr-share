@@ -236,7 +236,7 @@ export const DealFormDialog = ({
               {deal.contact?.phone && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Phone className="h-3 w-3" />
-                  {formatPhoneDisplay(deal.contact.phone)}
+                  {formatPhoneNumber(deal.contact.phone)}
                 </span>
               )}
             </div>
