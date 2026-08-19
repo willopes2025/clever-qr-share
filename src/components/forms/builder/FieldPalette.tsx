@@ -22,7 +22,8 @@ import {
   MapPin,
   User,
   EyeOff,
-  DollarSign
+  DollarSign,
+  Table
 } from "lucide-react";
 
 interface FieldPaletteProps {
@@ -68,6 +69,7 @@ const fieldTypes: FieldTypeConfig[] = [
   { type: 'lead_code', label: 'Código do Lead', icon: Hash, category: 'Especiais' },
   { type: 'hidden', label: 'Campo Oculto', icon: EyeOff, category: 'Especiais' },
   { type: 'deal_value', label: 'Valor da Venda', icon: DollarSign, category: 'Especiais' },
+  { type: 'product_table', label: 'Tabela de Produtos', icon: Table, category: 'Especiais' },
   { type: 'phone_commercial', label: 'Tel. Comercial', icon: Phone, category: 'Especiais' },
   { type: 'phone_mobile', label: 'Celular', icon: Phone, category: 'Especiais' },
   { type: 'phone_personal', label: 'Tel. Pessoal', icon: Phone, category: 'Especiais' },
@@ -113,6 +115,9 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
     } else if (fieldType.type === 'phone_personal') {
       autoMappingType = 'additional_phone' as any;
       autoMappingTarget = 'Pessoal';
+    } else if (fieldType.type === 'product_table') {
+      autoMappingType = 'deal_native_field' as any;
+      autoMappingTarget = 'value';
     } else if (['name', 'phone', 'email'].includes(fieldType.type)) {
       autoMappingType = 'contact_field';
       autoMappingTarget = fieldType.type;
@@ -135,6 +140,11 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
           '0': { enabled: false, start: '', end: '' },
         }
       }
+    } : fieldType.type === 'product_table' ? {
+      products: [
+        { id: 'p1', name: 'Produto 1', unit: 'un', price: 0 },
+      ],
+      currency_symbol: 'R$',
     } : {};
 
     createField.mutate(
