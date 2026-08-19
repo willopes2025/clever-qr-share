@@ -166,8 +166,8 @@ export const LeadSearchFilters = ({
     }
     
     if (municipioSearch.length < 2) {
-      // Show first 50 if no search
-      return ibgeMunicipios.slice(0, 50).map(m => ({ value: m, label: m }));
+      // Show all municipalities of the selected UFs (capped for performance)
+      return ibgeMunicipios.slice(0, 1000).map(m => ({ value: m, label: m }));
     }
     
     // Filter by search term (case insensitive, accent insensitive)
@@ -182,7 +182,7 @@ export const LeadSearchFilters = ({
           .replace(/[\u0300-\u036f]/g, '')
           .includes(normalizedSearch)
       )
-      .slice(0, 50)
+      .slice(0, 1000)
       .map(m => ({ value: m, label: m }));
   }, [filters.uf, municipioSearch, ibgeMunicipios, isLoadingMunicipios]);
 
