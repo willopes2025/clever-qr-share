@@ -1,4 +1,8 @@
 import { useState, useEffect } from "react";
+import { Phone } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { formatPhoneNumber } from "@/lib/phone-utils";
+
 import {
   Dialog,
   DialogContent,
