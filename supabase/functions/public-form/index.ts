@@ -1016,6 +1016,85 @@ function generateFieldHTML(field: any, utmParams: Record<string, string> = {}): 
       </div>`;
     }
 
+    case 'product_table': {
+      const products = Array.isArray(field.settings?.products) ? field.settings.products : [];
+      const showPrices = field.settings?.show_prices !== false;
+      const requireItem = !!field.settings?.require_item;
+      const productsJson = JSON.stringify(products.map((p: any) => ({
+        id: String(p.id || ''),
+        name: String(p.name || ''),
+        unit: String(p.unit || ''),
+        price: Number(p.price) || 0,
+      }))).replace(/</g, '\\u003c');
+
+      const rows = products.map((p: any, i: number) => `
+        <tr>
+          <td>${escapeHtml(String(p.name || ''))}${p.unit ? ` <span class="pt-unit">(${escapeHtml(String(p.unit))})</span>` : ''}</td>
+          ${showPrices ? `<td class="pt-right">R$ ${(Number(p.price) || 0).toFixed(2).replace('.', ',')}</td>` : ''}
+          <td class="pt-right"><input type="number" min="0" step="1" class="pt-qty" data-index="${i}" placeholder="0"></td>
+          ${showPrices ? `<td class="pt-right pt-sub" data-index="${i}">R$ 0,00</td>` : ''}
+        </tr>`).join('');
+
+      const script = `(function(){
+        var wrap=document.getElementById('pt-${field.id}');
+        if(!wrap) return;
+        var products=${productsJson};
+        var hidden=document.getElementById('pt-input-${field.id}');
+        var totalEl=document.getElementById('pt-total-${field.id}');
+        var showPrices=${showPrices ? 'true' : 'false'};
+        function money(v){return 'R$ '+(v||0).toFixed(2).replace('.',',');}
+        function recalc(){
+          var items=[];var total=0;
+          var qtys=wrap.querySelectorAll('.pt-qty');
+          for(var i=0;i<qtys.length;i++){
+            var idx=parseInt(qtys[i].getAttribute('data-index'),10);
+            var qty=parseFloat(qtys[i].value)||0;
+            var prod=products[idx]||{};
+            var sub=qty*(prod.price||0);
+            if(showPrices){
+              var subEl=wrap.querySelector('.pt-sub[data-index="'+idx+'"]');
+              if(subEl) subEl.textContent=money(sub);
+            }
+            if(qty>0){
+              items.push({name:prod.name,unit:prod.unit,quantity:qty,unit_price:prod.price||0,subtotal:sub});
+              total+=sub;
+            }
+          }
+          if(totalEl) totalEl.textContent=money(total);
+          hidden.value=items.length?JSON.stringify({items:items,total:Number(total.toFixed(2))}):'';
+        }
+        wrap.addEventListener('input',recalc);
+        recalc();
+        ${requireItem ? `var f=wrap.closest('form'); if(f){f.addEventListener('submit',function(e){ if(!hidden.value){ e.preventDefault(); e.stopPropagation(); alert('Selecione ao menos um produto.'); } },true);}` : ''}
+      })();`;
+
+      return `<div class="field"${conditionalAttrs}>
+        <label>${escapeHtml(field.label)}${requiredStar}</label>
+        <input type="hidden" id="pt-input-${field.id}" name="${field.id}">
+        <div id="pt-${field.id}" class="product-table-wrap">
+          <table class="product-table">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                ${showPrices ? '<th class="pt-right">Preço</th>' : ''}
+                <th class="pt-right">Qtd.</th>
+                ${showPrices ? '<th class="pt-right">Subtotal</th>' : ''}
+              </tr>
+            </thead>
+            <tbody>${rows || `<tr><td colspan="4">Nenhum produto disponível</td></tr>`}</tbody>
+            <tfoot>
+              <tr>
+                <td colspan="${showPrices ? 3 : 2}"><strong>Total</strong></td>
+                <td class="pt-right"><strong id="pt-total-${field.id}">R$ 0,00</strong></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        ${helpText}
+        <script>${script}</script>
+      </div>`;
+    }
+
     default:
       return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
