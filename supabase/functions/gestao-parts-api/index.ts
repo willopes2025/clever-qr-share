@@ -157,7 +157,32 @@ async function getToken(username: string, password: string, force = false): Prom
   });
 
   if (res.status !== 200) {
-    throw new GpError(res.status, `Falha na autenticação Gestão Parts: ${res.body?.slice(0, 500)}`);
+    // Never keep a stale token around after an auth failure
+    tokenCache.delete(username);
+
+    let detail = '';
+    try {
+      detail = String((JSON.parse(res.body || '{}') as { detail?: unknown }).detail ?? '');
+    } catch {
+      detail = (res.body || '').slice(0, 300);
+    }
+
+    const normalized = detail.toLowerCase();
+    if (normalized.includes('não habilitado') || normalized.includes('nao habilitado')) {
+      throw new GpError(
+        401,
+        'Usuário ainda não liberado para a empresa no ERP Gestão Parts. Acione o suporte da Gestão Parts (setor e-commerce/api) para vincular o usuário à empresa.',
+        'company_not_enabled',
+      );
+    }
+    if (res.status === 401 || res.status === 403) {
+      throw new GpError(
+        401,
+        'Credenciais da Gestão Parts inválidas. Atualize usuário e senha em Configurações → Integrações.',
+        'invalid_credentials',
+      );
+    }
+    throw new GpError(res.status, `Falha na autenticação Gestão Parts: ${detail || res.body?.slice(0, 300)}`, 'auth_failed');
   }
 
   let parsed: { access_token?: string; expires_in?: number };
@@ -175,6 +200,7 @@ async function getToken(username: string, password: string, force = false): Prom
   tokenCache.set(username, { token: parsed.access_token, expiresAt: Date.now() + ttl });
   return parsed.access_token;
 }
+
 
 class GpError extends Error {
   status: number;
