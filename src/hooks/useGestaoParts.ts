@@ -51,11 +51,20 @@ export const callGestaoParts = async <T = unknown>(
   const json = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(json?.error || `Erro ao consultar Gestão Parts (${response.status})`);
+    const err = new Error(json?.error || `Erro ao consultar Gestão Parts (${response.status})`) as Error & { code?: string };
+    err.code = json?.code;
+    throw err;
   }
 
   return json?.data as T;
 };
+
+/** Erros de autenticação do ERP que exigem ação (suporte ou nova credencial) */
+export const isGestaoPartsAuthError = (error: unknown): boolean => {
+  const code = (error as { code?: string } | null)?.code;
+  return code === 'company_not_enabled' || code === 'invalid_credentials' || code === 'auth_failed';
+};
+
 
 export const useGestaoParts = () => {
   const { user } = useAuth();

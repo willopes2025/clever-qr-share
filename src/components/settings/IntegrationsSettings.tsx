@@ -539,7 +539,10 @@ export const IntegrationsSettings = () => {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredIntegrations.map((config) => {
               const Icon = config.icon;
-              const isConnected = !!getIntegration(config.id)?.is_active;
+              const integrationRow = getIntegration(config.id);
+              const isConnected = !!integrationRow?.is_active;
+              const syncError = integrationRow?.sync_error;
+
               const hasAccess = hasAccessToPlan(config.minPlan);
 
               return (
@@ -578,8 +581,15 @@ export const IntegrationsSettings = () => {
                       </div>
                     </div>
 
+                    {isConnected && syncError && (
+                      <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-2">
+                        <p className="text-[11px] leading-snug text-destructive">{syncError}</p>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2">
                       {isConnected ? (
+
                         <>
                           <Button
                             size="sm"

@@ -157,7 +157,32 @@ async function getToken(username: string, password: string, force = false): Prom
   });
 
   if (res.status !== 200) {
-    throw new GpError(res.status, `Falha na autenticação Gestão Parts: ${res.body?.slice(0, 500)}`);
+    // Never keep a stale token around after an auth failure
+    tokenCache.delete(username);
+
+    let detail = '';
+    try {
+      detail = String((JSON.parse(res.body || '{}') as { detail?: unknown }).detail ?? '');
+    } catch {
+      detail = (res.body || '').slice(0, 300);
+    }
+
+    const normalized = detail.toLowerCase();
+    if (normalized.includes('não habilitado') || normalized.includes('nao habilitado')) {
+      throw new GpError(
+        401,
+        'Usuário ainda não liberado para a empresa no ERP Gestão Parts. Acione o suporte da Gestão Parts (setor e-commerce/api) para vincular o usuário à empresa.',
+        'company_not_enabled',
+      );
+    }
+    if (res.status === 401 || res.status === 403) {
+      throw new GpError(
+        401,
+        'Credenciais da Gestão Parts inválidas. Atualize usuário e senha em Configurações → Integrações.',
+        'invalid_credentials',
+      );
+    }
+    throw new GpError(res.status, `Falha na autenticação Gestão Parts: ${detail || res.body?.slice(0, 300)}`, 'auth_failed');
   }
 
   let parsed: { access_token?: string; expires_in?: number };
@@ -176,11 +201,14 @@ async function getToken(username: string, password: string, force = false): Prom
   return parsed.access_token;
 }
 
+
 class GpError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code: string;
+  constructor(status: number, message: string, code = 'gp_error') {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -235,18 +263,20 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+  let integrationId: string | null = null;
+
   try {
     const { action, params = {} } = await req.json();
     console.log(`[GestaoParts] Action: ${action}`, JSON.stringify(params).slice(0, 300));
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: req.headers.get('Authorization') || '' } },
     });
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
 
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) {
@@ -271,7 +301,9 @@ Deno.serve(async (req: Request) => {
       .eq('is_active', true)
       .maybeSingle();
 
+    integrationId = integration?.id ?? null;
     const rawCreds = (integration?.credentials || {}) as Record<string, string>;
+
     const username = rawCreds.username || Deno.env.get('GESTAO_PARTS_USERNAME') || '';
     const password = rawCreds.password || Deno.env.get('GESTAO_PARTS_PASSWORD') || '';
 
@@ -494,16 +526,27 @@ Deno.serve(async (req: Request) => {
         });
     }
 
+    if (integrationId) {
+      await supabaseAdmin.from('integrations').update({ sync_error: null }).eq('id', integrationId);
+    }
+
     return new Response(JSON.stringify({ data: result }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     const status = error instanceof GpError ? error.status : 500;
+    const code = error instanceof GpError ? error.code : 'unexpected_error';
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[GestaoParts] Error:', status, message);
-    return new Response(JSON.stringify({ error: message, status }), {
+    console.error('[GestaoParts] Error:', status, code, message);
+
+    if (integrationId && (code === 'company_not_enabled' || code === 'invalid_credentials' || code === 'auth_failed')) {
+      await supabaseAdmin.from('integrations').update({ sync_error: message }).eq('id', integrationId);
+    }
+
+    return new Response(JSON.stringify({ error: message, status, code }), {
       status: status >= 400 && status < 600 ? status : 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+
 });
