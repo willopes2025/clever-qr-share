@@ -159,6 +159,30 @@ Deno.serve(async (req: Request) => {
   };
 
 
+  // Product table fields: parse the JSON payload into a readable summary and keep the total
+  const productTableTotals: Record<string, number> = {};
+  for (const field of formFields) {
+    if (field.field_type !== 'product_table') continue;
+    const raw = submissionData[field.id];
+    if (!raw) { submissionData[field.id] = ''; continue; }
+    try {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const items = Array.isArray(parsed?.items) ? parsed.items : [];
+      const total = Number(parsed?.total) || items.reduce((acc: number, it: any) => acc + (Number(it?.subtotal) || 0), 0);
+      productTableTotals[field.id] = total;
+      const fmt = (n: number) => `R$ ${(Number(n) || 0).toFixed(2).replace('.', ',')}`;
+      const lines = items.map((it: any) =>
+        `${it.quantity}x ${it.name}${it.unit ? ` (${it.unit})` : ''} - ${fmt(it.unit_price)} = ${fmt(it.subtotal)}`
+      );
+      submissionData[field.id] = lines.length
+        ? `${lines.join(' | ')} | Total: ${fmt(total)}`
+        : '';
+      console.log(`Product table ${field.id}: ${items.length} itens, total ${total}`);
+    } catch (e) {
+      console.error('Failed to parse product_table value', e);
+    }
+  }
+
   // Check for lookup_by_display_id and lookup_by_lead_number fields first
   let lookupDisplayId: string | null = null;
   let lookupLeadNumber: number | null = null;
@@ -279,7 +303,9 @@ Deno.serve(async (req: Request) => {
     } else if (field.mapping_type === 'deal_native_field' && field.mapping_target && fieldValue) {
       // Map to native deal columns (value, title)
       if (field.mapping_target === 'value') {
-        dealNativeFields.value = parseFloat(String(fieldValue).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+        dealNativeFields.value = productTableTotals[field.id] !== undefined
+          ? productTableTotals[field.id]
+          : parseFloat(String(fieldValue).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
       } else if (field.mapping_target === 'title') {
         dealNativeFields.title = String(fieldValue);
       }
