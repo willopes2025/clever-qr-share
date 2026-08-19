@@ -130,6 +130,60 @@ export const FieldPreview = ({ field }: FieldPreviewProps) => {
           </div>
         );
 
+      case 'product_table': {
+        const products: Array<{ id?: string; name?: string; unit?: string; price?: number }> =
+          (field.settings as any)?.products || [];
+        const showPrices = (field.settings as any)?.show_prices !== false;
+        return (
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left p-2 font-medium">Produto</th>
+                  {showPrices && <th className="text-right p-2 font-medium">Preço</th>}
+                  <th className="text-right p-2 font-medium w-24">Qtd.</th>
+                  {showPrices && <th className="text-right p-2 font-medium">Subtotal</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {products.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-3 text-center text-muted-foreground text-xs">
+                      Nenhum produto cadastrado
+                    </td>
+                  </tr>
+                )}
+                {products.map((p, i) => (
+                  <tr key={p.id || i} className="border-t">
+                    <td className="p-2">
+                      {p.name}
+                      {p.unit ? <span className="text-muted-foreground"> ({p.unit})</span> : null}
+                    </td>
+                    {showPrices && (
+                      <td className="p-2 text-right">
+                        R$ {(p.price || 0).toFixed(2).replace('.', ',')}
+                      </td>
+                    )}
+                    <td className="p-2 text-right">
+                      <Input type="number" disabled className="h-8 bg-muted/50 text-right" placeholder="0" />
+                    </td>
+                    {showPrices && <td className="p-2 text-right text-muted-foreground">R$ 0,00</td>}
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t bg-muted/30">
+                  <td className="p-2 font-medium" colSpan={showPrices ? 3 : 2}>
+                    Total
+                  </td>
+                  <td className="p-2 text-right font-semibold">R$ 0,00</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        );
+      }
+
       case 'name':
         return (
           <div className="grid grid-cols-2 gap-3">
