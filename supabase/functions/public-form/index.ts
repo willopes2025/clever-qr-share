@@ -343,6 +343,14 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
     .district-select { width: 100%; }
     /* Scheduling calendar styles */
     .scheduling-container { border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+    .product-table-wrap { border: 1px solid #e5e7eb; border-radius: 12px; overflow-x: auto; }
+    .product-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .product-table th, .product-table td { padding: 0.6rem 0.75rem; text-align: left; border-bottom: 1px solid #f1f5f9; }
+    .product-table thead th { background: #f8fafc; font-weight: 600; }
+    .product-table tfoot td { background: #f8fafc; border-bottom: none; }
+    .product-table .pt-right { text-align: right; }
+    .product-table .pt-unit { color: #64748b; }
+    .product-table .pt-qty { width: 90px; padding: 0.35rem 0.5rem; text-align: right; border: 1px solid #e5e7eb; border-radius: 8px; }
     .calendar-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
     .calendar-header button { background: none; border: 1px solid #d1d5db; border-radius: 6px; padding: 0.25rem 0.5rem; cursor: pointer; font-size: 0.85rem; }
     .calendar-header button:hover { background: #f3f4f6; }
