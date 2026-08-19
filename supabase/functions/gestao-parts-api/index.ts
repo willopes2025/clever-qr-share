@@ -301,7 +301,9 @@ Deno.serve(async (req: Request) => {
       .eq('is_active', true)
       .maybeSingle();
 
+    integrationId = integration?.id ?? null;
     const rawCreds = (integration?.credentials || {}) as Record<string, string>;
+
     const username = rawCreds.username || Deno.env.get('GESTAO_PARTS_USERNAME') || '';
     const password = rawCreds.password || Deno.env.get('GESTAO_PARTS_PASSWORD') || '';
 
