@@ -1,28 +1,33 @@
-# Falha de autenticação Gestão Parts
+# Gestão Parts: corrigir credenciais e tratamento de erro
 
-## Diagnóstico
+## O que descobri testando a API real
 
-O erro `{"detail":"Usuário ou senha incorreto"}` vem do próprio ERP, não do WideZap.
+1. **A senha gravada no sistema estava errada** (faltavam caracteres: estava `JbK7uwP1nO...`, o correto é `JBFMQk7uwP1nO...`). Por isso o retorno era "Usuário ou senha incorreto".
+2. **Com a senha correta, o login avança e o erro muda** para:
+   `401 {"detail":"Usuário não habilitado para empresa"}`
+3. **O payload do WideZap está correto.** Conferi a documentação oficial da API (`/openapi.json`): o endpoint `/token` aceita `username`, `password`, `grant_type`, e opcionalmente `scope`, `client_id`, `client_secret` — nenhum campo de empresa. Testei variações com `scope` e `client_id` (código da empresa e CNPJ) e o erro é o mesmo. Ou seja, não é problema de formato do request.
 
-Testei a chamada de autenticação diretamente contra `https://api.gestaoparts.com.br/token` com as credenciais gravadas na integração (usuário `rrmartinswidezapws`) e o retorno foi **HTTP 401 – "Usuário ou senha incorreto"**. O formato do envio está correto (OAuth2 password, `grant_type=password`, form-urlencoded), igual ao que a função `gestao-parts-api` usa.
+**Conclusão:** o usuário `rrmartinswidezapws` existe e a senha está certa, mas ainda **não foi vinculado à empresa (Martins Distribuidora, CNPJ 59.336.127/0001-29) no lado da Gestão Parts**. É exatamente o que o e-mail pede: acionar o suporte (setor e-commerce/api, analista Bruno) para concluir a liberação.
 
-Ou seja: a senha armazenada não é mais válida no ERP (foi trocada, expirou ou o usuário de webservice foi desativado). Nenhuma alteração de código resolve isso — é preciso a credencial correta.
+## O que vou fazer
 
-## O que fazer
+1. **Atualizar a senha correta** na integração da conta `comercial@martinspecas.com.br`.
+2. **Melhorar o tratamento de erro** na função `gestao-parts-api`:
+   - Distinguir os dois casos de 401 no `/token`: credencial inválida vs. usuário não habilitado para a empresa.
+   - Mensagens em português na tela: "Credenciais inválidas — atualize em Configurações > Integrações" e "Usuário ainda não liberado para a empresa no ERP — acione o suporte da Gestão Parts".
+   - Limpar o cache de token na falha e não repetir a chamada em loop.
+3. **Sinalizar o status na tela de Integrações**: gravar a falha em `integrations.sync_error` e mostrar o aviso, em vez da integração aparecer como "conectada" mesmo sem funcionar.
+4. **Rodar o teste de conexão** logo após a senha ser atualizada e reportar o resultado.
 
-1. Confirmar com o suporte da Gestão Parts / com o cliente qual é o usuário e a senha atuais do webservice (e se o usuário `rrmartinswidezapws` continua ativo).
-2. Atualizar em **Configurações > Integrações > Gestão Parts** (usuário e senha) e clicar em "Testar conexão".
+## O que depende da Gestão Parts
 
-Se preferir, me passe as credenciais novas que eu gravo e valido a conexão.
+Enquanto o suporte não habilitar o usuário para a empresa, nenhuma consulta (peças, clientes, pedidos, financeiro) vai retornar dados — o bloqueio é do lado deles. Assim que liberarem, a integração deve funcionar sem novas mudanças: é só clicar em "Testar conexão".
 
-## Melhorias que farei junto (opcionais)
-
-- **Mensagem de erro mais clara**: hoje aparece o JSON cru do ERP. Passaria a mostrar "Credenciais da Gestão Parts inválidas — atualize usuário e senha em Configurações > Integrações", tanto na página quanto na seção do lead.
-- **Registro do erro na integração**: gravar a falha em `integrations.sync_error` e sinalizar na tela de Integrações que a conexão está com problema, em vez de aparecer como conectada.
-- **Sem tentativas repetidas**: ao receber 401 no `/token`, não repetir a chamada (hoje só há retry para 401 nas rotas de dados, mas vale limpar o cache de token na falha).
+Mensagem sugerida ao suporte: *"Usuário de webservice `rrmartinswidezapws` autentica mas retorna 'Usuário não habilitado para empresa'. Favor vincular o usuário à empresa Martins Distribuidora de Auto Peças Ltda — CNPJ 59.336.127/0001-29."*
 
 ## Detalhes técnicos
 
-- Arquivo: `supabase/functions/gestao-parts-api/index.ts` (função `getToken`, linhas ~145-210) — tratar 401 do `/token` como erro de credencial, com código próprio (`invalid_credentials`) e mensagem em português.
-- Frontend: `src/hooks/useGestaoParts.ts` e `src/pages/GestaoParts.tsx` / `src/components/funnels/GestaoPartsDealSection.tsx` — exibir a mensagem amigável e um atalho para Configurações > Integrações.
-- Nenhuma mudança de banco necessária.
+- `supabase/functions/gestao-parts-api/index.ts`: função `getToken` (~linhas 145-210) — mapear o corpo do 401 para códigos próprios (`invalid_credentials`, `company_not_enabled`) e propagar a mensagem amigável; invalidar o cache do token na falha.
+- `src/hooks/useGestaoParts.ts`, `src/pages/GestaoParts.tsx`, `src/components/funnels/GestaoPartsDealSection.tsx`: exibir a mensagem tratada e um atalho para Configurações > Integrações.
+- Atualização da senha é dado (não schema), feita direto no registro da integração.
+- Recomendo trocar essa senha com o suporte depois da validação, já que circulou por e-mail.
