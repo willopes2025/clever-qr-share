@@ -1,35 +1,28 @@
-# Revisão: integração Gestão Parts (ERP SSPlus)
+# Falha de autenticação Gestão Parts
 
-Status atual da integração feita para a conta `comercial@martinspecas.com.br`.
+## Diagnóstico
 
-## O que já está pronto
+O erro `{"detail":"Usuário ou senha incorreto"}` vem do próprio ERP, não do WideZap.
 
-**Conexão**
-- Provedor `gestao_parts` disponível em Configurações > Integrações (usuário, senha e URL opcional da API).
-- Credenciais já gravadas e ativas para `comercial@martinspecas.com.br` desde 14/08 (usuário `rrmartinswidezapws`).
-- Autenticação OAuth2 por `POST /token`, com token em cache e renovação automática.
+Testei a chamada de autenticação diretamente contra `https://api.gestaoparts.com.br/token` com as credenciais gravadas na integração (usuário `rrmartinswidezapws`) e o retorno foi **HTTP 401 – "Usuário ou senha incorreto"**. O formato do envio está correto (OAuth2 password, `grant_type=password`, form-urlencoded), igual ao que a função `gestao-parts-api` usa.
 
-**Backend** — função `gestao-parts-api` (509 linhas), somente leitura, com as ações:
-- Peças: busca, código de barras, preço, tabela de preço, estoque, consulta por placa.
-- Clientes: consulta por telefone/CPF/CNPJ, listagem e limite de crédito.
-- Pedidos: listagem por status, detalhe por requisição e pedidos por CPF.
-- Financeiro: contas a receber e boletos.
-- Extras: empresas, teste de conexão e `lead_summary` (resumo do cliente para o card do lead).
+Ou seja: a senha armazenada não é mais válida no ERP (foi trocada, expirou ou o usuário de webservice foi desativado). Nenhuma alteração de código resolve isso — é preciso a credencial correta.
 
-**Frontend**
-- Página `/gestao-parts` com as abas de consulta, exibindo os dados em tabela (com opção "Ver JSON").
-- Item "Gestão Parts" no menu lateral, exibido só quando a integração está conectada.
-- Permissão `view_gestao_parts` (padrão: ligada para admin, desligada para membro).
-- Seção "Gestão Parts" no card do lead / Inbox, mostrando cadastro no ERP, últimos pedidos e contas a receber, a partir do telefone ou CPF/CNPJ do contato.
+## O que fazer
 
-## O que ficou de fora (pendências)
+1. Confirmar com o suporte da Gestão Parts / com o cliente qual é o usuário e a senha atuais do webservice (e se o usuário `rrmartinswidezapws` continua ativo).
+2. Atualizar em **Configurações > Integrações > Gestão Parts** (usuário e senha) e clicar em "Testar conexão".
 
-1. **Escrita no ERP**: criação de pedido de venda a partir do WideZap — não implementada, tudo hoje é consulta.
-2. **Uso pela IA**: o agente de IA não consulta o ERP (estoque, preço, pedidos, boletos) para responder o cliente no WhatsApp.
-3. **Sem sincronização/cache em banco**: cada consulta vai direto na API do ERP (a Ssótica, por comparação, tem sincronização). Consultas repetidas podem ficar lentas.
-4. **Apresentação genérica**: as tabelas são montadas automaticamente a partir da resposta da API — sem colunas nomeadas, formatação de moeda ou filtros específicos por módulo.
-5. **Segurança**: a senha do ERP veio por e-mail; vale pedir troca ao suporte da Gestão Parts (a integração continua funcionando, basta atualizar em Configurações).
+Se preferir, me passe as credenciais novas que eu gravo e valido a conexão.
 
-## Sugestão de próximo passo
+## Melhorias que farei junto (opcionais)
 
-Se quiser evoluir, a ordem que faz mais sentido é: (2) IA consultando estoque/preço no WhatsApp, depois (4) refinar a apresentação das telas, e por fim (1) criação de pedido no ERP.
+- **Mensagem de erro mais clara**: hoje aparece o JSON cru do ERP. Passaria a mostrar "Credenciais da Gestão Parts inválidas — atualize usuário e senha em Configurações > Integrações", tanto na página quanto na seção do lead.
+- **Registro do erro na integração**: gravar a falha em `integrations.sync_error` e sinalizar na tela de Integrações que a conexão está com problema, em vez de aparecer como conectada.
+- **Sem tentativas repetidas**: ao receber 401 no `/token`, não repetir a chamada (hoje só há retry para 401 nas rotas de dados, mas vale limpar o cache de token na falha).
+
+## Detalhes técnicos
+
+- Arquivo: `supabase/functions/gestao-parts-api/index.ts` (função `getToken`, linhas ~145-210) — tratar 401 do `/token` como erro de credencial, com código próprio (`invalid_credentials`) e mensagem em português.
+- Frontend: `src/hooks/useGestaoParts.ts` e `src/pages/GestaoParts.tsx` / `src/components/funnels/GestaoPartsDealSection.tsx` — exibir a mensagem amigável e um atalho para Configurações > Integrações.
+- Nenhuma mudança de banco necessária.
