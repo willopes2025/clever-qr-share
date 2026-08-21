@@ -545,7 +545,8 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
           queryClient.setQueryData(queryKey, data);
         });
       }
-      const message = err instanceof Error ? err.message : String(err || 'Erro desconhecido');
+      const failure = err as { message?: string; details?: string; hint?: string } | null;
+      const message = failure?.message || failure?.details || failure?.hint || 'Erro desconhecido';
       console.error('Error updating deal:', err);
       toast.error(`Não foi possível alterar a etapa: ${message}`);
     },
