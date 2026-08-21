@@ -23,7 +23,7 @@ interface FunnelKanbanViewProps {
 }
 
 export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
-  const { updateDeal } = useFunnels();
+  const { updateDeal, updateStage } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
   const grabScroll = useGrabScroll();
