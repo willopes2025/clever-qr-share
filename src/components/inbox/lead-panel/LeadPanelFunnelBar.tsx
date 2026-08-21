@@ -103,10 +103,10 @@ export const LeadPanelFunnelBar = ({ contactId, conversationId, selectedDealId, 
         <Target className="h-4 w-4 text-muted-foreground shrink-0" />
         
         <Select 
-        <Select 
           value={activeDeal.stage_id} 
           onValueChange={handleStageChange}
         >
+
 
           <SelectTrigger className="h-8 text-sm flex-1 min-w-0 border border-border/50 bg-muted/30 px-2 hover:bg-muted/50 focus:ring-1 focus:ring-primary/30 rounded-md cursor-pointer">
             <div className="flex items-center gap-2 min-w-0 overflow-hidden">
