@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Plus, Loader2, Settings2 } from "lucide-react";
+import { Plus, Loader2, Settings2, GripVertical } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
