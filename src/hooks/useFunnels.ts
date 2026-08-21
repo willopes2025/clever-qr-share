@@ -416,36 +416,22 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
       responsible_id?: string | null;
     }) => {
       // Get current deal to check stage and responsible changes
-      const { data: currentDeal } = await supabase
+      const { data: currentDeal, error: currentDealError } = await supabase
         .from('funnel_deals')
         .select('stage_id, responsible_id, title')
         .eq('id', id)
         .single();
 
+      if (currentDealError) throw currentDealError;
+
       const updateData: Record<string, unknown> = { ...data };
       let stageChanged = false;
       let responsibleChanged = false;
-      let newStageName: string | null = null;
       
-      // If stage changed, update entered_stage_at and create history
+      // Keep the primary update independent from history, notifications and automations.
       if (data.stage_id && currentDeal && data.stage_id !== currentDeal.stage_id) {
         stageChanged = true;
         updateData.entered_stage_at = new Date().toISOString();
-        
-        // Create history entry
-        await supabase.from('funnel_deal_history').insert({
-          deal_id: id,
-          from_stage_id: currentDeal.stage_id,
-          to_stage_id: data.stage_id
-        });
-
-        // Get new stage name for notification
-        const { data: stageData } = await supabase
-          .from('funnel_stages')
-          .select('name')
-          .eq('id', data.stage_id)
-          .single();
-        newStageName = stageData?.name || null;
       }
       
       // Check if responsible changed
@@ -461,8 +447,16 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
         .single();
       if (error) throw error;
 
-      // Trigger stage automations AFTER the update (fire-and-forget, must not block the UI)
+      // Secondary work happens only after the deal was persisted and never blocks the UI.
       if (stageChanged && currentDeal) {
+        void supabase.from('funnel_deal_history').insert({
+          deal_id: id,
+          from_stage_id: currentDeal.stage_id,
+          to_stage_id: data.stage_id
+        }).then(({ error: historyError }) => {
+          if (historyError) console.error('Error recording deal stage history:', historyError);
+        });
+
         supabase.functions.invoke('process-funnel-automations', {
           body: { dealId: id, fromStageId: currentDeal.stage_id, toStageId: data.stage_id }
         }).catch((e) => console.error('Error triggering automations:', e));
@@ -473,7 +467,6 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
         deal: updatedDeal, 
         stageChanged, 
         responsibleChanged, 
-        newStageName,
         dealTitle: updatedDeal?.title || currentDeal?.title || 'Deal'
       };
     },
@@ -552,22 +545,36 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
           queryClient.setQueryData(queryKey, data);
         });
       }
-      toast.error("Erro ao mover deal");
+      const failure = err as { message?: string; details?: string; hint?: string } | null;
+      const message = failure?.message || failure?.details || failure?.hint || 'Erro desconhecido';
+      console.error('Error updating deal:', err);
+      toast.error(`Não foi possível alterar a etapa: ${message}`);
     },
     onSuccess: (result) => {
       if (!result) return;
       
-      const { deal, stageChanged, responsibleChanged, newStageName, dealTitle } = result;
+      const { deal, stageChanged, responsibleChanged, dealTitle } = result;
       
       // Send stage change notification
       if (stageChanged && deal) {
-        supabase.functions.invoke('send-whatsapp-notification', {
-          body: {
-            type: 'deal_stage_change',
-            data: { dealId: deal.id, dealTitle, stageName: newStageName },
-            recipientUserId: deal.responsible_id,
-          },
-        }).catch(e => console.error('Error sending deal_stage_change notification:', e));
+        void supabase
+          .from('funnel_stages')
+          .select('name')
+          .eq('id', deal.stage_id)
+          .maybeSingle()
+          .then(({ data: stageData, error: stageError }) => {
+            if (stageError) {
+              console.error('Error loading stage name for notification:', stageError);
+              return;
+            }
+            supabase.functions.invoke('send-whatsapp-notification', {
+              body: {
+                type: 'deal_stage_change',
+                data: { dealId: deal.id, dealTitle, stageName: stageData?.name || null },
+                recipientUserId: deal.responsible_id,
+              },
+            }).catch(e => console.error('Error sending deal_stage_change notification:', e));
+          });
       }
       
       // Send assigned notification
@@ -584,6 +591,8 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['funnels'] });
       queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-deals'] });
+      queryClient.invalidateQueries({ queryKey: ['stage-deal-counts'] });
     }
   });
 
