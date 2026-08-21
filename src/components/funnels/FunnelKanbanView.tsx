@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Plus, Loader2, Settings2 } from "lucide-react";
+import { Plus, Loader2, Settings2, GripVertical } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ interface FunnelKanbanViewProps {
 }
 
 export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
-  const { updateDeal } = useFunnels();
+  const { updateDeal, updateStage } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
   const grabScroll = useGrabScroll();
@@ -36,6 +36,8 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [draggedDealId, setDraggedDealId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
+  const [draggedStageId, setDraggedStageId] = useState<string | null>(null);
+  const [stageDropTargetId, setStageDropTargetId] = useState<string | null>(null);
   const [loadingStageId, setLoadingStageId] = useState<string | null>(null);
   const { fieldKeys: cardFieldKeys, setFieldKeys: setCardFieldKeys } = useFunnelCardFields(funnel.id);
 
@@ -84,14 +86,55 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
 
   const handleDragOver = useCallback((e: React.DragEvent, stageId: string) => {
     e.preventDefault();
+    if (draggedStageId) {
+      if (stageDropTargetId !== stageId) setStageDropTargetId(stageId);
+      return;
+    }
     if (dragOverStageId !== stageId) {
       setDragOverStageId(stageId);
     }
-  }, [dragOverStageId]);
+  }, [dragOverStageId, draggedStageId, stageDropTargetId]);
 
   const handleDragLeave = useCallback(() => {
     setDragOverStageId(null);
   }, []);
+
+  // ---- Reordenação de etapas (arrastar coluna) ----
+  const handleStageDragStart = useCallback((e: React.DragEvent, stageId: string) => {
+    e.stopPropagation();
+    setDraggedStageId(stageId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', stageId);
+  }, []);
+
+  const handleStageDragEnd = useCallback(() => {
+    setDraggedStageId(null);
+    setStageDropTargetId(null);
+  }, []);
+
+  const handleStageDrop = useCallback(async (targetStageId: string) => {
+    const sourceId = draggedStageId;
+    setDraggedStageId(null);
+    setStageDropTargetId(null);
+    if (!sourceId || sourceId === targetStageId) return;
+
+    const ordered = [...stages].sort((a, b) => a.display_order - b.display_order);
+    const from = ordered.findIndex(s => s.id === sourceId);
+    const to = ordered.findIndex(s => s.id === targetStageId);
+    if (from === -1 || to === -1) return;
+
+    const [moved] = ordered.splice(from, 1);
+    ordered.splice(to, 0, moved);
+
+    await Promise.all(
+      ordered.map((s, index) =>
+        s.display_order === index
+          ? Promise.resolve()
+          : updateStage.mutateAsync({ id: s.id, display_order: index })
+      )
+    );
+  }, [draggedStageId, stages, updateStage]);
+
 
   const moveDealToStage = useCallback((deal: FunnelDeal, targetStage: FunnelStage, extraFields?: Record<string, unknown>) => {
     const merged = { ...(deal.custom_fields as Record<string, unknown> || {}), ...(extraFields || {}) };
@@ -106,6 +149,11 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
   const handleDrop = useCallback((e: React.DragEvent, stageId: string) => {
     e.preventDefault();
     setDragOverStageId(null);
+
+    if (draggedStageId) {
+      void handleStageDrop(stageId);
+      return;
+    }
 
     if (!draggedDealId) return;
     const targetStage = stages.find(s => s.id === stageId);
@@ -143,7 +191,7 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
       updateDeal.mutate({ id: draggedDealId, stage_id: stageId });
     }
     setDraggedDealId(null);
-  }, [draggedDealId, stages, funnel.id, leadFieldDefinitions, requiredRules, moveDealToStage, updateDeal]);
+  }, [draggedDealId, draggedStageId, handleStageDrop, stages, funnel.id, leadFieldDefinitions, requiredRules, moveDealToStage, updateDeal]);
 
   const handleAddDeal = (stageId: string) => {
     setSelectedStageId(stageId);
@@ -181,16 +229,24 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
               key={stage.id}
               className={cn(
                 "flex flex-col w-[300px] bg-muted/30 rounded-xl transition-all duration-200 shrink-0 group/stage",
-                dragOverStageId === stage.id && "ring-2 ring-primary bg-primary/5 scale-[1.02]"
+                dragOverStageId === stage.id && "ring-2 ring-primary bg-primary/5 scale-[1.02]",
+                draggedStageId === stage.id && "opacity-50",
+                stageDropTargetId === stage.id && draggedStageId && draggedStageId !== stage.id && "ring-2 ring-primary"
               )}
               onDragOver={(e) => handleDragOver(e, stage.id)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, stage.id)}
             >
               {/* Stage Header */}
-              <div className="p-3 border-b border-border/50 group">
+              <div
+                className="p-3 border-b border-border/50 group"
+                draggable
+                onDragStart={(e) => handleStageDragStart(e, stage.id)}
+                onDragEnd={handleStageDragEnd}
+              >
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60 cursor-grab active:cursor-grabbing" />
                     <div 
                       className="h-3 w-3 rounded-full shrink-0 ring-2 ring-background shadow-sm" 
                       style={{ backgroundColor: stage.color }}
@@ -200,6 +256,7 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
                       {getTotalDealsCount(stage)}
                     </span>
                   </div>
+
                   <StageContextMenu stage={stage} stages={stages} funnelId={funnel.id} />
                 </div>
                 <div className="flex items-center justify-between">
