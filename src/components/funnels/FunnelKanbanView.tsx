@@ -36,6 +36,8 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [draggedDealId, setDraggedDealId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
+  const [draggedStageId, setDraggedStageId] = useState<string | null>(null);
+  const [stageDropTargetId, setStageDropTargetId] = useState<string | null>(null);
   const [loadingStageId, setLoadingStageId] = useState<string | null>(null);
   const { fieldKeys: cardFieldKeys, setFieldKeys: setCardFieldKeys } = useFunnelCardFields(funnel.id);
 
