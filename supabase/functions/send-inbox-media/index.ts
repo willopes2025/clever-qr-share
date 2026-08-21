@@ -9,6 +9,20 @@ const corsHeaders = {
 
 const META_API_URL = 'https://graph.facebook.com/v19.0';
 
+async function getOrganizationMemberIds(supabase: any, userId: string): Promise<string[]> {
+  try {
+    const { data } = await supabase.rpc('get_organization_member_ids', { _user_id: userId });
+    const ids = (data || [])
+      .map((row: string | { get_organization_member_ids?: string }) => typeof row === 'string' ? row : row?.get_organization_member_ids)
+      .filter(Boolean);
+    return ids.length ? Array.from(new Set(ids)) as string[] : [userId];
+  } catch (error) {
+    console.error('[SEND-MEDIA] Error fetching organization members:', error);
+    return [userId];
+  }
+}
+
+
 // Retry helper for transient Evolution API failures (5xx / network errors)
 async function fetchWithRetry(
   url: string,
