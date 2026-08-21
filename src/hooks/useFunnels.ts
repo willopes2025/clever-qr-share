@@ -591,6 +591,8 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['funnels'] });
       queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-deals'] });
+      queryClient.invalidateQueries({ queryKey: ['stage-deal-counts'] });
     }
   });
 
