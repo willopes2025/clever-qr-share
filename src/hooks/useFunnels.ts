@@ -461,16 +461,13 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
         .single();
       if (error) throw error;
 
-      // Trigger stage automations AFTER the update so the deal is in the new stage
+      // Trigger stage automations AFTER the update (fire-and-forget, must not block the UI)
       if (stageChanged && currentDeal) {
-        try {
-          await supabase.functions.invoke('process-funnel-automations', {
-            body: { dealId: id, fromStageId: currentDeal.stage_id, toStageId: data.stage_id }
-          });
-        } catch (e) {
-          console.error('Error triggering automations:', e);
-        }
+        supabase.functions.invoke('process-funnel-automations', {
+          body: { dealId: id, fromStageId: currentDeal.stage_id, toStageId: data.stage_id }
+        }).catch((e) => console.error('Error triggering automations:', e));
       }
+
       
       return { 
         deal: updatedDeal, 

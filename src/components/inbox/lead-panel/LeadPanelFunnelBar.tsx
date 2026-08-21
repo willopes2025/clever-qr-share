@@ -65,9 +65,11 @@ export const LeadPanelFunnelBar = ({ contactId, conversationId, selectedDealId, 
   const currentFunnel = funnels?.find(f => f.id === activeDeal.funnel_id);
   const currentStage = currentFunnel?.stages?.find(s => s.id === activeDeal.stage_id);
 
-  const handleStageChange = async (newStageId: string) => {
-    await updateDeal.mutateAsync({ id: activeDeal.id, stage_id: newStageId });
+  const handleStageChange = (newStageId: string) => {
+    if (newStageId === activeDeal.stage_id) return;
+    updateDeal.mutate({ id: activeDeal.id, stage_id: newStageId });
   };
+
 
   return (
     <div className="px-3 py-2 border-b border-border/30 space-y-2">
@@ -103,8 +105,9 @@ export const LeadPanelFunnelBar = ({ contactId, conversationId, selectedDealId, 
         <Select 
           value={activeDeal.stage_id} 
           onValueChange={handleStageChange}
-          disabled={updateDeal.isPending}
         >
+
+
           <SelectTrigger className="h-8 text-sm flex-1 min-w-0 border border-border/50 bg-muted/30 px-2 hover:bg-muted/50 focus:ring-1 focus:ring-primary/30 rounded-md cursor-pointer">
             <div className="flex items-center gap-2 min-w-0 overflow-hidden">
               <span className="text-muted-foreground text-xs shrink-0">{currentFunnel?.name} -</span>
