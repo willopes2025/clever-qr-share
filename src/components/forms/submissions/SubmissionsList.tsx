@@ -117,8 +117,22 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     const first = sub.data?.[`${id}_first`];
     const last = sub.data?.[`${id}_last`];
     if (first || last) return `${first || ""} ${last || ""}`.trim();
+    // Composite address: `${id}_street`, `_number`, `_complement`, `_zip`, `_city`, `_state`
+    const street = sub.data?.[`${id}_street`];
+    const numberPart = sub.data?.[`${id}_number`];
+    const complement = sub.data?.[`${id}_complement`];
+    const zip = sub.data?.[`${id}_zip`];
+    const city = sub.data?.[`${id}_city`];
+    const state = sub.data?.[`${id}_state`];
+    if (street || numberPart || city || state || zip) {
+      const line1 = [street, numberPart].filter(Boolean).join(", ");
+      const line2 = [complement].filter(Boolean).join("");
+      const line3 = [city, state].filter(Boolean).join(" - ");
+      return [line1, line2, line3, zip].filter(Boolean).join(", ");
+    }
     return direct ?? "";
   };
+
 
   // Fallback: quando o contato não tem nome, usa o nome preenchido no formulário
   const getSubmissionName = (sub: any): string => {
