@@ -86,14 +86,55 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
 
   const handleDragOver = useCallback((e: React.DragEvent, stageId: string) => {
     e.preventDefault();
+    if (draggedStageId) {
+      if (stageDropTargetId !== stageId) setStageDropTargetId(stageId);
+      return;
+    }
     if (dragOverStageId !== stageId) {
       setDragOverStageId(stageId);
     }
-  }, [dragOverStageId]);
+  }, [dragOverStageId, draggedStageId, stageDropTargetId]);
 
   const handleDragLeave = useCallback(() => {
     setDragOverStageId(null);
   }, []);
+
+  // ---- Reordenação de etapas (arrastar coluna) ----
+  const handleStageDragStart = useCallback((e: React.DragEvent, stageId: string) => {
+    e.stopPropagation();
+    setDraggedStageId(stageId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', stageId);
+  }, []);
+
+  const handleStageDragEnd = useCallback(() => {
+    setDraggedStageId(null);
+    setStageDropTargetId(null);
+  }, []);
+
+  const handleStageDrop = useCallback(async (targetStageId: string) => {
+    const sourceId = draggedStageId;
+    setDraggedStageId(null);
+    setStageDropTargetId(null);
+    if (!sourceId || sourceId === targetStageId) return;
+
+    const ordered = [...stages].sort((a, b) => a.display_order - b.display_order);
+    const from = ordered.findIndex(s => s.id === sourceId);
+    const to = ordered.findIndex(s => s.id === targetStageId);
+    if (from === -1 || to === -1) return;
+
+    const [moved] = ordered.splice(from, 1);
+    ordered.splice(to, 0, moved);
+
+    await Promise.all(
+      ordered.map((s, index) =>
+        s.display_order === index
+          ? Promise.resolve()
+          : updateStage.mutateAsync({ id: s.id, display_order: index })
+      )
+    );
+  }, [draggedStageId, stages, updateStage]);
+
 
   const moveDealToStage = useCallback((deal: FunnelDeal, targetStage: FunnelStage, extraFields?: Record<string, unknown>) => {
     const merged = { ...(deal.custom_fields as Record<string, unknown> || {}), ...(extraFields || {}) };
