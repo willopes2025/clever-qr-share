@@ -229,16 +229,24 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
               key={stage.id}
               className={cn(
                 "flex flex-col w-[300px] bg-muted/30 rounded-xl transition-all duration-200 shrink-0 group/stage",
-                dragOverStageId === stage.id && "ring-2 ring-primary bg-primary/5 scale-[1.02]"
+                dragOverStageId === stage.id && "ring-2 ring-primary bg-primary/5 scale-[1.02]",
+                draggedStageId === stage.id && "opacity-50",
+                stageDropTargetId === stage.id && draggedStageId && draggedStageId !== stage.id && "ring-2 ring-primary"
               )}
               onDragOver={(e) => handleDragOver(e, stage.id)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, stage.id)}
             >
               {/* Stage Header */}
-              <div className="p-3 border-b border-border/50 group">
+              <div
+                className="p-3 border-b border-border/50 group"
+                draggable
+                onDragStart={(e) => handleStageDragStart(e, stage.id)}
+                onDragEnd={handleStageDragEnd}
+              >
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60 cursor-grab active:cursor-grabbing" />
                     <div 
                       className="h-3 w-3 rounded-full shrink-0 ring-2 ring-background shadow-sm" 
                       style={{ backgroundColor: stage.color }}
@@ -248,6 +256,7 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
                       {getTotalDealsCount(stage)}
                     </span>
                   </div>
+
                   <StageContextMenu stage={stage} stages={stages} funnelId={funnel.id} />
                 </div>
                 <div className="flex items-center justify-between">
