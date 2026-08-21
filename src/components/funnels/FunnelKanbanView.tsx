@@ -150,6 +150,11 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
     e.preventDefault();
     setDragOverStageId(null);
 
+    if (draggedStageId) {
+      void handleStageDrop(stageId);
+      return;
+    }
+
     if (!draggedDealId) return;
     const targetStage = stages.find(s => s.id === stageId);
     if (!targetStage) {
