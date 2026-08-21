@@ -191,7 +191,7 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
       updateDeal.mutate({ id: draggedDealId, stage_id: stageId });
     }
     setDraggedDealId(null);
-  }, [draggedDealId, stages, funnel.id, leadFieldDefinitions, requiredRules, moveDealToStage, updateDeal]);
+  }, [draggedDealId, draggedStageId, handleStageDrop, stages, funnel.id, leadFieldDefinitions, requiredRules, moveDealToStage, updateDeal]);
 
   const handleAddDeal = (stageId: string) => {
     setSelectedStageId(stageId);
