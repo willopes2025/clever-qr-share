@@ -65,9 +65,11 @@ export const LeadPanelFunnelBar = ({ contactId, conversationId, selectedDealId, 
   const currentFunnel = funnels?.find(f => f.id === activeDeal.funnel_id);
   const currentStage = currentFunnel?.stages?.find(s => s.id === activeDeal.stage_id);
 
-  const handleStageChange = async (newStageId: string) => {
-    await updateDeal.mutateAsync({ id: activeDeal.id, stage_id: newStageId });
+  const handleStageChange = (newStageId: string) => {
+    if (newStageId === activeDeal.stage_id) return;
+    updateDeal.mutate({ id: activeDeal.id, stage_id: newStageId });
   };
+
 
   return (
     <div className="px-3 py-2 border-b border-border/30 space-y-2">
