@@ -193,7 +193,7 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
 
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Data / hora" value={`${brDate(selected.dtemis)} ${text(selected.hremis)}`} />
-                    <Field label="Status" value={text(selected.status)} />
+                    <Field label="Status" value={text(pedidoStatus(selected))} />
                     <Field label="Empresa" value={text(selected.empresa)} />
                     <Field label="Série" value={text(selected.serie)} />
                     <Field label="Cliente" value={text(selected.despessoa)} />
