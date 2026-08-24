@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Code2, ImageOff, Loader2 } from "lucide-react";
 import { callGestaoParts } from "@/hooks/useGestaoParts";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export interface PecaRow {
   codigo?: string;
