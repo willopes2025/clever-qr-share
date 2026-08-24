@@ -330,6 +330,12 @@ function normalizeTipos(v: unknown): string[] {
 
 /** Normaliza respostas paginadas do ERP em { items, totalblocos, blocoatual } */
 function normalizePaged(raw: unknown, listKeys: string[]): unknown {
+  // Algumas rotas (ex: /peca/dados) devolvem [{ totalblocos, blocoatual, pecas: [...] }]
+  if (Array.isArray(raw) && raw.length === 1 && raw[0] && typeof raw[0] === 'object'
+    && 'totalblocos' in (raw[0] as Record<string, unknown>)) {
+    return normalizePaged(raw[0], listKeys);
+  }
+
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     const obj = raw as Record<string, unknown>;
     let items: unknown[] | null = null;
@@ -351,6 +357,73 @@ function normalizePaged(raw: unknown, listKeys: string[]): unknown {
   if (Array.isArray(raw)) return { items: raw, totalblocos: 1, blocoatual: 1 };
   return { items: [], totalblocos: 0, blocoatual: 0 };
 }
+
+/**
+ * As rotas de busca rápida de peça devolvem uma frase única em `apresenta`
+ * ("PD368 - FRASLE - PASTILHA FREIO DIANTEIRA - QTD. 1.000 R$ 179.29")
+ * e a imagem inteira em base64. Aqui quebramos isso em colunas utilizáveis.
+ */
+function parsePecaApresenta(row: Record<string, unknown>): Record<string, unknown> {
+  const texto = String(row.apresenta ?? '').trim();
+  const base64 = String(row.imgbase64 ?? '').trim();
+
+  let codigo = '';
+  let marca = '';
+  let descricao = texto;
+  let quantidade: number | null = null;
+  let preco: number | null = null;
+
+  if (texto) {
+    const precoMatch = texto.match(/R\$\s*([\d.,]+)\s*$/);
+    if (precoMatch) preco = Number(precoMatch[1].replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+
+    const qtdMatch = texto.match(/QTD\.\s*([\d.,]+)/i);
+    if (qtdMatch) quantidade = Number(qtdMatch[1].replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+
+    const semCauda = texto.replace(/\s*-\s*QTD\..*$/i, '').trim();
+    const partes = semCauda.split(/\s+-\s+/);
+    if (partes.length >= 3) {
+      codigo = partes[0].trim();
+      marca = partes[1].trim();
+      descricao = partes.slice(2).join(' - ').trim();
+    } else if (partes.length === 2) {
+      codigo = partes[0].trim();
+      descricao = partes[1].trim();
+    } else {
+      descricao = semCauda;
+    }
+  }
+
+  const { imgbase64: _omit, ...rest } = row as Record<string, unknown>;
+  return {
+    ...rest,
+    codigo: row.codigo ?? codigo,
+    codigoerp: row.codigoerp ?? row.img ?? '',
+    marca: row.marca ?? marca,
+    descricao: row.descricao ?? descricao,
+    quantidade,
+    preco,
+    imagem: base64 ? `data:image/jpeg;base64,${base64}` : null,
+    apresenta: texto,
+  };
+}
+
+function mapPecaResult(raw: unknown): unknown {
+  const list = Array.isArray(raw)
+    ? raw
+    : (raw && typeof raw === 'object' && Array.isArray((raw as Record<string, unknown>).pecas)
+      ? (raw as Record<string, unknown>).pecas as unknown[]
+      : null);
+
+  if (!list) return raw;
+
+  const items = list
+    .filter((r) => r && typeof r === 'object')
+    .map((r) => parsePecaApresenta(r as Record<string, unknown>));
+
+  return { items, totalblocos: 1, blocoatual: 1 };
+}
+
 
 
 Deno.serve(async (req: Request) => {
@@ -457,23 +530,50 @@ Deno.serve(async (req: Request) => {
       }
 
       // ------- Peças / Preço / Estoque -------
+      // Busca rápida: a API exige `veiculo` preenchido; retorna `apresenta` + imagem base64
       case 'search_peca': {
-        result = await gpCall(creds, 'POST', '/erpssplus/peca', {
-          veiculo: params.veiculo ?? '',
-          peca: params.peca ?? '',
-          codfabricante: params.codfabricante ?? '',
-          codbarra: params.codbarra ?? '',
+        const veiculo = String(params.veiculo ?? '').trim();
+        const peca = String(params.peca ?? '').trim();
+        const codfabricante = String(params.codfabricante ?? '').trim();
+        const codbarra = String(params.codbarra ?? '').trim();
+        if (!veiculo && !codfabricante && !codbarra) {
+          throw new GpError(400, 'Informe o veículo (ou código de fabricante / código de barras) para a busca rápida de peças');
+        }
+        const raw = await gpCall(creds, 'POST', '/erpssplus/peca', {
+          veiculo,
+          peca,
+          codfabricante,
+          codbarra,
           pessoa: params.pessoa ?? '',
         });
+        result = mapPecaResult(raw);
+        break;
+      }
+
+      // Catálogo de produtos com campos estruturados (paginado por bloco)
+      case 'peca_dados': {
+        const raw = await gpCall(creds, 'GET', '/erpssplus/peca/dados', {
+          bloco: toBloco(params.bloco),
+          ...(params.codigo ? { codigo: String(params.codigo) } : {}),
+          ...(params.marca ? { marca: String(params.marca) } : {}),
+          ...(params.grupo ? { grupo: String(params.grupo) } : {}),
+          ...(params.subgrupo ? { subgrupo: String(params.subgrupo) } : {}),
+          ...(params.secao ? { secao: String(params.secao) } : {}),
+          ...(params.habilitadoecommerce ? { habilitadoecommerce: String(params.habilitadoecommerce) } : {}),
+          ...(params.dtatualizacao ? { dtatualizacao: toIsoDate(params.dtatualizacao) } : {}),
+        });
+        result = normalizePaged(raw, ['pecas', 'produtos']);
         break;
       }
 
       case 'peca_barcode': {
         const barcode = onlyDigits(params.barcode);
         if (!barcode) throw new GpError(400, 'Informe o código de barras');
-        result = await gpCall(creds, 'GET', `/erpssplus/peca/codigobarras/${encodeURIComponent(barcode)}`);
+        const raw = await gpCall(creds, 'GET', `/erpssplus/peca/codigobarras/${encodeURIComponent(barcode)}`);
+        result = mapPecaResult(raw);
         break;
       }
+
 
       case 'peca_preco': {
         const cod = String(params.codigoerp || '').trim();
@@ -506,10 +606,11 @@ Deno.serve(async (req: Request) => {
         const placa = String(params.placa || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         if (!placa) throw new GpError(400, 'Informe a placa');
         // A API espera placa/produto no CORPO da requisição (GET com body)
-        result = await gpCall(creds, 'GET', '/erpssplus/v2/peca/veiculo/placa/', {
+        const rawPlaca = await gpCall(creds, 'GET', '/erpssplus/v2/peca/veiculo/placa/', {
           placa,
           ...(params.produto ? { produto: String(params.produto) } : {}),
         });
+        result = mapPecaResult(rawPlaca);
         break;
       }
 

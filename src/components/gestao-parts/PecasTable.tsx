@@ -1,0 +1,217 @@
+import { useState } from "react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
+import { Code2, ImageOff, Loader2 } from "lucide-react";
+import { callGestaoParts } from "@/hooks/useGestaoParts";
+import { toast } from "sonner";
+
+export interface PecaRow {
+  codigo?: string;
+  codigoerp?: string;
+  descricao?: string;
+  marca?: string;
+  quantidade?: number | null;
+  preco?: number | null;
+  imagem?: string | null;
+  unidadesaida?: string;
+  codigofabricante?: string;
+  codigobarras?: string;
+  status?: string;
+  aplicacao?: string;
+  grupo?: string;
+  subgrupo?: string;
+  secao?: string;
+  fornecedores?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface PecasTableProps {
+  rows: PecaRow[];
+  emptyMessage?: string;
+  raw?: unknown;
+}
+
+const money = (v: unknown) =>
+  typeof v === "number" && Number.isFinite(v)
+    ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+    : "-";
+
+const text = (v: unknown) => {
+  const s = v === null || v === undefined ? "" : String(v);
+  return s.trim() ? s : "-";
+};
+
+export const PecasTable = ({ rows, emptyMessage = "Nenhuma peça encontrada", raw }: PecasTableProps) => {
+  const [showRaw, setShowRaw] = useState(false);
+  const [selected, setSelected] = useState<PecaRow | null>(null);
+  const [detail, setDetail] = useState<{ preco?: unknown; estoque?: unknown } | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  if (!rows.length) {
+    return <div className="text-center py-10 text-muted-foreground text-sm">{emptyMessage}</div>;
+  }
+
+  const openDetail = async (row: PecaRow) => {
+    setSelected(row);
+    setDetail(null);
+    const cod = String(row.codigoerp || row.codigo || "").trim();
+    if (!cod) return;
+    setLoadingDetail(true);
+    try {
+      const [preco, estoque] = await Promise.all([
+        callGestaoParts("peca_preco", { codigoerp: cod }).catch(() => null),
+        callGestaoParts("peca_estoque", { codigoerp: cod }).catch(() => null),
+      ]);
+      setDetail({ preco, estoque });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">{rows.length} peça(s)</span>
+        {raw !== undefined && (
+          <Button variant="ghost" size="sm" onClick={() => setShowRaw((v) => !v)}>
+            <Code2 className="h-3.5 w-3.5 mr-1.5" />
+            {showRaw ? "Ver tabela" : "Ver JSON"}
+          </Button>
+        )}
+      </div>
+
+      {showRaw ? (
+        <ScrollArea className="h-[420px] rounded-md border bg-muted/30">
+          <pre className="p-3 text-xs whitespace-pre-wrap break-all">{JSON.stringify(raw, null, 2)}</pre>
+        </ScrollArea>
+      ) : (
+        <ScrollArea className="h-[420px] rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[64px]">Img</TableHead>
+                <TableHead className="whitespace-nowrap">Código</TableHead>
+                <TableHead>Descrição</TableHead>
+                <TableHead className="whitespace-nowrap">Marca</TableHead>
+                <TableHead className="whitespace-nowrap">Un.</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Qtd.</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Preço</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row, i) => (
+                <TableRow
+                  key={`${row.codigo ?? i}-${i}`}
+                  className="cursor-pointer"
+                  onClick={() => openDetail(row)}
+                >
+                  <TableCell>
+                    {row.imagem ? (
+                      <img
+                        src={row.imagem}
+                        alt={text(row.descricao)}
+                        loading="lazy"
+                        className="h-9 w-9 rounded object-cover border"
+                      />
+                    ) : (
+                      <div className="h-9 w-9 rounded border flex items-center justify-center bg-muted/40">
+                        <ImageOff className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs font-medium whitespace-nowrap">{text(row.codigo)}</TableCell>
+                  <TableCell className="text-xs min-w-[280px]">{text(row.descricao)}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">{text(row.marca)}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">{text(row.unidadesaida)}</TableCell>
+                  <TableCell className="text-xs text-right whitespace-nowrap">
+                    {typeof row.quantidade === "number" ? row.quantidade.toLocaleString("pt-BR") : "-"}
+                  </TableCell>
+                  <TableCell className="text-xs text-right whitespace-nowrap">{money(row.preco)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      )}
+
+      <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="text-base">{text(selected?.descricao)}</SheetTitle>
+          </SheetHeader>
+
+          {selected && (
+            <div className="space-y-4 mt-4 text-sm">
+              {selected.imagem && (
+                <img
+                  src={selected.imagem}
+                  alt={text(selected.descricao)}
+                  className="w-full max-h-64 object-contain rounded border bg-muted/30"
+                />
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Código" value={text(selected.codigo)} />
+                <Field label="Código ERP" value={text(selected.codigoerp)} />
+                <Field label="Marca" value={text(selected.marca)} />
+                <Field label="Unidade" value={text(selected.unidadesaida)} />
+                <Field label="Cód. fabricante" value={text(selected.codigofabricante)} />
+                <Field label="Cód. barras" value={text(selected.codigobarras)} />
+                <Field label="Grupo" value={text(selected.grupo)} />
+                <Field label="Seção" value={text(selected.secao)} />
+              </div>
+
+              {selected.status && <Badge variant="secondary">{String(selected.status)}</Badge>}
+
+              {selected.aplicacao ? (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Aplicação</p>
+                  <p className="text-xs">{String(selected.aplicacao)}</p>
+                </div>
+              ) : null}
+
+              {Array.isArray(selected.fornecedores) && selected.fornecedores.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Fornecedores</p>
+                  <ul className="text-xs space-y-1">
+                    {selected.fornecedores.map((f, i) => (
+                      <li key={i}>{String(f.razaosocial ?? f.fantasia ?? f.fornecedor_codigo ?? "-")}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Preço e estoque no ERP</p>
+                {loadingDetail ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Consultando...
+                  </div>
+                ) : detail ? (
+                  <pre className="text-xs whitespace-pre-wrap break-all rounded border bg-muted/30 p-2 max-h-64 overflow-auto">
+                    {JSON.stringify(detail, null, 2)}
+                  </pre>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Sem código ERP para consultar.</p>
+                )}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+};
+
+const Field = ({ label, value }: { label: string; value: string }) => (
+  <div>
+    <p className="text-xs text-muted-foreground">{label}</p>
+    <p className="text-xs font-medium break-all">{value}</p>
+  </div>
+);

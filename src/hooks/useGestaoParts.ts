@@ -10,6 +10,7 @@ export type GestaoPartsAction =
   | 'list_clientes'
   | 'cliente_credito'
   | 'search_peca'
+  | 'peca_dados'
   | 'peca_barcode'
   | 'peca_preco'
   | 'peca_tabela_preco'

@@ -17,6 +17,7 @@ import {
   PedidoTipo,
 } from "@/hooks/useGestaoParts";
 import { GestaoPartsTable } from "@/components/gestao-parts/GestaoPartsTable";
+import { PecasTable, PecaRow } from "@/components/gestao-parts/PecasTable";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const daysAgoISO = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
@@ -42,9 +43,16 @@ const GestaoParts = () => {
   // Peças
   const [peca, setPeca] = useState("");
   const [veiculo, setVeiculo] = useState("");
+  const [codFabricante, setCodFabricante] = useState("");
   const [codbarra, setCodbarra] = useState("");
   const [codigoErp, setCodigoErp] = useState("");
   const [placa, setPlaca] = useState("");
+
+  // Catálogo de produtos
+  const [catalogoCodigo, setCatalogoCodigo] = useState("");
+  const [catalogoMarca, setCatalogoMarca] = useState("");
+  const [catalogoGrupo, setCatalogoGrupo] = useState("");
+  const [catalogoBloco, setCatalogoBloco] = useState(1);
 
   // Clientes
   const [clienteBusca, setClienteBusca] = useState("");
@@ -115,6 +123,40 @@ const GestaoParts = () => {
       dtvencimentofim: finVencFim,
     });
   };
+
+  const buscarCatalogo = (bloco: number) => {
+    setCatalogoBloco(bloco);
+    run("catalogo", "peca_dados", {
+      bloco,
+      codigo: catalogoCodigo,
+      marca: catalogoMarca,
+      grupo: catalogoGrupo,
+    });
+  };
+
+  /** Peças têm colunas próprias (imagem, preço, quantidade) */
+  const renderPecas = (key: string, empty: string) => {
+    const data = results[key];
+    const rows = (isPaged(data) ? (data as GestaoPartsPaged).items : []) as PecaRow[];
+    return (
+      <>
+        {errors[key] && (
+          <Alert variant="destructive" className="mb-3">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-xs break-all">{errors[key]}</AlertDescription>
+          </Alert>
+        )}
+        {data === undefined ? (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            Faça uma consulta para ver os resultados
+          </div>
+        ) : (
+          <PecasTable rows={rows} emptyMessage={empty} raw={data} />
+        )}
+      </>
+    );
+  };
+
 
   const renderPagination = (key: string, bloco: number, onChange: (b: number) => void) => {
     const data = results[key];
@@ -418,28 +460,63 @@ const GestaoParts = () => {
           <TabsContent value="pecas" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Buscar peça</CardTitle>
-                <CardDescription>Por descrição da peça e/ou veículo</CardDescription>
+                <CardTitle className="text-base">Busca rápida de peça</CardTitle>
+                <CardDescription>
+                  O ERP exige o veículo (ou código de fabricante/barras) nesta consulta
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label>Veículo *</Label>
+                    <Input value={veiculo} onChange={(e) => setVeiculo(e.target.value)} placeholder="Ex: GOL 2001 1.6" />
+                  </div>
                   <div className="space-y-1.5">
                     <Label>Peça</Label>
                     <Input value={peca} onChange={(e) => setPeca(e.target.value)} placeholder="Ex: PASTILHA FREIO" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Veículo</Label>
-                    <Input value={veiculo} onChange={(e) => setVeiculo(e.target.value)} placeholder="Ex: GOL 2001 1.6" />
+                    <Label>Cód. fabricante</Label>
+                    <Input value={codFabricante} onChange={(e) => setCodFabricante(e.target.value)} placeholder="Opcional" />
                   </div>
                 </div>
                 <Button
-                  onClick={() => run("peca", "search_peca", { peca, veiculo, codfabricante: "", codbarra: "", pessoa: "" })}
-                  disabled={busy("peca")}
+                  onClick={() => run("peca", "search_peca", { peca, veiculo, codfabricante: codFabricante, codbarra: "", pessoa: "" })}
+                  disabled={busy("peca") || (!veiculo && !codFabricante)}
                 >
                   {busy("peca") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
                   Buscar
                 </Button>
-                {renderResult("peca", "Nenhuma peça encontrada")}
+                {renderPecas("peca", "Nenhuma peça encontrada")}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Catálogo de produtos</CardTitle>
+                <CardDescription>Listagem completa com código, descrição, marca e unidade</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label>Código</Label>
+                    <Input value={catalogoCodigo} onChange={(e) => setCatalogoCodigo(e.target.value)} placeholder="Opcional" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Marca</Label>
+                    <Input value={catalogoMarca} onChange={(e) => setCatalogoMarca(e.target.value)} placeholder="Opcional" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Grupo</Label>
+                    <Input value={catalogoGrupo} onChange={(e) => setCatalogoGrupo(e.target.value)} placeholder="Opcional" />
+                  </div>
+                </div>
+                <Button onClick={() => buscarCatalogo(1)} disabled={busy("catalogo")}>
+                  {busy("catalogo") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                  Listar
+                </Button>
+                {renderPecas("catalogo", "Nenhum produto encontrado")}
+                {renderPagination("catalogo", catalogoBloco, buscarCatalogo)}
               </CardContent>
             </Card>
 
@@ -458,7 +535,7 @@ const GestaoParts = () => {
                     Consultar
                   </Button>
                 </div>
-                {renderResult("placa", "Nenhum veículo/peça para esta placa")}
+                {renderPecas("placa", "Nenhum veículo/peça para esta placa")}
               </CardContent>
             </Card>
 
@@ -477,7 +554,7 @@ const GestaoParts = () => {
                     Consultar
                   </Button>
                 </div>
-                {renderResult("barcode", "Nenhum produto para este código de barras")}
+                {renderPecas("barcode", "Nenhum produto para este código de barras")}
               </CardContent>
             </Card>
 
@@ -505,6 +582,7 @@ const GestaoParts = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
         </Tabs>
       </div>
     </AppLayout>
