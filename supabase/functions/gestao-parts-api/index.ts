@@ -481,14 +481,16 @@ Deno.serve(async (req: Request) => {
       }
 
       case 'peca_tabela_preco': {
-        result = await gpCall(creds, 'GET', '/erpssplus/peca/tabela/preco/', {
-          bloco: Number(params.bloco ?? 0),
+        const raw = await gpCall(creds, 'GET', '/erpssplus/peca/tabela/preco/', {
+          bloco: toBloco(params.bloco),
           empresa: params.empresa ?? '',
           codigoerp: params.codigoerp ?? '',
           tabelapreco: params.tabelapreco ?? '',
-          ...(params.dtatualizacao ? { dtatualizacao: params.dtatualizacao } : {}),
+          ...(params.dtatualizacao ? { dtatualizacao: toIsoDate(params.dtatualizacao) } : {}),
         });
+        result = normalizePaged(raw, ['tabelapreco', 'precos', 'pecas']);
         break;
+
       }
 
       case 'peca_estoque': {
