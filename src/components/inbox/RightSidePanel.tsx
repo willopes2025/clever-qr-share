@@ -15,6 +15,7 @@ import { LeadPanelFunnelBar } from "./lead-panel/LeadPanelFunnelBar";
 import { LeadPanelTabs } from "./lead-panel/LeadPanelTabs";
 import { LeadPanelNotes } from "./lead-panel/LeadPanelNotes";
 import { ActivityTimeline } from "./ActivityTimeline";
+import { GestaoPartsLeadTab } from "./lead-panel/GestaoPartsLeadTab";
 
 // New separated sections
 import { LeadFieldsSection } from "./lead-panel/LeadFieldsSection";
