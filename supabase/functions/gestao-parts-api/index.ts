@@ -501,16 +501,35 @@ Deno.serve(async (req: Request) => {
       case 'peca_veiculo_placa': {
         const placa = String(params.placa || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         if (!placa) throw new GpError(400, 'Informe a placa');
-        result = await gpCall(creds, 'GET', `/erpssplus/v2/peca/veiculo/placa/${buildQuery({ placa })}`);
+        // A API espera placa/produto no CORPO da requisição (GET com body)
+        result = await gpCall(creds, 'GET', '/erpssplus/v2/peca/veiculo/placa/', {
+          placa,
+          ...(params.produto ? { produto: String(params.produto) } : {}),
+        });
         break;
       }
 
       // ------- Pedidos -------
+      // Listagem real de pedidos: feed v3 (paginado por bloco, tipos em maiúsculo)
       case 'list_pedidos': {
+        const raw = await gpCall(creds, 'GET', '/erpssplus/v3/pedido/feed', {
+          bloco: toBloco(params.bloco),
+          tipopedido: normalizeTipos(params.tipopedido),
+          dtinicio: toIsoDate(params.dtinicio),
+          dtfinal: toIsoDate(params.dtfinal),
+          ...(params.empresa ? { empresa: String(params.empresa) } : {}),
+          ...(params.status ? { status: String(params.status) } : {}),
+        });
+        result = normalizePaged(raw, ['pedidos']);
+        break;
+      }
+
+      // Consulta de status de um pedido específico (nº do pedido ou token)
+      case 'get_pedido_status': {
         result = await gpCall(creds, 'GET', '/erpssplus/v2/pedido/status', {
           pedido: params.pedido ?? '',
-          dtinicio: params.dtinicio ?? '',
-          dtfinal: params.dtfinal ?? '',
+          dtinicio: toIsoDate(params.dtinicio),
+          dtfinal: toIsoDate(params.dtfinal),
           token: params.token ?? '',
         });
         break;
@@ -532,18 +551,20 @@ Deno.serve(async (req: Request) => {
 
       // ------- Financeiro -------
       case 'contas_receber': {
-        result = await gpCall(creds, 'GET', '/erpssplus/financeiro/contas/receber', {
-          bloco: Number(params.bloco ?? 0),
+        const raw = await gpCall(creds, 'GET', '/erpssplus/financeiro/contas/receber', {
+          bloco: toBloco(params.bloco),
           cliente: params.cliente ?? '',
           empresa: params.empresa ?? '',
-          dtemissaoinicio: params.dtemissaoinicio ?? '',
-          dtemissaofim: params.dtemissaofim ?? '',
-          dtvencimentoinicio: params.dtvencimentoinicio ?? '',
-          dtvencimentofim: params.dtvencimentofim ?? '',
+          dtemissaoinicio: toIsoDate(params.dtemissaoinicio),
+          dtemissaofim: toIsoDate(params.dtemissaofim),
+          dtvencimentoinicio: toIsoDate(params.dtvencimentoinicio),
+          dtvencimentofim: toIsoDate(params.dtvencimentofim),
           numeroduplicata: params.numeroduplicata ?? '',
           planilha: params.planilha ?? '',
         });
+        result = normalizePaged(raw, ['receber']);
         break;
+
       }
 
       case 'boletos': {
