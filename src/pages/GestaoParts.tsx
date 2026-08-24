@@ -42,9 +42,16 @@ const GestaoParts = () => {
   // Peças
   const [peca, setPeca] = useState("");
   const [veiculo, setVeiculo] = useState("");
+  const [codFabricante, setCodFabricante] = useState("");
   const [codbarra, setCodbarra] = useState("");
   const [codigoErp, setCodigoErp] = useState("");
   const [placa, setPlaca] = useState("");
+
+  // Catálogo de produtos
+  const [catalogoCodigo, setCatalogoCodigo] = useState("");
+  const [catalogoMarca, setCatalogoMarca] = useState("");
+  const [catalogoGrupo, setCatalogoGrupo] = useState("");
+  const [catalogoBloco, setCatalogoBloco] = useState(1);
 
   // Clientes
   const [clienteBusca, setClienteBusca] = useState("");
