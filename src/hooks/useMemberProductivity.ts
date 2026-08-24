@@ -26,7 +26,7 @@ export interface MemberProductivity {
   notesCreated: number;
   avgResponseSeconds: number | null;
   lastActivityAt: string | null;
-  currentStatus: 'work' | 'break' | 'lunch' | 'meeting' | 'idle' | 'offline';
+  currentStatus: 'work' | 'break' | 'lunch' | 'meeting' | 'offline';
 }
 
 export interface MemberProductivityResult {
@@ -60,8 +60,7 @@ export const useMemberProductivity = (
       customRange?.to?.toISOString(),
     ],
     enabled: !!organization?.id,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 60_000,
     queryFn: async (): Promise<MemberProductivityResult> => {
       const { start, end } = getDateRange(dateRange, customRange);
       const orgId = organization!.id;
@@ -127,8 +126,8 @@ export const useMemberProductivity = (
         .from('user_activity_sessions')
         .select('user_id, session_type, started_at, ended_at, duration_seconds')
         .in('user_id', userIdList)
-        .lte('started_at', end.toISOString())
-        .or(`ended_at.is.null,ended_at.gte.${start.toISOString()}`);
+        .gte('started_at', start.toISOString())
+        .lte('started_at', end.toISOString());
 
       // 5. Open sessions for current status — also include last_activity to detect stale sessions
       const { data: openSessions } = await supabase
@@ -138,21 +137,15 @@ export const useMemberProductivity = (
         .is('ended_at', null)
         .order('started_at', { ascending: false });
 
-      // 6. Message productivity aggregated in the database.
-      // Direct inbox_messages queries were capped by the API/page limit and timed out
-      // on 30d/90d, so sent/received totals were incomplete.
-      const { data: messageProductivity, error: messageProductivityError } = await supabase.rpc(
-        'get_member_message_productivity' as any,
-        {
-          p_start: start.toISOString(),
-          p_end: end.toISOString(),
-          p_user_ids: userIdList,
-        } as any,
-      );
-
-      if (messageProductivityError) {
-        console.error('[useMemberProductivity] message productivity error:', messageProductivityError);
-      }
+      // 6. Outbound messages -> chars + audio + media (last 20000 in range to avoid huge fetch)
+      const { data: outMessages } = await supabase
+        .from('inbox_messages')
+        .select('sent_by_user_id, content, message_type')
+        .eq('direction', 'outbound')
+        .in('sent_by_user_id', userIdList)
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+        .limit(20000);
 
       // 7. Notes created in range
       const { data: notes } = await supabase
@@ -196,13 +189,16 @@ export const useMemberProductivity = (
       }
 
       // Performance metrics aggregation
-      let respSum = 0;
-      let respCount = 0;
+      // Track weighted response time per member: weight = conversations_handled that day
+      const memberRespData = new Map<string, { sum: number; count: number }>();
+      let globalRespSum = 0;
+      let globalRespCount = 0;
+
       (metrics || []).forEach((m) => {
         const member = memberMap.get(m.user_id);
         if (!member) return;
-        // messagesSent / messagesReceived são calculados a partir de inbox_messages
-        // (fonte de verdade) mais abaixo, em vez do cache user_performance_metrics.
+        member.messagesSent += m.messages_sent || 0;
+        member.messagesReceived += m.messages_received || 0;
         member.conversationsHandled += m.conversations_handled || 0;
         member.conversationsResolved += m.conversations_resolved || 0;
         member.dealsCreated += m.deals_created || 0;
@@ -212,12 +208,17 @@ export const useMemberProductivity = (
         member.workSeconds += m.total_work_seconds || 0;
         member.breakSeconds += m.total_break_seconds || 0;
         member.lunchSeconds += m.total_lunch_seconds || 0;
-        if (m.avg_response_time_seconds) {
-          respSum += m.avg_response_time_seconds;
-          respCount += 1;
-          member.avgResponseSeconds =
-            (member.avgResponseSeconds || 0) + m.avg_response_time_seconds;
+
+        if (m.avg_response_time_seconds && m.conversations_handled > 0) {
+          const weight = m.conversations_handled as number;
+          const resp = memberRespData.get(m.user_id) || { sum: 0, count: 0 };
+          resp.sum += m.avg_response_time_seconds * weight;
+          resp.count += weight;
+          memberRespData.set(m.user_id, resp);
+          globalRespSum += m.avg_response_time_seconds * weight;
+          globalRespCount += weight;
         }
+
         if (m.last_activity_at) {
           if (!member.lastActivityAt || m.last_activity_at > member.lastActivityAt) {
             member.lastActivityAt = m.last_activity_at;
@@ -225,21 +226,22 @@ export const useMemberProductivity = (
         }
       });
 
-      // Sessions aggregation (overrides perf metrics if more accurate).
-      // IMPORTANT: open sessions (ended_at = null) precisam contar as horas
-      // até agora (ou até o fim do range, se o range for histórico). Sem isso,
-      // a sessão do dia atual ficava com duração 0 e as horas não apareciam.
-      const endMs = new Date(end).getTime();
-      const nowMs = Date.now();
+      // Apply weighted average response time per member
+      memberRespData.forEach((resp, uid) => {
+        const m = memberMap.get(uid);
+        if (m) m.avgResponseSeconds = resp.count > 0 ? Math.round(resp.sum / resp.count) : null;
+      });
+
+      // Sessions aggregation (overrides perf metrics if more accurate)
       const sessionWork = new Map<string, { work: number; break: number; lunch: number }>();
-      const startMs = new Date(start).getTime();
+      const nowMs = Date.now();
       (sessions || []).forEach((s) => {
         if (!s.user_id) return;
-        const startedMs = new Date(s.started_at).getTime();
-        const sessionEndMs = s.ended_at ? new Date(s.ended_at).getTime() : nowMs;
-        const refStart = Math.max(startedMs, startMs);
-        const refEnd = Math.min(sessionEndMs, endMs, nowMs);
-        const dur = Math.max(0, (refEnd - refStart) / 1000);
+        const dur =
+          s.duration_seconds ??
+          (s.ended_at
+            ? Math.max(0, (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000)
+            : Math.max(0, (nowMs - new Date(s.started_at).getTime()) / 1000)); // ongoing session
         const cur = sessionWork.get(s.user_id) || { work: 0, break: 0, lunch: 0 };
         if (s.session_type === 'work') cur.work += dur;
         else if (s.session_type === 'break') cur.break += dur;
@@ -257,9 +259,8 @@ export const useMemberProductivity = (
 
       // Current status from open sessions.
       // Rule: pick the MOST RECENT open session per user (latest started_at).
-      // If last_activity is 10-15min old → idle. >5min → offline.
-      const IDLE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
-      const OFFLINE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+      // If last_activity (or started_at) is older than IDLE_THRESHOLD, mark offline.
+      const IDLE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
       const now = Date.now();
       const latestOpen = new Map<string, { type: string; ts: number; activity: number }>();
       (openSessions || []).forEach((s) => {
@@ -274,11 +275,9 @@ export const useMemberProductivity = (
       latestOpen.forEach((entry, uid) => {
         const m = memberMap.get(uid);
         if (!m) return;
-        const inactiveMs = now - entry.activity;
-        if (inactiveMs > OFFLINE_THRESHOLD_MS) {
+        const isStale = now - entry.activity > IDLE_THRESHOLD_MS;
+        if (isStale) {
           m.currentStatus = 'offline';
-        } else if (entry.type === 'work' && inactiveMs > IDLE_THRESHOLD_MS) {
-          m.currentStatus = 'idle';
         } else if (
           entry.type === 'work' ||
           entry.type === 'break' ||
@@ -294,15 +293,13 @@ export const useMemberProductivity = (
         }
       });
 
-      // Sent/received messages aggregation from RPC (no API row limit)
-      ((messageProductivity || []) as any[]).forEach((msg) => {
-        const m = memberMap.get(msg.user_id as string);
+      // Outbound messages aggregation: chars + media split
+      (outMessages || []).forEach((msg) => {
+        const m = memberMap.get(msg.sent_by_user_id as string);
         if (!m) return;
-        m.messagesSent += Number(msg.messages_sent || 0);
-        m.messagesReceived += Number(msg.messages_received || 0);
-        m.charactersTyped += Number(msg.characters_typed || 0);
-        m.audiosSent += Number(msg.audios_sent || 0);
-        m.mediaSent += Number(msg.media_sent || 0);
+        m.charactersTyped += (msg.content || '').length;
+        if (msg.message_type === 'audio') m.audiosSent += 1;
+        else if (msg.message_type && msg.message_type !== 'text') m.mediaSent += 1;
       });
 
       // Notes
@@ -334,7 +331,7 @@ export const useMemberProductivity = (
           conversationsHandled: 0,
           dealsWon: 0,
           dealsValue: 0,
-          avgResponseSeconds: respCount > 0 ? Math.round(respSum / respCount) : 0,
+          avgResponseSeconds: globalRespCount > 0 ? Math.round(globalRespSum / globalRespCount) : 0,
         },
       );
 
