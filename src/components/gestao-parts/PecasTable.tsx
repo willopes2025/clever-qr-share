@@ -185,7 +185,7 @@ export const PecasTable = ({ rows, emptyMessage = "Nenhuma peça encontrada", ra
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row, i) => (
+              {filtered.map((row, i) => (
                 <TableRow
                   key={`${row.codigo ?? i}-${i}`}
                   className="cursor-pointer"
