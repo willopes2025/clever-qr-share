@@ -52,7 +52,7 @@ graph TB
     API -->|"emitir NFC-e"| Fiscal
     Fiscal -->|"webhook autorizado/rejeitado"| API
     API <--> PSP
-    API <-- "extratos" --- Banco
+    Banco -->|"extratos"| API
     API --> Msg
 ```
 
