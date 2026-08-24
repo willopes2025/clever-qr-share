@@ -287,14 +287,17 @@ export const PecasTable = ({ rows, emptyMessage = "Nenhuma peça encontrada", ra
                           <div key={i} className="flex items-center justify-between gap-3 p-2.5">
                             <div className="min-w-0">
                               <p className="text-xs font-medium truncate">
-                                {text(pick(r, LOCAL_KEYS) ?? "Estoque")}
+                                {text(pick(r, LOCAL_KEYS) ?? "Estoque disponível")}
                               </p>
-                              {pick(r, ["codigoerp", "codigo"]) ? (
-                                <p className="text-[11px] text-muted-foreground truncate">
-                                  Cód. {text(pick(r, ["codigoerp", "codigo"]))}
-                                </p>
-                              ) : null}
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                {[
+                                  pick(r, ["codigoerp", "codigo"]) ? `Cód. ${text(pick(r, ["codigoerp", "codigo"]))}` : null,
+                                  num(pick(r, RESERVED_KEYS)) !== null ? `Reservado: ${num(pick(r, RESERVED_KEYS))!.toLocaleString("pt-BR")}` : null,
+                                  num(pick(r, TRANSIT_KEYS)) !== null ? `Em trânsito: ${num(pick(r, TRANSIT_KEYS))!.toLocaleString("pt-BR")}` : null,
+                                ].filter(Boolean).join(" · ")}
+                              </p>
                             </div>
+
                             <Badge variant={((num(pick(r, QTY_KEYS)) ?? 0) > 0) ? "secondary" : "outline"}>
                               {num(pick(r, QTY_KEYS)) !== null
                                 ? num(pick(r, QTY_KEYS))!.toLocaleString("pt-BR")
