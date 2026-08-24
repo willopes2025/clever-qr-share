@@ -5,15 +5,44 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const GP_HOST = 'api.gestaoparts.com.br';
-const GP_BASE = `https://${GP_HOST}`;
+const GP_DEFAULT_BASE = 'https://api.gestaoparts.com.br';
+
+// Each customer runs their own Gestão Parts/SSPlus server, so the base URL is
+// configured per integration (host, port and even scheme can differ).
+export interface GpEndpoint {
+  secure: boolean;
+  hostname: string;
+  port: number;
+  basePath: string;
+  origin: string;
+}
+
+function parseEndpoint(rawUrl?: string): GpEndpoint {
+  let value = String(rawUrl || '').trim() || GP_DEFAULT_BASE;
+  if (!/^https?:\/\//i.test(value)) value = `https://${value}`;
+
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    url = new URL(GP_DEFAULT_BASE);
+  }
+
+  const secure = url.protocol === 'https:';
+  const port = url.port ? Number(url.port) : (secure ? 443 : 80);
+  const basePath = url.pathname.replace(/\/+$/, '');
+  const hostHeader = url.port ? `${url.hostname}:${url.port}` : url.hostname;
+
+  return { secure, hostname: url.hostname, port, basePath, origin: `${url.protocol}//${hostHeader}` };
+}
 
 // ---------------------------------------------------------------------------
-// Raw HTTPS request helper.
+// Raw HTTP/HTTPS request helper.
 // The Gestão Parts API uses GET requests WITH a JSON body, which the standard
-// fetch() API forbids. We therefore speak HTTP/1.1 directly over TLS.
+// fetch() API forbids. We therefore speak HTTP/1.1 directly over TCP/TLS.
 // ---------------------------------------------------------------------------
 async function rawRequest(
+  ep: GpEndpoint,
   method: string,
   path: string,
   opts: { headers?: Record<string, string>; body?: string } = {},
@@ -21,7 +50,7 @@ async function rawRequest(
   let lastErr: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      return await rawRequestOnce(method, path, opts);
+      return await rawRequestOnce(ep, method, path, opts);
     } catch (err) {
       lastErr = err;
       const msg = String((err as Error)?.message || err);
@@ -33,25 +62,33 @@ async function rawRequest(
 }
 
 async function rawRequestOnce(
+  ep: GpEndpoint,
   method: string,
   path: string,
   opts: { headers?: Record<string, string>; body?: string } = {},
 ): Promise<{ status: number; body: string }> {
-  const conn = await Deno.connectTls({ hostname: GP_HOST, port: 443 });
+  const conn = ep.secure
+    ? await Deno.connectTls({ hostname: ep.hostname, port: ep.port })
+    : await Deno.connect({ hostname: ep.hostname, port: ep.port });
   try {
+    const hostHeader = (ep.secure && ep.port === 443) || (!ep.secure && ep.port === 80)
+      ? ep.hostname
+      : `${ep.hostname}:${ep.port}`;
     const headers: Record<string, string> = {
-      Host: GP_HOST,
+      Host: hostHeader,
       Accept: 'application/json',
       'User-Agent': 'WideZap/1.0',
       Connection: 'close',
       ...(opts.headers || {}),
     };
 
+
     const bodyBytes = opts.body ? new TextEncoder().encode(opts.body) : null;
     if (bodyBytes) headers['Content-Length'] = String(bodyBytes.byteLength);
 
     const headerLines = Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\r\n');
-    const head = `${method} ${path} HTTP/1.1\r\n${headerLines}\r\n\r\n`;
+    const fullPath = `${ep.basePath}${path.startsWith('/') ? path : `/${path}`}`;
+    const head = `${method} ${fullPath} HTTP/1.1\r\n${headerLines}\r\n\r\n`;
 
     await conn.write(new TextEncoder().encode(head));
     if (bodyBytes) await conn.write(bodyBytes);
@@ -146,19 +183,20 @@ function buildQuery(params: Record<string, unknown> | undefined): string {
 // ---------------------------------------------------------------------------
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
-async function getToken(username: string, password: string, force = false): Promise<string> {
-  const cached = tokenCache.get(username);
+async function getToken(ep: GpEndpoint, username: string, password: string, force = false): Promise<string> {
+  const cacheKey = `${ep.origin}${ep.basePath}|${username}`;
+  const cached = tokenCache.get(cacheKey);
   if (!force && cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
 
   const form = new URLSearchParams({ grant_type: 'password', username, password }).toString();
-  const res = await rawRequest('POST', '/token', {
+  const res = await rawRequest(ep, 'POST', '/token', {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: form,
   });
 
   if (res.status !== 200) {
     // Never keep a stale token around after an auth failure
-    tokenCache.delete(username);
+    tokenCache.delete(cacheKey);
 
     let detail = '';
     try {
@@ -197,7 +235,7 @@ async function getToken(username: string, password: string, force = false): Prom
   }
 
   const ttl = (parsed.expires_in ? Number(parsed.expires_in) : 24 * 3600) * 1000;
-  tokenCache.set(username, { token: parsed.access_token, expiresAt: Date.now() + ttl });
+  tokenCache.set(cacheKey, { token: parsed.access_token, expiresAt: Date.now() + ttl });
   return parsed.access_token;
 }
 
@@ -213,12 +251,13 @@ class GpError extends Error {
 }
 
 async function gpCall(
-  creds: { username: string; password: string },
+  creds: { username: string; password: string; endpoint: GpEndpoint },
   method: string,
   path: string,
   body?: Record<string, unknown>,
 ): Promise<unknown> {
-  const doCall = async (token: string) => rawRequest(method, path, {
+  const ep = creds.endpoint;
+  const doCall = async (token: string) => rawRequest(ep, method, path, {
     headers: {
       Authorization: `Bearer ${token}`,
       ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -226,12 +265,12 @@ async function gpCall(
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
-  let token = await getToken(creds.username, creds.password);
+  let token = await getToken(ep, creds.username, creds.password);
   let res = await doCall(token);
 
   if (res.status === 401 || res.status === 403) {
     console.log('[GestaoParts] Token expirado, renovando...');
-    token = await getToken(creds.username, creds.password, true);
+    token = await getToken(ep, creds.username, creds.password, true);
     res = await doCall(token);
   }
 
@@ -306,6 +345,7 @@ Deno.serve(async (req: Request) => {
 
     const username = rawCreds.username || Deno.env.get('GESTAO_PARTS_USERNAME') || '';
     const password = rawCreds.password || Deno.env.get('GESTAO_PARTS_PASSWORD') || '';
+    const baseUrl = rawCreds.base_url || Deno.env.get('GESTAO_PARTS_BASE_URL') || '';
 
     if (!username || !password) {
       return new Response(JSON.stringify({ error: 'Integração Gestão Parts não configurada. Cadastre usuário e senha em Configurações → Integrações.' }), {
@@ -314,13 +354,17 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const creds = { username, password };
+    // Cada cliente possui seu próprio servidor Gestão Parts (host/porta próprios)
+    const endpoint = parseEndpoint(baseUrl);
+    console.log(`[GestaoParts] Endpoint: ${endpoint.origin}${endpoint.basePath}`);
+
+    const creds = { username, password, endpoint };
     let result: unknown = null;
 
     switch (action) {
       case 'test_connection': {
-        await getToken(username, password, true);
-        result = { connected: true };
+        await getToken(endpoint, username, password, true);
+        result = { connected: true, endpoint: `${endpoint.origin}${endpoint.basePath}` };
         break;
       }
 
