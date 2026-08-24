@@ -418,28 +418,63 @@ const GestaoParts = () => {
           <TabsContent value="pecas" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Buscar peça</CardTitle>
-                <CardDescription>Por descrição da peça e/ou veículo</CardDescription>
+                <CardTitle className="text-base">Busca rápida de peça</CardTitle>
+                <CardDescription>
+                  O ERP exige o veículo (ou código de fabricante/barras) nesta consulta
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label>Veículo *</Label>
+                    <Input value={veiculo} onChange={(e) => setVeiculo(e.target.value)} placeholder="Ex: GOL 2001 1.6" />
+                  </div>
                   <div className="space-y-1.5">
                     <Label>Peça</Label>
                     <Input value={peca} onChange={(e) => setPeca(e.target.value)} placeholder="Ex: PASTILHA FREIO" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Veículo</Label>
-                    <Input value={veiculo} onChange={(e) => setVeiculo(e.target.value)} placeholder="Ex: GOL 2001 1.6" />
+                    <Label>Cód. fabricante</Label>
+                    <Input value={codFabricante} onChange={(e) => setCodFabricante(e.target.value)} placeholder="Opcional" />
                   </div>
                 </div>
                 <Button
-                  onClick={() => run("peca", "search_peca", { peca, veiculo, codfabricante: "", codbarra: "", pessoa: "" })}
-                  disabled={busy("peca")}
+                  onClick={() => run("peca", "search_peca", { peca, veiculo, codfabricante: codFabricante, codbarra: "", pessoa: "" })}
+                  disabled={busy("peca") || (!veiculo && !codFabricante)}
                 >
                   {busy("peca") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
                   Buscar
                 </Button>
-                {renderResult("peca", "Nenhuma peça encontrada")}
+                {renderPecas("peca", "Nenhuma peça encontrada")}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Catálogo de produtos</CardTitle>
+                <CardDescription>Listagem completa com código, descrição, marca e unidade</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label>Código</Label>
+                    <Input value={catalogoCodigo} onChange={(e) => setCatalogoCodigo(e.target.value)} placeholder="Opcional" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Marca</Label>
+                    <Input value={catalogoMarca} onChange={(e) => setCatalogoMarca(e.target.value)} placeholder="Opcional" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Grupo</Label>
+                    <Input value={catalogoGrupo} onChange={(e) => setCatalogoGrupo(e.target.value)} placeholder="Opcional" />
+                  </div>
+                </div>
+                <Button onClick={() => buscarCatalogo(1)} disabled={busy("catalogo")}>
+                  {busy("catalogo") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                  Listar
+                </Button>
+                {renderPecas("catalogo", "Nenhum produto encontrado")}
+                {renderPagination("catalogo", catalogoBloco, buscarCatalogo)}
               </CardContent>
             </Card>
 
@@ -458,7 +493,7 @@ const GestaoParts = () => {
                     Consultar
                   </Button>
                 </div>
-                {renderResult("placa", "Nenhum veículo/peça para esta placa")}
+                {renderPecas("placa", "Nenhum veículo/peça para esta placa")}
               </CardContent>
             </Card>
 
@@ -477,7 +512,7 @@ const GestaoParts = () => {
                     Consultar
                   </Button>
                 </div>
-                {renderResult("barcode", "Nenhum produto para este código de barras")}
+                {renderPecas("barcode", "Nenhum produto para este código de barras")}
               </CardContent>
             </Card>
 
@@ -505,6 +540,7 @@ const GestaoParts = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
         </Tabs>
       </div>
     </AppLayout>
