@@ -5,15 +5,44 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const GP_HOST = 'api.gestaoparts.com.br';
-const GP_BASE = `https://${GP_HOST}`;
+const GP_DEFAULT_BASE = 'https://api.gestaoparts.com.br';
+
+// Each customer runs their own Gestão Parts/SSPlus server, so the base URL is
+// configured per integration (host, port and even scheme can differ).
+export interface GpEndpoint {
+  secure: boolean;
+  hostname: string;
+  port: number;
+  basePath: string;
+  origin: string;
+}
+
+function parseEndpoint(rawUrl?: string): GpEndpoint {
+  let value = String(rawUrl || '').trim() || GP_DEFAULT_BASE;
+  if (!/^https?:\/\//i.test(value)) value = `https://${value}`;
+
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    url = new URL(GP_DEFAULT_BASE);
+  }
+
+  const secure = url.protocol === 'https:';
+  const port = url.port ? Number(url.port) : (secure ? 443 : 80);
+  const basePath = url.pathname.replace(/\/+$/, '');
+  const hostHeader = url.port ? `${url.hostname}:${url.port}` : url.hostname;
+
+  return { secure, hostname: url.hostname, port, basePath, origin: `${url.protocol}//${hostHeader}` };
+}
 
 // ---------------------------------------------------------------------------
-// Raw HTTPS request helper.
+// Raw HTTP/HTTPS request helper.
 // The Gestão Parts API uses GET requests WITH a JSON body, which the standard
-// fetch() API forbids. We therefore speak HTTP/1.1 directly over TLS.
+// fetch() API forbids. We therefore speak HTTP/1.1 directly over TCP/TLS.
 // ---------------------------------------------------------------------------
 async function rawRequest(
+  ep: GpEndpoint,
   method: string,
   path: string,
   opts: { headers?: Record<string, string>; body?: string } = {},
@@ -21,7 +50,7 @@ async function rawRequest(
   let lastErr: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      return await rawRequestOnce(method, path, opts);
+      return await rawRequestOnce(ep, method, path, opts);
     } catch (err) {
       lastErr = err;
       const msg = String((err as Error)?.message || err);
@@ -33,19 +62,26 @@ async function rawRequest(
 }
 
 async function rawRequestOnce(
+  ep: GpEndpoint,
   method: string,
   path: string,
   opts: { headers?: Record<string, string>; body?: string } = {},
 ): Promise<{ status: number; body: string }> {
-  const conn = await Deno.connectTls({ hostname: GP_HOST, port: 443 });
+  const conn = ep.secure
+    ? await Deno.connectTls({ hostname: ep.hostname, port: ep.port })
+    : await Deno.connect({ hostname: ep.hostname, port: ep.port });
   try {
+    const hostHeader = (ep.secure && ep.port === 443) || (!ep.secure && ep.port === 80)
+      ? ep.hostname
+      : `${ep.hostname}:${ep.port}`;
     const headers: Record<string, string> = {
-      Host: GP_HOST,
+      Host: hostHeader,
       Accept: 'application/json',
       'User-Agent': 'WideZap/1.0',
       Connection: 'close',
       ...(opts.headers || {}),
     };
+
 
     const bodyBytes = opts.body ? new TextEncoder().encode(opts.body) : null;
     if (bodyBytes) headers['Content-Length'] = String(bodyBytes.byteLength);
