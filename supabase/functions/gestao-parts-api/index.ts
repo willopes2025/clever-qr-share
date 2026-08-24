@@ -183,19 +183,20 @@ function buildQuery(params: Record<string, unknown> | undefined): string {
 // ---------------------------------------------------------------------------
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
-async function getToken(username: string, password: string, force = false): Promise<string> {
-  const cached = tokenCache.get(username);
+async function getToken(ep: GpEndpoint, username: string, password: string, force = false): Promise<string> {
+  const cacheKey = `${ep.origin}${ep.basePath}|${username}`;
+  const cached = tokenCache.get(cacheKey);
   if (!force && cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
 
   const form = new URLSearchParams({ grant_type: 'password', username, password }).toString();
-  const res = await rawRequest('POST', '/token', {
+  const res = await rawRequest(ep, 'POST', '/token', {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: form,
   });
 
   if (res.status !== 200) {
     // Never keep a stale token around after an auth failure
-    tokenCache.delete(username);
+    tokenCache.delete(cacheKey);
 
     let detail = '';
     try {
