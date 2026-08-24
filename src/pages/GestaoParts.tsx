@@ -123,6 +123,40 @@ const GestaoParts = () => {
     });
   };
 
+  const buscarCatalogo = (bloco: number) => {
+    setCatalogoBloco(bloco);
+    run("catalogo", "peca_dados", {
+      bloco,
+      codigo: catalogoCodigo,
+      marca: catalogoMarca,
+      grupo: catalogoGrupo,
+    });
+  };
+
+  /** Peças têm colunas próprias (imagem, preço, quantidade) */
+  const renderPecas = (key: string, empty: string) => {
+    const data = results[key];
+    const rows = (isPaged(data) ? (data as GestaoPartsPaged).items : []) as PecaRow[];
+    return (
+      <>
+        {errors[key] && (
+          <Alert variant="destructive" className="mb-3">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-xs break-all">{errors[key]}</AlertDescription>
+          </Alert>
+        )}
+        {data === undefined ? (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            Faça uma consulta para ver os resultados
+          </div>
+        ) : (
+          <PecasTable rows={rows} emptyMessage={empty} raw={data} />
+        )}
+      </>
+    );
+  };
+
+
   const renderPagination = (key: string, bloco: number, onChange: (b: number) => void) => {
     const data = results[key];
     if (!isPaged(data) || !data.totalblocos) return null;
