@@ -5167,6 +5167,77 @@ export type Database = {
           },
         ]
       }
+      gestao_parts_lead_data: {
+        Row: {
+          contact_id: string
+          created_at: string
+          credito: Json | null
+          deal_id: string | null
+          erp_codigo: string | null
+          erp_nome: string | null
+          financeiro: Json
+          id: string
+          last_synced_at: string
+          lookup_document: string | null
+          lookup_phone: string | null
+          pedidos: Json
+          pedidos_count: number
+          pedidos_total: number
+          pessoa: Json | null
+          synced_by: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          credito?: Json | null
+          deal_id?: string | null
+          erp_codigo?: string | null
+          erp_nome?: string | null
+          financeiro?: Json
+          id?: string
+          last_synced_at?: string
+          lookup_document?: string | null
+          lookup_phone?: string | null
+          pedidos?: Json
+          pedidos_count?: number
+          pedidos_total?: number
+          pessoa?: Json | null
+          synced_by?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          credito?: Json | null
+          deal_id?: string | null
+          erp_codigo?: string | null
+          erp_nome?: string | null
+          financeiro?: Json
+          id?: string
+          last_synced_at?: string
+          lookup_document?: string | null
+          lookup_phone?: string | null
+          pedidos?: Json
+          pedidos_count?: number
+          pedidos_total?: number
+          pessoa?: Json | null
+          synced_by?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gestao_parts_lead_data_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_calendar_integrations: {
         Row: {
           access_token: string
