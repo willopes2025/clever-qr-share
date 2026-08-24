@@ -303,7 +303,7 @@ const integrationConfigs: IntegrationConfig[] = [
     fields: [
       { key: 'username', label: 'Usuário', type: 'text', placeholder: 'rrmartinswidezapws' },
       { key: 'password', label: 'Senha', type: 'password', placeholder: '••••••••' },
-      { key: 'base_url', label: 'URL da API (opcional)', type: 'text', placeholder: 'https://api.gestaoparts.com.br' },
+      { key: 'base_url', label: 'URL da API (servidor do cliente)', type: 'text', placeholder: 'http://189.50.8.166:32150/' },
     ],
     docsUrl: 'https://api.gestaoparts.com.br/docs',
   },
