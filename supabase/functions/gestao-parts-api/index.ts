@@ -297,6 +297,62 @@ function onlyDigits(v: unknown): string {
   return String(v ?? '').replace(/\D/g, '');
 }
 
+// The ERP only accepts AAAA-MM-DD; the UI may send DD/MM/AAAA
+function toIsoDate(v: unknown): string {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return iso ? iso[0] : s;
+}
+
+// bloco is 1-based in the GPASI API; bloco 0 returns nothing
+function toBloco(v: unknown): number {
+  const n = Number(v ?? 1);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
+
+const PEDIDO_TIPOS = ['ORCAMENTO', 'CONDICIONAL', 'PRE-VENDA', 'E-COMMERCE'];
+
+function normalizeTipos(v: unknown): string[] {
+  const list = Array.isArray(v) ? v : String(v ?? '').split(',');
+  const normalized = list
+    .map((t) => String(t)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase().trim()
+      .replace(/\s+/g, '-')
+      .replace(/^PRE-?VENDA$/, 'PRE-VENDA')
+      .replace(/^E-?COMMERCE$/, 'E-COMMERCE'))
+    .filter((t) => PEDIDO_TIPOS.includes(t));
+  return normalized.length ? Array.from(new Set(normalized)) : [...PEDIDO_TIPOS];
+}
+
+/** Normaliza respostas paginadas do ERP em { items, totalblocos, blocoatual } */
+function normalizePaged(raw: unknown, listKeys: string[]): unknown {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const obj = raw as Record<string, unknown>;
+    let items: unknown[] | null = null;
+    for (const key of listKeys) {
+      if (Array.isArray(obj[key])) { items = obj[key] as unknown[]; break; }
+    }
+    if (!items) {
+      for (const value of Object.values(obj)) {
+        if (Array.isArray(value)) { items = value as unknown[]; break; }
+      }
+    }
+    return {
+      items: items ?? [],
+      totalblocos: Number(obj.totalblocos ?? 0),
+      blocoatual: Number(obj.blocoatual ?? 0),
+      ...(obj.message ? { message: obj.message } : {}),
+    };
+  }
+  if (Array.isArray(raw)) return { items: raw, totalblocos: 1, blocoatual: 1 };
+  return { items: [], totalblocos: 0, blocoatual: 0 };
+}
+
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -379,15 +435,17 @@ Deno.serve(async (req: Request) => {
       }
 
       case 'list_clientes': {
-        result = await gpCall(creds, 'GET', '/erpssplus/cliente', {
-          bloco: Number(params.bloco ?? 0),
+        const raw = await gpCall(creds, 'GET', '/erpssplus/cliente', {
+          bloco: toBloco(params.bloco),
           codigo: params.codigo ?? '',
           cpf: onlyDigits(params.cpf) || '',
           cnpj: onlyDigits(params.cnpj) || '',
           situacao: params.situacao ?? 'T',
-          ...(params.dtatualizacao ? { dtatualizacao: params.dtatualizacao } : {}),
+          ...(params.dtatualizacao ? { dtatualizacao: toIsoDate(params.dtatualizacao) } : {}),
         });
+        result = normalizePaged(raw, ['clientes', 'cliente']);
         break;
+
       }
 
       case 'cliente_credito': {
@@ -425,14 +483,16 @@ Deno.serve(async (req: Request) => {
       }
 
       case 'peca_tabela_preco': {
-        result = await gpCall(creds, 'GET', '/erpssplus/peca/tabela/preco/', {
-          bloco: Number(params.bloco ?? 0),
+        const raw = await gpCall(creds, 'GET', '/erpssplus/peca/tabela/preco/', {
+          bloco: toBloco(params.bloco),
           empresa: params.empresa ?? '',
           codigoerp: params.codigoerp ?? '',
           tabelapreco: params.tabelapreco ?? '',
-          ...(params.dtatualizacao ? { dtatualizacao: params.dtatualizacao } : {}),
+          ...(params.dtatualizacao ? { dtatualizacao: toIsoDate(params.dtatualizacao) } : {}),
         });
+        result = normalizePaged(raw, ['tabelapreco', 'precos', 'pecas']);
         break;
+
       }
 
       case 'peca_estoque': {
@@ -445,16 +505,35 @@ Deno.serve(async (req: Request) => {
       case 'peca_veiculo_placa': {
         const placa = String(params.placa || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         if (!placa) throw new GpError(400, 'Informe a placa');
-        result = await gpCall(creds, 'GET', `/erpssplus/v2/peca/veiculo/placa/${buildQuery({ placa })}`);
+        // A API espera placa/produto no CORPO da requisição (GET com body)
+        result = await gpCall(creds, 'GET', '/erpssplus/v2/peca/veiculo/placa/', {
+          placa,
+          ...(params.produto ? { produto: String(params.produto) } : {}),
+        });
         break;
       }
 
       // ------- Pedidos -------
+      // Listagem real de pedidos: feed v3 (paginado por bloco, tipos em maiúsculo)
       case 'list_pedidos': {
+        const raw = await gpCall(creds, 'GET', '/erpssplus/v3/pedido/feed', {
+          bloco: toBloco(params.bloco),
+          tipopedido: normalizeTipos(params.tipopedido),
+          dtinicio: toIsoDate(params.dtinicio),
+          dtfinal: toIsoDate(params.dtfinal),
+          ...(params.empresa ? { empresa: String(params.empresa) } : {}),
+          ...(params.status ? { status: String(params.status) } : {}),
+        });
+        result = normalizePaged(raw, ['pedidos']);
+        break;
+      }
+
+      // Consulta de status de um pedido específico (nº do pedido ou token)
+      case 'get_pedido_status': {
         result = await gpCall(creds, 'GET', '/erpssplus/v2/pedido/status', {
           pedido: params.pedido ?? '',
-          dtinicio: params.dtinicio ?? '',
-          dtfinal: params.dtfinal ?? '',
+          dtinicio: toIsoDate(params.dtinicio),
+          dtfinal: toIsoDate(params.dtfinal),
           token: params.token ?? '',
         });
         break;
@@ -476,18 +555,20 @@ Deno.serve(async (req: Request) => {
 
       // ------- Financeiro -------
       case 'contas_receber': {
-        result = await gpCall(creds, 'GET', '/erpssplus/financeiro/contas/receber', {
-          bloco: Number(params.bloco ?? 0),
+        const raw = await gpCall(creds, 'GET', '/erpssplus/financeiro/contas/receber', {
+          bloco: toBloco(params.bloco),
           cliente: params.cliente ?? '',
           empresa: params.empresa ?? '',
-          dtemissaoinicio: params.dtemissaoinicio ?? '',
-          dtemissaofim: params.dtemissaofim ?? '',
-          dtvencimentoinicio: params.dtvencimentoinicio ?? '',
-          dtvencimentofim: params.dtvencimentofim ?? '',
+          dtemissaoinicio: toIsoDate(params.dtemissaoinicio),
+          dtemissaofim: toIsoDate(params.dtemissaofim),
+          dtvencimentoinicio: toIsoDate(params.dtvencimentoinicio),
+          dtvencimentofim: toIsoDate(params.dtvencimentofim),
           numeroduplicata: params.numeroduplicata ?? '',
           planilha: params.planilha ?? '',
         });
+        result = normalizePaged(raw, ['receber']);
         break;
+
       }
 
       case 'boletos': {
@@ -524,9 +605,27 @@ Deno.serve(async (req: Request) => {
         const pessoa = summary.pessoa as { codigo?: string; codstatus?: number } | null;
         const clienteCodigo = pessoa?.codigo ? String(pessoa.codigo) : '';
 
-        if (documento) {
+        // Pedidos do cliente: feed v3 (últimos 12 meses) filtrado pelo código da pessoa
+        if (clienteCodigo || documento) {
           try {
-            summary.pedidos = await gpCall(creds, 'GET', `/erpssplus/pedido/requisicao/cpf${buildQuery({ cpf: documento })}`);
+            const hoje = new Date();
+            const inicio = new Date(hoje.getTime() - 365 * 86400000);
+            const feed = normalizePaged(
+              await gpCall(creds, 'GET', '/erpssplus/v3/pedido/feed', {
+                bloco: 1,
+                tipopedido: PEDIDO_TIPOS,
+                dtinicio: inicio.toISOString().slice(0, 10),
+                dtfinal: hoje.toISOString().slice(0, 10),
+              }),
+              ['pedidos'],
+            ) as { items: Array<Record<string, unknown>> };
+
+            const doDocumento = feed.items.filter((p) => {
+              const cod = onlyDigits(p.codpessoa);
+              const cpfCnpj = onlyDigits(p.cpfcnpj ?? p.cnpj ?? p.cpf);
+              return (clienteCodigo && cod === onlyDigits(clienteCodigo)) || (documento && cpfCnpj === documento);
+            });
+            summary.pedidos = doDocumento;
           } catch (e) {
             console.error('[GestaoParts] lead_summary pedidos:', (e as Error).message);
           }
@@ -534,19 +633,23 @@ Deno.serve(async (req: Request) => {
 
         if (clienteCodigo) {
           try {
-            summary.financeiro = await gpCall(creds, 'GET', '/erpssplus/financeiro/contas/receber', {
-              bloco: 0,
-              cliente: clienteCodigo,
-              empresa: '',
-              dtemissaoinicio: '',
-              dtemissaofim: '',
-              dtvencimentoinicio: '',
-              dtvencimentofim: '',
-              numeroduplicata: '',
-              planilha: '',
-            });
+            summary.financeiro = (normalizePaged(
+              await gpCall(creds, 'GET', '/erpssplus/financeiro/contas/receber', {
+                bloco: 1,
+                cliente: clienteCodigo,
+                empresa: '',
+                dtemissaoinicio: '',
+                dtemissaofim: '',
+                dtvencimentoinicio: '',
+                dtvencimentofim: '',
+                numeroduplicata: '',
+                planilha: '',
+              }),
+              ['receber'],
+            ) as { items: unknown[] }).items;
           } catch (e) {
             console.error('[GestaoParts] lead_summary financeiro:', (e as Error).message);
+
           }
 
           try {

@@ -5,20 +5,36 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Cog, Search, Loader2, AlertCircle } from "lucide-react";
+import { Cog, Search, Loader2, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-import { useGestaoParts, GestaoPartsAction } from "@/hooks/useGestaoParts";
+import {
+  useGestaoParts,
+  GestaoPartsAction,
+  GestaoPartsPaged,
+  PEDIDO_TIPOS,
+  PedidoTipo,
+} from "@/hooks/useGestaoParts";
 import { GestaoPartsTable } from "@/components/gestao-parts/GestaoPartsTable";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const daysAgoISO = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
 
+const TIPO_LABEL: Record<PedidoTipo, string> = {
+  ORCAMENTO: "Orçamento",
+  CONDICIONAL: "Condicional",
+  "PRE-VENDA": "Pré-venda",
+  "E-COMMERCE": "E-commerce",
+};
+
+const isPaged = (v: unknown): v is GestaoPartsPaged =>
+  !!v && typeof v === "object" && Array.isArray((v as GestaoPartsPaged).items);
+
 const GestaoParts = () => {
   const { hasGestaoParts, isLoading: isLoadingStatus, call } = useGestaoParts();
-  const [activeTab, setActiveTab] = useState("pecas");
+  const [activeTab, setActiveTab] = useState("pedidos");
 
-  // shared result state per tab
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string | null>>({});
@@ -28,19 +44,28 @@ const GestaoParts = () => {
   const [veiculo, setVeiculo] = useState("");
   const [codbarra, setCodbarra] = useState("");
   const [codigoErp, setCodigoErp] = useState("");
+  const [placa, setPlaca] = useState("");
 
   // Clientes
   const [clienteBusca, setClienteBusca] = useState("");
+  const [clientesBloco, setClientesBloco] = useState(1);
 
   // Pedidos
   const [pedidoInicio, setPedidoInicio] = useState(daysAgoISO(30));
   const [pedidoFim, setPedidoFim] = useState(todayISO());
+  const [pedidoTipos, setPedidoTipos] = useState<PedidoTipo[]>([...PEDIDO_TIPOS]);
+  const [pedidoBloco, setPedidoBloco] = useState(1);
+  const [pedidoNumero, setPedidoNumero] = useState("");
   const [pedidoCpf, setPedidoCpf] = useState("");
 
   // Financeiro
   const [finCliente, setFinCliente] = useState("");
   const [finVencInicio, setFinVencInicio] = useState(daysAgoISO(30));
   const [finVencFim, setFinVencFim] = useState(todayISO());
+  const [finBloco, setFinBloco] = useState(1);
+  const [finEmpresa, setFinEmpresa] = useState("");
+  const [boletoEmpresa, setBoletoEmpresa] = useState("");
+  const [boletoPlanilha, setBoletoPlanilha] = useState("");
 
   const run = async (key: string, action: GestaoPartsAction, params: Record<string, unknown>) => {
     setLoadingKey(key);
@@ -56,6 +81,101 @@ const GestaoParts = () => {
       setLoadingKey(null);
     }
   };
+
+  const busy = (key: string) => loadingKey === key;
+
+  const toggleTipo = (tipo: PedidoTipo) => {
+    setPedidoTipos((prev) =>
+      prev.includes(tipo) ? prev.filter((t) => t !== tipo) : [...prev, tipo],
+    );
+  };
+
+  const buscarPedidos = (bloco: number) => {
+    setPedidoBloco(bloco);
+    run("pedidos", "list_pedidos", {
+      bloco,
+      tipopedido: pedidoTipos.length ? pedidoTipos : [...PEDIDO_TIPOS],
+      dtinicio: pedidoInicio,
+      dtfinal: pedidoFim,
+    });
+  };
+
+  const buscarClientes = (bloco: number) => {
+    setClientesBloco(bloco);
+    run("clientes", "list_clientes", { bloco, situacao: "T" });
+  };
+
+  const buscarFinanceiro = (bloco: number) => {
+    setFinBloco(bloco);
+    run("receber", "contas_receber", {
+      bloco,
+      cliente: finCliente,
+      empresa: finEmpresa,
+      dtvencimentoinicio: finVencInicio,
+      dtvencimentofim: finVencFim,
+    });
+  };
+
+  const renderPagination = (key: string, bloco: number, onChange: (b: number) => void) => {
+    const data = results[key];
+    if (!isPaged(data) || !data.totalblocos) return null;
+    return (
+      <div className="flex items-center justify-between pt-2">
+        <span className="text-xs text-muted-foreground">
+          Bloco {data.blocoatual || bloco} de {data.totalblocos}
+        </span>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={bloco <= 1 || busy(key)}
+            onClick={() => onChange(bloco - 1)}
+          >
+            <ChevronLeft className="h-4 w-4" /> Anterior
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={bloco >= data.totalblocos || busy(key)}
+            onClick={() => onChange(bloco + 1)}
+          >
+            Próximo <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderResult = (key: string, empty: string) => (
+    <>
+      {errors[key] && (
+        <Alert variant="destructive" className="mb-3">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="text-xs break-all">{errors[key]}</AlertDescription>
+        </Alert>
+      )}
+      {results[key] !== undefined ? (
+        <>
+          {isPaged(results[key]) && (results[key] as GestaoPartsPaged).message && (
+            <Alert className="mb-3">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                {(results[key] as GestaoPartsPaged).message}
+              </AlertDescription>
+            </Alert>
+          )}
+          <GestaoPartsTable
+            data={isPaged(results[key]) ? (results[key] as GestaoPartsPaged).items : results[key]}
+            emptyMessage={empty}
+          />
+        </>
+      ) : (
+        <div className="text-center py-10 text-muted-foreground text-sm">
+          Faça uma consulta para ver os resultados
+        </div>
+      )}
+    </>
+  );
 
   if (isLoadingStatus) {
     return (
@@ -82,26 +202,6 @@ const GestaoParts = () => {
     );
   }
 
-  const renderResult = (key: string, empty: string) => (
-    <>
-      {errors[key] && (
-        <Alert variant="destructive" className="mb-3">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="text-xs break-all">{errors[key]}</AlertDescription>
-        </Alert>
-      )}
-      {results[key] !== undefined ? (
-        <GestaoPartsTable data={results[key]} emptyMessage={empty} />
-      ) : (
-        <div className="text-center py-10 text-muted-foreground text-sm">
-          Faça uma consulta para ver os resultados
-        </div>
-      )}
-    </>
-  );
-
-  const busy = (key: string) => loadingKey === key;
-
   return (
     <AppLayout pageTitle="Gestão Parts">
       <div className="space-y-6">
@@ -111,17 +211,208 @@ const GestaoParts = () => {
             Gestão Parts
           </h1>
           <p className="text-muted-foreground">
-            Consultas ao ERP SSPlus: peças, estoque, preços, clientes, pedidos e financeiro
+            Consultas ao ERP SSPlus: pedidos, clientes, financeiro, peças, estoque e preços
           </p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="pecas">Peças</TabsTrigger>
-            <TabsTrigger value="clientes">Clientes</TabsTrigger>
             <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
+            <TabsTrigger value="clientes">Clientes</TabsTrigger>
             <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
+            <TabsTrigger value="pecas">Peças</TabsTrigger>
           </TabsList>
+
+          {/* -------------------- PEDIDOS -------------------- */}
+          <TabsContent value="pedidos" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Pedidos por período</CardTitle>
+                <CardDescription>
+                  Listagem paginada do ERP (feed v3). Selecione os tipos de pedido desejados.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {PEDIDO_TIPOS.map((tipo) => (
+                    <Badge
+                      key={tipo}
+                      variant={pedidoTipos.includes(tipo) ? "default" : "outline"}
+                      className="cursor-pointer select-none"
+                      onClick={() => toggleTipo(tipo)}
+                    >
+                      {TIPO_LABEL[tipo]}
+                    </Badge>
+                  ))}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
+                  <div className="space-y-1.5">
+                    <Label>Início</Label>
+                    <Input type="date" value={pedidoInicio} onChange={(e) => setPedidoInicio(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Fim</Label>
+                    <Input type="date" value={pedidoFim} onChange={(e) => setPedidoFim(e.target.value)} />
+                  </div>
+                  <Button onClick={() => buscarPedidos(1)} disabled={busy("pedidos")}>
+                    {busy("pedidos") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                    Buscar
+                  </Button>
+                </div>
+
+                {renderResult("pedidos", "Nenhum pedido no período para os tipos selecionados")}
+                {renderPagination("pedidos", pedidoBloco, buscarPedidos)}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Status de um pedido</CardTitle>
+                <CardDescription>Consulta pelo número do pedido no ERP</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                  <div className="space-y-1.5 flex-1">
+                    <Label>Número do pedido</Label>
+                    <Input value={pedidoNumero} onChange={(e) => setPedidoNumero(e.target.value)} placeholder="Ex: 770851" />
+                  </div>
+                  <Button
+                    onClick={() => run("pedido-status", "get_pedido_status", { pedido: pedidoNumero })}
+                    disabled={busy("pedido-status") || !pedidoNumero}
+                  >
+                    {busy("pedido-status") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                    Consultar
+                  </Button>
+                </div>
+                {renderResult("pedido-status", "Pedido não encontrado")}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Pedidos por CPF/CNPJ</CardTitle>
+                <CardDescription>Disponível para pedidos de e-commerce, condicional e pré-venda</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                  <div className="space-y-1.5 flex-1">
+                    <Label>CPF ou CNPJ</Label>
+                    <Input value={pedidoCpf} onChange={(e) => setPedidoCpf(e.target.value)} placeholder="Somente números" />
+                  </div>
+                  <Button onClick={() => run("pedidos-cpf", "pedidos_cpf", { cpf: pedidoCpf })} disabled={busy("pedidos-cpf") || !pedidoCpf}>
+                    {busy("pedidos-cpf") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                    Buscar
+                  </Button>
+                </div>
+                {renderResult("pedidos-cpf", "Nenhum pedido para este documento")}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* -------------------- CLIENTES -------------------- */}
+          <TabsContent value="clientes" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Consultar cadastro</CardTitle>
+                <CardDescription>Telefone (DDD + número), CPF ou CNPJ</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                  <div className="space-y-1.5 flex-1">
+                    <Label>Telefone, CPF ou CNPJ</Label>
+                    <Input value={clienteBusca} onChange={(e) => setClienteBusca(e.target.value)} placeholder="46988016163" />
+                  </div>
+                  <Button
+                    onClick={() => run("pessoa", "check_pessoa", { documento: clienteBusca })}
+                    disabled={busy("pessoa") || !clienteBusca}
+                  >
+                    {busy("pessoa") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                    Consultar
+                  </Button>
+                </div>
+                {renderResult("pessoa", "Cadastro não localizado no ERP")}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Listagem de clientes</CardTitle>
+                <CardDescription>Paginada por blocos do ERP</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button onClick={() => buscarClientes(1)} disabled={busy("clientes")}>
+                  {busy("clientes") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                  Carregar clientes
+                </Button>
+                {renderResult("clientes", "Nenhum cliente retornado")}
+                {renderPagination("clientes", clientesBloco, buscarClientes)}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* -------------------- FINANCEIRO -------------------- */}
+          <TabsContent value="financeiro" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Contas a receber</CardTitle>
+                <CardDescription>Filtro por vencimento, empresa e/ou código do cliente</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-5 sm:items-end">
+                  <div className="space-y-1.5">
+                    <Label>Vencimento de</Label>
+                    <Input type="date" value={finVencInicio} onChange={(e) => setFinVencInicio(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>até</Label>
+                    <Input type="date" value={finVencFim} onChange={(e) => setFinVencFim(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Empresa</Label>
+                    <Input value={finEmpresa} onChange={(e) => setFinEmpresa(e.target.value)} placeholder="0001" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Código do cliente</Label>
+                    <Input value={finCliente} onChange={(e) => setFinCliente(e.target.value)} placeholder="Opcional" />
+                  </div>
+                  <Button onClick={() => buscarFinanceiro(1)} disabled={busy("receber")}>
+                    {busy("receber") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                    Buscar
+                  </Button>
+                </div>
+                {renderResult("receber", "Nenhum título encontrado")}
+                {renderPagination("receber", finBloco, buscarFinanceiro)}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Boletos</CardTitle>
+                <CardDescription>Informe empresa e planilha do título</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
+                  <div className="space-y-1.5">
+                    <Label>Empresa</Label>
+                    <Input value={boletoEmpresa} onChange={(e) => setBoletoEmpresa(e.target.value)} placeholder="0001" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Planilha</Label>
+                    <Input value={boletoPlanilha} onChange={(e) => setBoletoPlanilha(e.target.value)} />
+                  </div>
+                  <Button
+                    onClick={() => run("boletos", "boletos", { empresa: boletoEmpresa, planilha: boletoPlanilha })}
+                    disabled={busy("boletos") || !boletoEmpresa || !boletoPlanilha}
+                  >
+                    {busy("boletos") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                    Buscar boletos
+                  </Button>
+                </div>
+                {renderResult("boletos", "Nenhum boleto encontrado")}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* -------------------- PEÇAS -------------------- */}
           <TabsContent value="pecas" className="space-y-4">
@@ -142,13 +433,32 @@ const GestaoParts = () => {
                   </div>
                 </div>
                 <Button
-                  onClick={() => run('peca', 'search_peca', { peca, veiculo, codfabricante: '', codbarra: '', pessoa: '' })}
-                  disabled={busy('peca')}
+                  onClick={() => run("peca", "search_peca", { peca, veiculo, codfabricante: "", codbarra: "", pessoa: "" })}
+                  disabled={busy("peca")}
                 >
-                  {busy('peca') ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                  {busy("peca") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
                   Buscar
                 </Button>
-                {renderResult('peca', 'Nenhuma peça encontrada')}
+                {renderResult("peca", "Nenhuma peça encontrada")}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Peças por placa</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                  <div className="space-y-1.5 flex-1">
+                    <Label>Placa do veículo</Label>
+                    <Input value={placa} onChange={(e) => setPlaca(e.target.value.toUpperCase())} placeholder="ABC1D23" />
+                  </div>
+                  <Button onClick={() => run("placa", "peca_veiculo_placa", { placa })} disabled={busy("placa") || !placa}>
+                    {busy("placa") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                    Consultar
+                  </Button>
+                </div>
+                {renderResult("placa", "Nenhum veículo/peça para esta placa")}
               </CardContent>
             </Card>
 
@@ -162,12 +472,12 @@ const GestaoParts = () => {
                     <Label>Código de barras</Label>
                     <Input value={codbarra} onChange={(e) => setCodbarra(e.target.value)} placeholder="7891234567890" />
                   </div>
-                  <Button onClick={() => run('barcode', 'peca_barcode', { barcode: codbarra })} disabled={busy('barcode') || !codbarra}>
-                    {busy('barcode') ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                  <Button onClick={() => run("barcode", "peca_barcode", { barcode: codbarra })} disabled={busy("barcode") || !codbarra}>
+                    {busy("barcode") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
                     Consultar
                   </Button>
                 </div>
-                {renderResult('barcode', 'Nenhum produto para este código de barras')}
+                {renderResult("barcode", "Nenhum produto para este código de barras")}
               </CardContent>
             </Card>
 
@@ -181,144 +491,17 @@ const GestaoParts = () => {
                     <Label>Código ERP da peça</Label>
                     <Input value={codigoErp} onChange={(e) => setCodigoErp(e.target.value)} placeholder="Código interno" />
                   </div>
-                  <Button variant="outline" onClick={() => run('preco', 'peca_preco', { codigoerp: codigoErp })} disabled={busy('preco') || !codigoErp}>
-                    {busy('preco') ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  <Button variant="outline" onClick={() => run("preco", "peca_preco", { codigoerp: codigoErp })} disabled={busy("preco") || !codigoErp}>
+                    {busy("preco") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                     Preço
                   </Button>
-                  <Button variant="outline" onClick={() => run('estoque', 'peca_estoque', { codigoerp: codigoErp })} disabled={busy('estoque') || !codigoErp}>
-                    {busy('estoque') ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  <Button variant="outline" onClick={() => run("estoque", "peca_estoque", { codigoerp: codigoErp })} disabled={busy("estoque") || !codigoErp}>
+                    {busy("estoque") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                     Estoque
                   </Button>
                 </div>
-                {renderResult('preco', 'Sem preço retornado')}
-                {renderResult('estoque', 'Sem estoque retornado')}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* -------------------- CLIENTES -------------------- */}
-          <TabsContent value="clientes" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Consultar cadastro</CardTitle>
-                <CardDescription>Telefone (DDD + número), CPF ou CNPJ</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-                  <div className="space-y-1.5 flex-1">
-                    <Label>Telefone, CPF ou CNPJ</Label>
-                    <Input value={clienteBusca} onChange={(e) => setClienteBusca(e.target.value)} placeholder="46988016163" />
-                  </div>
-                  <Button
-                    onClick={() => run('pessoa', 'check_pessoa', { documento: clienteBusca })}
-                    disabled={busy('pessoa') || !clienteBusca}
-                  >
-                    {busy('pessoa') ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
-                    Consultar
-                  </Button>
-                </div>
-                {renderResult('pessoa', 'Cadastro não localizado no ERP')}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Listagem de clientes</CardTitle>
-                <CardDescription>Bloco de até 1000 registros</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button onClick={() => run('clientes', 'list_clientes', { bloco: 0, situacao: 'T' })} disabled={busy('clientes')}>
-                  {busy('clientes') ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
-                  Carregar clientes
-                </Button>
-                {renderResult('clientes', 'Nenhum cliente retornado')}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* -------------------- PEDIDOS -------------------- */}
-          <TabsContent value="pedidos" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Pedidos por período</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
-                  <div className="space-y-1.5">
-                    <Label>Início</Label>
-                    <Input type="date" value={pedidoInicio} onChange={(e) => setPedidoInicio(e.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Fim</Label>
-                    <Input type="date" value={pedidoFim} onChange={(e) => setPedidoFim(e.target.value)} />
-                  </div>
-                  <Button
-                    onClick={() => run('pedidos', 'list_pedidos', { dtinicio: pedidoInicio, dtfinal: pedidoFim })}
-                    disabled={busy('pedidos')}
-                  >
-                    {busy('pedidos') ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
-                    Buscar
-                  </Button>
-                </div>
-                {renderResult('pedidos', 'Nenhum pedido no período')}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Pedidos por CPF/CNPJ</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-                  <div className="space-y-1.5 flex-1">
-                    <Label>CPF ou CNPJ</Label>
-                    <Input value={pedidoCpf} onChange={(e) => setPedidoCpf(e.target.value)} placeholder="Somente números" />
-                  </div>
-                  <Button onClick={() => run('pedidos-cpf', 'pedidos_cpf', { cpf: pedidoCpf })} disabled={busy('pedidos-cpf') || !pedidoCpf}>
-                    {busy('pedidos-cpf') ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
-                    Buscar
-                  </Button>
-                </div>
-                {renderResult('pedidos-cpf', 'Nenhum pedido para este documento')}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* -------------------- FINANCEIRO -------------------- */}
-          <TabsContent value="financeiro" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Contas a receber</CardTitle>
-                <CardDescription>Filtro por vencimento e/ou código do cliente</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-4 sm:items-end">
-                  <div className="space-y-1.5">
-                    <Label>Vencimento de</Label>
-                    <Input type="date" value={finVencInicio} onChange={(e) => setFinVencInicio(e.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>até</Label>
-                    <Input type="date" value={finVencFim} onChange={(e) => setFinVencFim(e.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Código do cliente</Label>
-                    <Input value={finCliente} onChange={(e) => setFinCliente(e.target.value)} placeholder="Opcional" />
-                  </div>
-                  <Button
-                    onClick={() => run('receber', 'contas_receber', {
-                      bloco: 0,
-                      cliente: finCliente,
-                      dtvencimentoinicio: finVencInicio,
-                      dtvencimentofim: finVencFim,
-                    })}
-                    disabled={busy('receber')}
-                  >
-                    {busy('receber') ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
-                    Buscar
-                  </Button>
-                </div>
-                {renderResult('receber', 'Nenhum título encontrado')}
+                {renderResult("preco", "Sem preço retornado")}
+                {renderResult("estoque", "Sem estoque retornado")}
               </CardContent>
             </Card>
           </TabsContent>

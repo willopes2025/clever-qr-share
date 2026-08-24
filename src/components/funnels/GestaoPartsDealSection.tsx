@@ -109,11 +109,12 @@ export const GestaoPartsDealSection = ({
                   {pedidos.slice(0, 5).map((p, i) => (
                     <div key={i} className="flex items-center justify-between text-[11px] text-muted-foreground">
                       <span className="truncate max-w-[140px]">
-                        {String(p.requisicao ?? p.pedido ?? p.numero ?? `#${i + 1}`)}
+                        {String(p.numpedido ?? p.requisicao ?? p.pedido ?? p.numero ?? `#${i + 1}`)}
                       </span>
                       <span>{String(p.status ?? p.situacao ?? '-')}</span>
                     </div>
                   ))}
+
                 </div>
               </div>
             )}
