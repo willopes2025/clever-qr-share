@@ -44,6 +44,24 @@ const itemTotal = (item: Record<string, unknown>): number | null => {
   return q !== null && u !== null ? q * u : null;
 };
 
+/** O ERP nem sempre preenche "status"; tentamos as variações conhecidas */
+const pedidoStatus = (row: PedidoRow): string => {
+  const v = pick(row as Record<string, unknown>, [
+    "status",
+    "statuspedido",
+    "statusseparacao",
+    "situacao",
+    "dessituacao",
+    "descstatus",
+    "desstatus",
+  ]);
+  const s = String(v ?? "").trim();
+  if (s) return s;
+  // Pedido já faturado: a NF-e emitida é o melhor indicativo disponível
+  return row.nfe_numero ? "FATURADO" : "";
+};
+
+
 export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", raw }: PedidosTableProps) => {
   const [showRaw, setShowRaw] = useState(false);
   const [query, setQuery] = useState("");
