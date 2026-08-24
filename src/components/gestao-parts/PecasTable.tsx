@@ -92,6 +92,16 @@ const totalEstoque = (raw: unknown): number | null => {
   return total;
 };
 
+/** Primeiro preço válido retornado pelo ERP */
+const pickPrice = (raw: unknown): unknown => {
+  for (const r of toRecords(raw)) {
+    const p = pick(r, PRICE_KEYS);
+    if (p !== undefined) return p;
+  }
+  return undefined;
+};
+
+
 
 export const PecasTable = ({ rows, emptyMessage = "Nenhuma peça encontrada", raw }: PecasTableProps) => {
   const [showRaw, setShowRaw] = useState(false);
