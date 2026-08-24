@@ -77,9 +77,12 @@ const pick = (rec: Record<string, unknown>, keys: string[]): unknown => {
   return undefined;
 };
 
-const QTY_KEYS = ["quantidade", "qtde", "qtd", "estoqueatual", "estoque_atual", "saldo", "quantidadeatual", "disponivel"];
+const QTY_KEYS = ["estoque", "estoquedisponivel", "quantidade", "qtde", "qtd", "estoqueatual", "estoque_atual", "saldo", "quantidadeatual", "disponivel"];
 const PRICE_KEYS = ["preco", "precovenda", "preco_venda", "valor", "valorvenda", "precotabela"];
 const LOCAL_KEYS = ["empresa", "empresanome", "filial", "deposito", "local", "almoxarifado", "loja", "codigoempresa"];
+const RESERVED_KEYS = ["estoquereservado", "reservado"];
+const TRANSIT_KEYS = ["estoquetransito", "transito"];
+
 
 /** Soma o estoque total retornado pelo ERP */
 const totalEstoque = (raw: unknown): number | null => {
