@@ -306,11 +306,15 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
         />
 
         {/* Gestão Parts Section */}
-        <GestaoPartsDealSection
-          contactPhone={activeDeal?.contact?.phone}
-          contactCustomFields={activeDeal?.contact?.custom_fields as Record<string, unknown> | undefined}
-          dealCustomFields={activeDeal?.custom_fields as Record<string, unknown> | undefined}
-        />
+        {activeDeal?.contact_id && (
+          <GestaoPartsLeadTab
+            contactId={activeDeal.contact_id}
+            contactPhone={activeDeal?.contact?.phone}
+            contactCustomFields={activeDeal?.contact?.custom_fields as Record<string, unknown> | null}
+            dealCustomFields={activeDeal?.custom_fields as Record<string, unknown> | null}
+            dealId={activeDeal?.id ?? null}
+          />
+        )}
 
 
         {/* Notes Section */}
