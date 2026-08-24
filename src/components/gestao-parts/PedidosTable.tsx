@@ -44,6 +44,24 @@ const itemTotal = (item: Record<string, unknown>): number | null => {
   return q !== null && u !== null ? q * u : null;
 };
 
+/** O ERP nem sempre preenche "status"; tentamos as variações conhecidas */
+const pedidoStatus = (row: PedidoRow): string => {
+  const v = pick(row as Record<string, unknown>, [
+    "status",
+    "statuspedido",
+    "statusseparacao",
+    "situacao",
+    "dessituacao",
+    "descstatus",
+    "desstatus",
+  ]);
+  const s = String(v ?? "").trim();
+  if (s) return s;
+  // Pedido já faturado: a NF-e emitida é o melhor indicativo disponível
+  return row.nfe_numero ? "FATURADO" : "";
+};
+
+
 export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", raw }: PedidosTableProps) => {
   const [showRaw, setShowRaw] = useState(false);
   const [query, setQuery] = useState("");
@@ -124,8 +142,13 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                   <TableCell className="text-xs whitespace-nowrap">{text(row.tipo)}</TableCell>
                   <TableCell className="text-xs min-w-[220px]">{text(row.despessoa)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
-                    <Badge variant="secondary" className="font-normal">{text(row.status)}</Badge>
+                    {pedidoStatus(row) ? (
+                      <Badge variant="secondary" className="font-normal">{pedidoStatus(row)}</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">Sem status</span>
+                    )}
                   </TableCell>
+
                   <TableCell className="text-xs text-right whitespace-nowrap font-medium">{money(row.total)}</TableCell>
                 </TableRow>
               ))}
@@ -170,7 +193,7 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
 
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Data / hora" value={`${brDate(selected.dtemis)} ${text(selected.hremis)}`} />
-                    <Field label="Status" value={text(selected.status)} />
+                    <Field label="Status" value={text(pedidoStatus(selected))} />
                     <Field label="Empresa" value={text(selected.empresa)} />
                     <Field label="Série" value={text(selected.serie)} />
                     <Field label="Cliente" value={text(selected.despessoa)} />

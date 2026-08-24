@@ -622,8 +622,10 @@ Deno.serve(async (req: Request) => {
           tipopedido: normalizeTipos(params.tipopedido),
           dtinicio: toIsoDate(params.dtinicio),
           dtfinal: toIsoDate(params.dtfinal),
-          ...(params.empresa ? { empresa: String(params.empresa) } : {}),
-          ...(params.status ? { status: String(params.status) } : {}),
+          // empresa e status também são listas nesta rota
+          ...(params.empresa ? { empresa: Array.isArray(params.empresa) ? params.empresa : [String(params.empresa)] } : {}),
+          ...(params.status ? { status: Array.isArray(params.status) ? params.status : [String(params.status)] } : {}),
+
         });
         result = normalizePaged(raw, ['pedidos']);
         break;
