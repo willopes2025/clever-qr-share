@@ -235,7 +235,7 @@ async function getToken(ep: GpEndpoint, username: string, password: string, forc
   }
 
   const ttl = (parsed.expires_in ? Number(parsed.expires_in) : 24 * 3600) * 1000;
-  tokenCache.set(username, { token: parsed.access_token, expiresAt: Date.now() + ttl });
+  tokenCache.set(cacheKey, { token: parsed.access_token, expiresAt: Date.now() + ttl });
   return parsed.access_token;
 }
 
