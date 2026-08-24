@@ -23,7 +23,8 @@ export type GestaoPartsAction =
   | 'contas_receber'
   | 'boletos'
   | 'empresas'
-  | 'lead_summary';
+  | 'lead_summary'
+  | 'lead_sync';
 
 export const PEDIDO_TIPOS = ['ORCAMENTO', 'CONDICIONAL', 'PRE-VENDA', 'E-COMMERCE'] as const;
 export type PedidoTipo = (typeof PEDIDO_TIPOS)[number];

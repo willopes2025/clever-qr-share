@@ -22,7 +22,7 @@ import { DealFormDialog } from "@/components/funnels/DealFormDialog";
 import { MoveDealFunnelDialog } from "@/components/funnels/MoveDealFunnelDialog";
 import { DealTasksSection } from "@/components/funnels/DealTasksSection";
 import { SsoticaDealSection } from "@/components/funnels/SsoticaDealSection";
-import { GestaoPartsDealSection } from "@/components/funnels/GestaoPartsDealSection";
+import { GestaoPartsLeadTab } from "@/components/inbox/lead-panel/GestaoPartsLeadTab";
 import { useSsoticaSync } from "@/hooks/useSsoticaSync";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { useNavigate } from "react-router-dom";
@@ -306,11 +306,15 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
         />
 
         {/* Gestão Parts Section */}
-        <GestaoPartsDealSection
-          contactPhone={activeDeal?.contact?.phone}
-          contactCustomFields={activeDeal?.contact?.custom_fields as Record<string, unknown> | undefined}
-          dealCustomFields={activeDeal?.custom_fields as Record<string, unknown> | undefined}
-        />
+        {activeDeal?.contact_id && (
+          <GestaoPartsLeadTab
+            contactId={activeDeal.contact_id}
+            contactPhone={activeDeal?.contact?.phone}
+            contactCustomFields={activeDeal?.contact?.custom_fields as Record<string, unknown> | null}
+            dealCustomFields={activeDeal?.custom_fields as Record<string, unknown> | null}
+            dealId={activeDeal?.id ?? null}
+          />
+        )}
 
 
         {/* Notes Section */}

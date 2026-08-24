@@ -15,6 +15,7 @@ import { LeadPanelFunnelBar } from "./lead-panel/LeadPanelFunnelBar";
 import { LeadPanelTabs } from "./lead-panel/LeadPanelTabs";
 import { LeadPanelNotes } from "./lead-panel/LeadPanelNotes";
 import { ActivityTimeline } from "./ActivityTimeline";
+import { GestaoPartsLeadTab } from "./lead-panel/GestaoPartsLeadTab";
 
 // New separated sections
 import { LeadFieldsSection } from "./lead-panel/LeadFieldsSection";
@@ -101,6 +102,15 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
             contactDisplayId={(conversation.contact as any)?.contact_display_id ?? null}
           />
         )}
+
+        {/* Gestão Parts (ERP) */}
+        <GestaoPartsLeadTab
+          contactId={conversation.contact_id}
+          contactPhone={conversation.contact?.phone}
+          contactCustomFields={conversation.contact?.custom_fields as Record<string, unknown> | null}
+          dealCustomFields={activeDeal?.custom_fields as Record<string, unknown> | null}
+          dealId={activeDeal?.id ?? null}
+        />
 
         {/* Notes */}
         <LeadPanelNotes conversation={conversation} />
