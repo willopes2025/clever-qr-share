@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Code2, ImageOff, Loader2 } from "lucide-react";
 import { callGestaoParts } from "@/hooks/useGestaoParts";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export interface PecaRow {
   codigo?: string;
@@ -90,6 +91,16 @@ const totalEstoque = (raw: unknown): number | null => {
   }
   return total;
 };
+
+/** Primeiro preço válido retornado pelo ERP */
+const pickPrice = (raw: unknown): unknown => {
+  for (const r of toRecords(raw)) {
+    const p = pick(r, PRICE_KEYS);
+    if (p !== undefined) return p;
+  }
+  return undefined;
+};
+
 
 
 export const PecasTable = ({ rows, emptyMessage = "Nenhuma peça encontrada", raw }: PecasTableProps) => {
@@ -235,20 +246,83 @@ export const PecasTable = ({ rows, emptyMessage = "Nenhuma peça encontrada", ra
                 </div>
               )}
 
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Preço e estoque no ERP</p>
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">Preço e estoque no ERP</p>
+
                 {loadingDetail ? (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Consultando...
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Consultando ERP...
+                    </div>
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-24 w-full" />
                   </div>
                 ) : detail ? (
-                  <pre className="text-xs whitespace-pre-wrap break-all rounded border bg-muted/30 p-2 max-h-64 overflow-auto">
-                    {JSON.stringify(detail, null, 2)}
-                  </pre>
+                  <>
+                    {/* Resumo */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Preço de venda</p>
+                        <p className="text-base font-semibold">
+                          {money(num(pickPrice(detail.preco)) ?? num(selected.preco) ?? undefined)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">Estoque total</p>
+                        <p className="text-base font-semibold">
+                          {totalEstoque(detail.estoque) !== null
+                            ? `${totalEstoque(detail.estoque)!.toLocaleString("pt-BR")} ${text(selected.unidadesaida) !== "-" ? String(selected.unidadesaida) : ""}`.trim()
+                            : "-"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Estoque por local */}
+                    {toRecords(detail.estoque).length > 0 && (
+                      <div className="rounded-lg border divide-y">
+                        {toRecords(detail.estoque).map((r, i) => (
+                          <div key={i} className="flex items-center justify-between gap-3 p-2.5">
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium truncate">
+                                {text(pick(r, LOCAL_KEYS) ?? "Estoque")}
+                              </p>
+                              {pick(r, ["codigoerp", "codigo"]) ? (
+                                <p className="text-[11px] text-muted-foreground truncate">
+                                  Cód. {text(pick(r, ["codigoerp", "codigo"]))}
+                                </p>
+                              ) : null}
+                            </div>
+                            <Badge variant={((num(pick(r, QTY_KEYS)) ?? 0) > 0) ? "secondary" : "outline"}>
+                              {num(pick(r, QTY_KEYS)) !== null
+                                ? num(pick(r, QTY_KEYS))!.toLocaleString("pt-BR")
+                                : "-"}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Preços por tabela */}
+                    {toRecords(detail.preco).length > 0 && (
+                      <div className="rounded-lg border divide-y">
+                        {toRecords(detail.preco).map((r, i) => (
+                          <div key={i} className="flex items-center justify-between gap-3 p-2.5">
+                            <p className="text-xs truncate">
+                              {text(pick(r, ["tabelapreco", "tabela", "descricao", "empresa"]) ?? "Preço")}
+                            </p>
+                            <span className="text-xs font-semibold whitespace-nowrap">
+                              {money(num(pick(r, PRICE_KEYS)) ?? undefined)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <p className="text-xs text-muted-foreground">Sem código ERP para consultar.</p>
                 )}
               </div>
+
             </div>
           )}
         </SheetContent>
