@@ -530,23 +530,50 @@ Deno.serve(async (req: Request) => {
       }
 
       // ------- Peças / Preço / Estoque -------
+      // Busca rápida: a API exige `veiculo` preenchido; retorna `apresenta` + imagem base64
       case 'search_peca': {
-        result = await gpCall(creds, 'POST', '/erpssplus/peca', {
-          veiculo: params.veiculo ?? '',
-          peca: params.peca ?? '',
-          codfabricante: params.codfabricante ?? '',
-          codbarra: params.codbarra ?? '',
+        const veiculo = String(params.veiculo ?? '').trim();
+        const peca = String(params.peca ?? '').trim();
+        const codfabricante = String(params.codfabricante ?? '').trim();
+        const codbarra = String(params.codbarra ?? '').trim();
+        if (!veiculo && !codfabricante && !codbarra) {
+          throw new GpError(400, 'Informe o veículo (ou código de fabricante / código de barras) para a busca rápida de peças');
+        }
+        const raw = await gpCall(creds, 'POST', '/erpssplus/peca', {
+          veiculo,
+          peca,
+          codfabricante,
+          codbarra,
           pessoa: params.pessoa ?? '',
         });
+        result = mapPecaResult(raw);
+        break;
+      }
+
+      // Catálogo de produtos com campos estruturados (paginado por bloco)
+      case 'peca_dados': {
+        const raw = await gpCall(creds, 'GET', '/erpssplus/peca/dados', {
+          bloco: toBloco(params.bloco),
+          ...(params.codigo ? { codigo: String(params.codigo) } : {}),
+          ...(params.marca ? { marca: String(params.marca) } : {}),
+          ...(params.grupo ? { grupo: String(params.grupo) } : {}),
+          ...(params.subgrupo ? { subgrupo: String(params.subgrupo) } : {}),
+          ...(params.secao ? { secao: String(params.secao) } : {}),
+          ...(params.habilitadoecommerce ? { habilitadoecommerce: String(params.habilitadoecommerce) } : {}),
+          ...(params.dtatualizacao ? { dtatualizacao: toIsoDate(params.dtatualizacao) } : {}),
+        });
+        result = normalizePaged(raw, ['pecas', 'produtos']);
         break;
       }
 
       case 'peca_barcode': {
         const barcode = onlyDigits(params.barcode);
         if (!barcode) throw new GpError(400, 'Informe o código de barras');
-        result = await gpCall(creds, 'GET', `/erpssplus/peca/codigobarras/${encodeURIComponent(barcode)}`);
+        const raw = await gpCall(creds, 'GET', `/erpssplus/peca/codigobarras/${encodeURIComponent(barcode)}`);
+        result = mapPecaResult(raw);
         break;
       }
+
 
       case 'peca_preco': {
         const cod = String(params.codigoerp || '').trim();
