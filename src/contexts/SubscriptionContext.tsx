@@ -222,7 +222,10 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
 
       if (data?.url) {
-        window.open(data.url, '_blank');
+        const popup = window.open(data.url, '_blank');
+        if (!popup) {
+          toast.error('Popup bloqueado pelo navegador. Permita popups para este site e tente novamente.');
+        }
       }
     } catch (error) {
       console.error('Error creating checkout:', error);
@@ -246,7 +249,10 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
 
       if (data?.url) {
-        window.open(data.url, '_blank');
+        const popup = window.open(data.url, '_blank');
+        if (!popup) {
+          toast.error('Popup bloqueado pelo navegador. Permita popups para este site e tente novamente.');
+        }
       }
     } catch (error) {
       console.error('Error opening customer portal:', error);

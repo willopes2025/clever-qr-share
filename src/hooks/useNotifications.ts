@@ -13,11 +13,17 @@ export const useNotifications = () => {
     if ('Notification' in window) {
       setPermission(Notification.permission);
     }
-    
-    // Preload notification sound
-    audioRef.current = new Audio(NOTIFICATION_SOUND_URL);
-    audioRef.current.volume = 0.5;
-    audioRef.current.preload = 'auto';
+
+    const audio = new Audio(NOTIFICATION_SOUND_URL);
+    audio.volume = 0.5;
+    audio.preload = 'auto';
+    audioRef.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+      audioRef.current = null;
+    };
   }, []);
 
   const requestPermission = useCallback(async () => {

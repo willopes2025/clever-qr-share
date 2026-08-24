@@ -1,5 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -75,7 +74,7 @@ Deno.serve(async (req) => {
       senderUserId = user?.id || null;
     }
 
-    const { conversationId, content, instanceId, messageType, metaTemplate, targetPhone, action, messageId, emoji, quotedMessage } = await req.json();
+    const { conversationId, content, instanceId, messageType, metaTemplate, targetPhone, action, messageId, emoji } = await req.json();
 
     // =========================================
     // REACTION ACTION
@@ -120,21 +119,14 @@ Deno.serve(async (req) => {
           .eq('is_active', true)
           .maybeSingle();
         
-        const reactionPhoneNumberId = conv.meta_phone_number_id || integration?.credentials?.phone_number_id;
-        const reactionToken = await getMetaTokenForNumber(
-          supabase,
-          reactionPhoneNumberId,
-          integration?.credentials?.access_token,
-        );
-
-        if (reactionToken) {
-          const phoneNumberId = reactionPhoneNumberId;
+        if (integration?.credentials?.access_token) {
+          const phoneNumberId = conv.meta_phone_number_id || integration.credentials?.phone_number_id;
           const formattedPhone = contactInfo.phone.replace(/[^0-9]/g, '');
           
           await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${reactionToken}`,
+              'Authorization': `Bearer ${integration.credentials.access_token}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -231,11 +223,8 @@ Deno.serve(async (req) => {
     }
 
     const contactData = conversation.contact as unknown as { id: string; phone: string; name: string | null; label_id: string | null } | null;
-    if (!contactData) {
+    if (!contactData || !contactData.phone) {
       throw new Error('Contact not found');
-    }
-    if (!contactData.phone && !contactData.label_id) {
-      throw new Error('Contato sem telefone nem LID — não é possível enviar');
     }
 
     // Check if the user explicitly chose an Evolution instance for this send
@@ -335,16 +324,6 @@ Deno.serve(async (req) => {
         throw new Error('Phone Number ID não encontrado para envio Meta');
       }
 
-      // Token específico do número (números de WABAs diferentes usam tokens diferentes)
-      const metaAccessToken = await getMetaTokenForNumber(
-        supabase,
-        phoneNumberId,
-        integration.credentials.access_token,
-      );
-      if (!metaAccessToken) {
-        throw new Error('Access token Meta não encontrado para este número. Reconecte o número nas configurações.');
-      }
-
       const formattedPhone = (targetPhone || contactData.phone).replace(/[^0-9]/g, '');
 
       // ---- META TEMPLATE MESSAGE ----
@@ -412,7 +391,7 @@ Deno.serve(async (req) => {
         const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${metaAccessToken}`,
+            'Authorization': `Bearer ${integration.credentials.access_token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(messagePayload),
@@ -447,6 +426,8 @@ Deno.serve(async (req) => {
             last_message_preview: displayContent.substring(0, 100),
             last_message_direction: 'outbound',
             unread_count: 0,
+            meta_phone_number_id: phoneNumberId,
+            provider: 'meta',
           })
           .eq('id', conversationId);
 
@@ -472,12 +453,6 @@ Deno.serve(async (req) => {
           sent_at: new Date().toISOString(),
           sent_by_user_id: senderUserId,
           sent_via_meta_number_id: phoneNumberId,
-          quoted_message: quotedMessage ? {
-            whatsapp_message_id: quotedMessage.whatsapp_message_id,
-            content: quotedMessage.content,
-            message_type: quotedMessage.message_type,
-            from_me: !!quotedMessage.from_me,
-          } : null,
         })
         .select()
         .single();
@@ -485,7 +460,7 @@ Deno.serve(async (req) => {
       if (msgError) throw new Error('Failed to create message record');
 
       // Send via Meta API
-      const messagePayload: any = {
+      const messagePayload = {
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
         to: formattedPhone,
@@ -493,16 +468,12 @@ Deno.serve(async (req) => {
         text: { body: content },
       };
 
-      if (quotedMessage?.whatsapp_message_id) {
-        messagePayload.context = { message_id: quotedMessage.whatsapp_message_id };
-      }
-
       console.log(`[SEND-META] Sending to ${formattedPhone} via phone_number_id ${phoneNumberId}`);
 
       const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${metaAccessToken}`,
+          'Authorization': `Bearer ${integration.credentials.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(messagePayload),
@@ -531,7 +502,8 @@ Deno.serve(async (req) => {
         .update({ status: 'sent', whatsapp_message_id: whatsappMessageId })
         .eq('id', message.id);
 
-      // Update conversation
+      // Update conversation — also stamp meta_phone_number_id so the webhook handler
+      // can find this conversation when the lead replies (it filters by phone_number_id).
       await supabase
         .from('conversations')
         .update({
@@ -539,6 +511,8 @@ Deno.serve(async (req) => {
           last_message_preview: content.substring(0, 100),
           last_message_direction: 'outbound',
           unread_count: 0,
+          meta_phone_number_id: phoneNumberId,
+          provider: 'meta',
         })
         .eq('id', conversationId);
 
@@ -568,24 +542,18 @@ Deno.serve(async (req) => {
       .eq('id', instanceId)
       .single();
 
-    if (instError || !instance) throw new Error('Não foi possível carregar a instância selecionada.');
-    if (instance.status !== 'connected') {
-      throw new Error(
-        `A instância "${instance.instance_name}" está desconectada. ` +
-        `Reconecte-a em Configurações › Instâncias (escaneie o QR Code) ou troque o remetente para outro canal conectado.`
-      );
-    }
+    if (instError || !instance) throw new Error('Failed to fetch instance');
+    if (instance.status !== 'connected') throw new Error('Instance is not connected');
 
     // Format phone number — use targetPhone if provided
-    const rawPhone = targetPhone || contactData.phone || '';
+    const rawPhone = targetPhone || contactData.phone;
     let phone = rawPhone.replace(/\D/g, '');
     let remoteJid: string;
     
-    const isLabelIdContact = rawPhone.startsWith('LID_') || (!!contactData.label_id && (!phone || phone.length > 13));
+    const isLabelIdContact = rawPhone.startsWith('LID_') || (contactData.label_id && phone.length > 13);
     
     if (isLabelIdContact) {
       const labelId = contactData.label_id || phone;
-      if (!labelId) throw new Error('LID não encontrado para o contato');
       remoteJid = `${labelId}@lid`;
     } else {
       if (phone.length < 10) throw new Error(`Número inválido: ${rawPhone}`);
@@ -609,13 +577,6 @@ Deno.serve(async (req) => {
         sent_at: new Date().toISOString(),
         sent_by_user_id: senderUserId,
         sent_via_instance_id: instanceId,
-        quoted_message: quotedMessage ? {
-          whatsapp_message_id: quotedMessage.whatsapp_message_id,
-          content: quotedMessage.content,
-          message_type: quotedMessage.message_type,
-          from_me: !!quotedMessage.from_me,
-          participant: quotedMessage.participant ?? null,
-        } : null,
       })
       .select()
       .single();
@@ -623,23 +584,9 @@ Deno.serve(async (req) => {
     if (msgError) throw new Error('Failed to create message record');
 
     const isLidMessage = remoteJid.endsWith('@lid');
-    const sendPayload: any = isLidMessage 
+    const sendPayload = isLidMessage 
       ? { number: remoteJid, options: { presence: 'composing' }, text: content }
       : { number: phone, text: content };
-
-    if (quotedMessage?.whatsapp_message_id) {
-      sendPayload.quoted = {
-        key: {
-          remoteJid,
-          fromMe: !!quotedMessage.from_me,
-          id: quotedMessage.whatsapp_message_id,
-          ...(quotedMessage.participant ? { participant: quotedMessage.participant } : {}),
-        },
-        message: {
-          conversation: quotedMessage.content || '',
-        },
-      };
-    }
 
     const { response, attempts, lastTransientError } = await fetchWithRetry(
       `${evolutionApiUrl}/message/sendText/${evolutionName}`,
@@ -683,87 +630,29 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      // Log full raw response so we can debug 400s that Evolution answers with
-      // a generic "Bad Request" body.
-      const rawBodyPreview = rawText || (result ? JSON.stringify(result).slice(0, 500) : '');
-      console.error(
-        `[SEND] Evolution API error: HTTP ${response.status} ${response.statusText} — body: ${rawBodyPreview}`
-      );
+      let errorMessage = result.message || result.error || rawText || 'Unknown error';
 
-      // Build a context suffix so the user knows exactly which channel was used
-      // and (when it's a cross-provider send) which Meta number the conversation
-      // originally belongs to — so they can switch sender if needed.
-      let metaNumberLabel: string | null = null;
-      if (forceEvolution && conversation.meta_phone_number_id) {
-        const { data: metaNum } = await supabase
-          .from('meta_whatsapp_numbers')
-          .select('display_name, phone_number')
-          .eq('phone_number_id', conversation.meta_phone_number_id)
-          .maybeSingle();
-        if (metaNum) {
-          metaNumberLabel = `${metaNum.display_name || 'WhatsApp Oficial'} (${metaNum.phone_number})`;
-        } else {
-          metaNumberLabel = `phone_number_id ${conversation.meta_phone_number_id}`;
-        }
-      }
-      const channelHint = `\n\nCanal usado no envio: Evolution — instância "${instance.instance_name}".` +
-        (metaNumberLabel
-          ? `\nEssa conversa veio pelo número Meta: ${metaNumberLabel}. Para responder pelo mesmo número em que o cliente falou, troque o remetente no topo do chat para esse número Meta.`
-          : '');
-
-      // Extract the most informative message the Evolution API gave us
-      const rawEvoMsg =
-        (typeof result?.response?.message === 'string' && result.response.message) ||
-        (Array.isArray(result?.response?.message) && result.response.message.map((m: any) => typeof m === 'string' ? m : JSON.stringify(m)).join(' | ')) ||
-        result?.message ||
-        result?.error ||
-        rawText ||
-        `HTTP ${response.status} ${response.statusText || ''}`.trim();
-
-      let errorMessage = `Falha ao enviar via Evolution API (HTTP ${response.status}): ${String(rawEvoMsg).slice(0, 300)}`;
-
-      // 5xx: highlight retry attempts
+      // For 5xx, show user-friendly message and log technical detail
       if (response.status >= 500) {
-        const detail = rawText || lastTransientError || rawEvoMsg;
-        errorMessage = `Evolution API instável (HTTP ${response.status}) após ${attempts} tentativa${attempts > 1 ? 's' : ''}: ${String(detail).slice(0, 200)}`;
+        const detail = rawText || lastTransientError || errorMessage;
+        console.error(`[SEND] Evolution API HTTP ${response.status} após ${attempts} tentativa(s): ${String(detail).slice(0, 500)}`);
+        errorMessage = 'Falha temporária ao enviar mensagem. Tente novamente em instantes.';
       }
 
-      // Instance disconnected
       if (response.status === 404 && result.response?.message) {
         const msgDetails = result.response.message;
-        if (Array.isArray(msgDetails) && msgDetails.some((m: string) => typeof m === 'string' && m.includes('does not exist'))) {
+        if (Array.isArray(msgDetails) && msgDetails.some((m: string) => m.includes('does not exist'))) {
           await supabase.from('whatsapp_instances').update({ status: 'disconnected' }).eq('id', instanceId);
-          errorMessage = `A instância "${instance.instance_name}" está desconectada. Reconecte-a em Configurações › Instâncias e tente novamente.`;
+          errorMessage = `Instância "${instance.instance_name}" desconectada. Reconecte nas configurações.`;
         }
       }
 
-      // Number not on WhatsApp
-      if (result?.response?.message) {
+      if (result.response?.message) {
         const msgDetails = result.response.message;
         if (Array.isArray(msgDetails) && msgDetails.length > 0 && msgDetails[0]?.exists === false) {
-          errorMessage = `O número ${phone} não está registrado no WhatsApp na instância "${instance.instance_name}".`;
+          errorMessage = `Número (${phone}) não registrado no WhatsApp.`;
         }
       }
-
-      // Evolution says the WhatsApp websocket is down → instance actually
-      // disconnected. Reflect that in the DB and give a clear next step.
-      if (/connection\s*closed/i.test(String(rawEvoMsg))) {
-        await supabase.from('whatsapp_instances').update({ status: 'disconnected' }).eq('id', instanceId);
-        errorMessage =
-          `A instância "${instance.instance_name}" está desconectada do WhatsApp (sessão caiu). ` +
-          `Reconecte-a em Configurações › Instâncias (escaneie o QR Code) e tente novamente, ` +
-          `ou troque o remetente para outro canal conectado.`;
-      }
-      // Generic 400 with no useful detail — most common cause when switching
-      // from a Meta conversation to an Evolution instance that never had a
-      // session with this contact.
-      else if (response.status === 400 && (!rawEvoMsg || /^bad request$/i.test(String(rawEvoMsg).trim()))) {
-        errorMessage =
-          `A instância "${instance.instance_name}" recusou o envio para ${phone} (HTTP 400 Bad Request). ` +
-          `Isso geralmente acontece quando o número nunca conversou com essa instância ou não está no WhatsApp a partir dela.`;
-      }
-
-      errorMessage += channelHint;
 
       await supabase.from('inbox_messages').update({ status: 'failed', error_message: errorMessage }).eq('id', message.id);
       throw new Error(errorMessage);
@@ -832,18 +721,32 @@ async function handleAIHandoff(
   }
 
   const shouldPauseAI = pauseEmoji && content.includes(pauseEmoji);
+  const shouldResumeAI = resumeEmoji && content.includes(resumeEmoji);
+  const textPatterns = [/\bok\b/i, /\bresumir\s*ia\b/i, /\bativar\s*ia\b/i];
+  const hasResumeTextPattern = textPatterns.some(pattern => pattern.test(content));
 
-  // IA só é retomada manualmente pelo botão "Retomar IA" no inbox.
-  // Qualquer mensagem do atendente pausa a IA até retomada explícita.
-  if (shouldPauseAI) {
+  if (shouldResumeAI || hasResumeTextPattern) {
+    await supabase.from('conversations').update({
+      ai_paused: false, ai_handoff_requested: false, ai_handoff_reason: null,
+    }).eq('id', conversationId);
+  } else if (shouldPauseAI) {
     await supabase.from('conversations').update({
       ai_paused: true, ai_handoff_requested: true,
       ai_handoff_reason: `Pausado via emoji ${pauseEmoji}`,
     }).eq('id', conversationId);
   } else {
-    await supabase.from('conversations').update({
-      ai_paused: true, ai_handoff_requested: true,
-      ai_handoff_reason: 'Atendente assumiu a conversa',
-    }).eq('id', conversationId);
+    // Only pause AI if it was actively running — prevents disabling AI for every human message
+    const { data: convState } = await supabase
+      .from('conversations')
+      .select('ai_handled, ai_paused')
+      .eq('id', conversationId)
+      .single();
+
+    if (convState?.ai_handled && !convState.ai_paused) {
+      await supabase.from('conversations').update({
+        ai_paused: true, ai_handoff_requested: true,
+        ai_handoff_reason: 'Atendente assumiu a conversa',
+      }).eq('id', conversationId);
+    }
   }
 }

@@ -11,9 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Copy, ExternalLink, Check, Plus, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { buildDirectFormUrl, buildFormPreviewShareUrl } from "@/lib/form-share-links";
 
 interface FormShareDialogProps {
   open: boolean;
@@ -44,62 +43,24 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
   const [staticParams, setStaticParams] = useState<StaticParam[]>(
     Array.isArray(form.url_static_params) ? form.url_static_params : []
   );
-  const [shareUrl, setShareUrl] = useState('');
-  const [isGeneratingShareUrl, setIsGeneratingShareUrl] = useState(false);
   const [newParamKey, setNewParamKey] = useState('');
   const [newParamValue, setNewParamValue] = useState('');
 
-  const buildStaticParamsRecord = () => {
-    return staticParams
-      .filter(p => p.key && p.value)
-      .reduce<Record<string, string>>((acc, param) => {
-        acc[param.key] = param.value;
-        return acc;
-      }, {});
+  // Build URL pointing to the edge function so WhatsApp/social crawlers get proper OG meta tags
+  const buildFormUrl = () => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    const params = new URLSearchParams({ slug: form.slug });
+    const validParams = staticParams.filter(p => p.key && p.value);
+    if (validParams.length > 0) {
+      params.set('static_params', JSON.stringify(validParams));
+    }
+    return `${supabaseUrl}/functions/v1/public-form?${params.toString()}`;
   };
 
-  const directFormUrl = buildDirectFormUrl(form.slug, buildStaticParamsRecord());
-  const formUrl = shareUrl;
-  const embedCode = `<iframe src="${directFormUrl}" width="100%" height="600" frameborder="0" style="border: none;"></iframe>`;
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!open) return;
-
-    const generateShareUrl = async () => {
-      try {
-        setIsGeneratingShareUrl(true);
-        const url = await buildFormPreviewShareUrl({
-          formId: form.id,
-          slug: form.slug,
-          staticParams: buildStaticParamsRecord(),
-        });
-        if (!cancelled) {
-          setShareUrl(url);
-        }
-      } catch (error) {
-        console.error("Erro ao gerar link com preview:", error);
-        if (!cancelled) {
-          setShareUrl('');
-          toast.error("Não foi possível gerar o link com preview. Tente novamente.");
-        }
-      } finally {
-        if (!cancelled) {
-          setIsGeneratingShareUrl(false);
-        }
-      }
-    };
-
-    generateShareUrl();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, form.id, form.slug, staticParams]);
+  const formUrl = buildFormUrl();
+  const embedCode = `<iframe src="${formUrl}&embed=true" width="100%" height="600" frameborder="0" style="border: none;"></iframe>`;
 
   const handleCopy = (text: string, type: string) => {
-    if (!text || isGeneratingShareUrl) return;
     navigator.clipboard.writeText(text);
     setCopied(type);
     toast.success("Copiado para a área de transferência!");
@@ -232,15 +193,10 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
           <div className="space-y-2">
             <Label>Link Gerado</Label>
             <div className="flex gap-2">
-              <Input
-                value={isGeneratingShareUrl ? 'Gerando link com preview...' : formUrl || 'Erro ao gerar link com preview'}
-                readOnly
-                className="flex-1 font-mono text-sm"
-              />
+              <Input value={formUrl} readOnly className="flex-1 font-mono text-sm" />
               <Button
                 variant="outline"
                 size="icon"
-                disabled={isGeneratingShareUrl || !formUrl}
                 onClick={() => handleCopy(formUrl, 'link')}
               >
                 {copied === 'link' ? (
@@ -252,7 +208,6 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
               <Button
                 variant="outline"
                 size="icon"
-                disabled={isGeneratingShareUrl || !formUrl}
                 onClick={() => window.open(formUrl, '_blank')}
               >
                 <ExternalLink className="h-4 w-4" />

@@ -9,16 +9,13 @@ import { CampaignDispatchSection } from './CampaignDispatchSection';
 import { FunnelSection } from './FunnelSection';
 import { FinancialSection } from './FinancialSection';
 import { AutomationSection } from './AutomationSection';
-import { AgentPerformanceSection } from './AgentPerformanceSection';
+import { UserPerformanceSection } from './UserPerformanceSection';
+import { CRMKPIsSection } from './CRMKPIsSection';
 import { AlertsSection } from './AlertsSection';
-import { MemberProductivitySection } from './MemberProductivitySection';
-import { MessagesByHourChart } from './MessagesByHourChart';
-import { useUserRole } from '@/hooks/useUserRole';
 
 export const TraditionalDashboard = () => {
   const [dateRange, setDateRange] = useState<DateRange>('7d');
   const [customRange, setCustomRange] = useState<CustomDateRange | undefined>(undefined);
-  const { isAdmin } = useUserRole();
 
   return (
     <div className="space-y-6">
@@ -45,6 +42,8 @@ export const TraditionalDashboard = () => {
         <LeadChannelsSection dateRange={dateRange} customRange={customRange} />
       </div>
 
+      <CRMKPIsSection dateRange={dateRange} customRange={customRange} />
+
       <FunnelSection dateRange={dateRange} customRange={customRange} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -52,20 +51,9 @@ export const TraditionalDashboard = () => {
         <AutomationSection dateRange={dateRange} customRange={customRange} />
       </div>
 
-      {isAdmin && (
-        <MemberProductivitySection dateRange={dateRange} customRange={customRange} />
-      )}
+      <UserPerformanceSection dateRange={dateRange} customRange={customRange} />
 
-      {isAdmin && (
-        <MessagesByHourChart dateRange={dateRange} customRange={customRange} />
-      )}
-
-
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AgentPerformanceSection dateRange={dateRange} customRange={customRange} />
-        <AlertsSection />
-      </div>
+      <AlertsSection />
     </div>
   );
 };

@@ -15,6 +15,7 @@ interface FunnelFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   funnel?: { id: string; name: string; description?: string; color?: string };
+  onCreated?: (id: string) => void;
 }
 
 const COLORS = [
@@ -22,7 +23,7 @@ const COLORS = [
   '#22C55E', '#06B6D4', '#6366F1', '#64748B'
 ];
 
-export const FunnelFormDialog = ({ open, onOpenChange, funnel }: FunnelFormDialogProps) => {
+export const FunnelFormDialog = ({ open, onOpenChange, funnel, onCreated }: FunnelFormDialogProps) => {
   const { createFunnel, updateFunnel } = useFunnels();
   const [name, setName] = useState(funnel?.name || '');
   const [description, setDescription] = useState(funnel?.description || '');
@@ -30,11 +31,12 @@ export const FunnelFormDialog = ({ open, onOpenChange, funnel }: FunnelFormDialo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (funnel) {
       await updateFunnel.mutateAsync({ id: funnel.id, name, description, color });
     } else {
-      await createFunnel.mutateAsync({ name, description, color });
+      const created = await createFunnel.mutateAsync({ name, description, color });
+      if (created?.id) onCreated?.(created.id);
     }
     
     onOpenChange(false);

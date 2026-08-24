@@ -924,6 +924,264 @@ export const useFinancialMetrics = (dateRange: DateRange = '30d', customRange?: 
   });
 };
 
+// ==================== USER PERFORMANCE DETAILED ====================
+export interface UserPerformanceDetail {
+  userId: string;
+  userName: string;
+  avgDailyWorkSeconds: number;
+  totalWorkSeconds: number;
+  charactersTyped: number;
+  messagesSent: number;
+  conversationsHandled: number;
+  dealsOpen: number;
+  dealsWon: number;
+  dealsLost: number;
+  winRate: number;
+  avgTicket: number;
+  totalRevenue: number;
+  avgResponseTimeSeconds: number;
+}
+
+export interface UserPerformanceDetailedMetrics {
+  users: UserPerformanceDetail[];
+  totalCharactersTyped: number;
+}
+
+export const useUserPerformanceDetailed = (dateRange: DateRange = '7d', customRange?: CustomDateRange) => {
+  return useQuery({
+    queryKey: ['user-performance-detailed', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
+    queryFn: async (): Promise<UserPerformanceDetailedMetrics> => {
+      const { start, end } = getDateRange(dateRange, customRange);
+
+      // Fetch everything in parallel — derive all user stats from real data tables
+      // (user_activity_sessions / user_performance_metrics are not used because they
+      //  require a background job to populate and are usually empty)
+      const [profilesResult, outboundMsgsResult, stagesResult, openDealsResult] = await Promise.all([
+        supabase.from('profiles').select('id, full_name'),
+        supabase
+          .from('inbox_messages')
+          .select('sent_by_user_id, content, conversation_id, created_at')
+          .eq('direction', 'outbound')
+          .not('sent_by_user_id', 'is', null)
+          .not('is_ai_generated', 'is', true)
+          .gte('created_at', start.toISOString())
+          .lte('created_at', end.toISOString())
+          .limit(50000),
+        supabase.from('funnel_stages').select('id, final_type').not('final_type', 'is', null),
+        supabase
+          .from('funnel_deals')
+          .select('responsible_id')
+          .not('responsible_id', 'is', null)
+          .is('closed_at', null),
+      ]);
+
+      const profiles = profilesResult.data || [];
+      const outboundMessages = outboundMsgsResult.data || [];
+      const stages = stagesResult.data || [];
+      const openDeals = openDealsResult.data || [];
+
+      const wonStageIds = stages.filter(s => s.final_type === 'won').map(s => s.id);
+      const lostStageIds = stages.filter(s => s.final_type === 'lost').map(s => s.id);
+      const finalStageIds = [...wonStageIds, ...lostStageIds];
+
+      const { data: closedDealsInPeriod } = await supabase
+        .from('funnel_deals')
+        .select('responsible_id, stage_id, value')
+        .not('responsible_id', 'is', null)
+        .in('stage_id', finalStageIds.length > 0 ? finalStageIds : [''])
+        .gte('closed_at', start.toISOString())
+        .lte('closed_at', end.toISOString());
+
+      // Aggregate per-user stats from inbox_messages
+      // dayMap tracks { date -> { min_ts, max_ts } } to compute daily activity span
+      type UserMsgData = {
+        chars: number;
+        msgCount: number;
+        convIds: Set<string>;
+        dayMap: Map<string, { min: number; max: number }>;
+      };
+      const msgDataMap = new Map<string, UserMsgData>();
+
+      outboundMessages.forEach(m => {
+        if (!m.sent_by_user_id) return;
+        const uid = m.sent_by_user_id;
+        if (!msgDataMap.has(uid)) {
+          msgDataMap.set(uid, { chars: 0, msgCount: 0, convIds: new Set(), dayMap: new Map() });
+        }
+        const data = msgDataMap.get(uid)!;
+        data.chars += (m.content || '').length;
+        data.msgCount++;
+        if (m.conversation_id) data.convIds.add(m.conversation_id);
+
+        // Track daily span: first to last message each day = approximate active time
+        const ts = new Date(m.created_at).getTime();
+        const day = m.created_at.slice(0, 10); // YYYY-MM-DD
+        const dayData = data.dayMap.get(day);
+        if (!dayData) {
+          data.dayMap.set(day, { min: ts, max: ts });
+        } else {
+          if (ts < dayData.min) dayData.min = ts;
+          if (ts > dayData.max) dayData.max = ts;
+        }
+      });
+
+      // Open deals per responsible
+      const openDealsMap = new Map<string, number>();
+      openDeals.forEach(d => {
+        if (d.responsible_id) openDealsMap.set(d.responsible_id, (openDealsMap.get(d.responsible_id) || 0) + 1);
+      });
+
+      // Closed deals in period: won vs lost per user
+      const wonMap = new Map<string, { count: number; value: number }>();
+      const lostMap = new Map<string, number>();
+      (closedDealsInPeriod || []).forEach(d => {
+        if (!d.responsible_id) return;
+        if (wonStageIds.includes(d.stage_id)) {
+          const e = wonMap.get(d.responsible_id);
+          if (e) { e.count++; e.value += Number(d.value) || 0; }
+          else wonMap.set(d.responsible_id, { count: 1, value: Number(d.value) || 0 });
+        } else if (lostStageIds.includes(d.stage_id)) {
+          lostMap.set(d.responsible_id, (lostMap.get(d.responsible_id) || 0) + 1);
+        }
+      });
+
+      // Union of all known user IDs
+      const allUserIds = new Set([
+        ...msgDataMap.keys(),
+        ...openDealsMap.keys(),
+        ...wonMap.keys(),
+        ...lostMap.keys(),
+      ]);
+
+      const userMap = new Map<string, UserPerformanceDetail>();
+      for (const userId of allUserIds) {
+        const profile = profiles.find(p => p.id === userId);
+        const msgData = msgDataMap.get(userId);
+        const won = wonMap.get(userId);
+        const wonCount = won?.count || 0;
+        const lostCount = lostMap.get(userId) || 0;
+        const totalClosed = wonCount + lostCount;
+
+        // Daily work time = sum of (last_msg_ts - first_msg_ts) per day
+        let totalActiveSeconds = 0;
+        msgData?.dayMap.forEach(({ min, max }) => {
+          totalActiveSeconds += Math.max(0, Math.floor((max - min) / 1000));
+        });
+        const activeDays = msgData?.dayMap.size || 0;
+
+        userMap.set(userId, {
+          userId,
+          userName: profile?.full_name || 'Usuário',
+          totalWorkSeconds: totalActiveSeconds,
+          avgDailyWorkSeconds: activeDays > 0 ? totalActiveSeconds / activeDays : 0,
+          charactersTyped: msgData?.chars || 0,
+          messagesSent: msgData?.msgCount || 0,
+          conversationsHandled: msgData?.convIds.size || 0,
+          avgResponseTimeSeconds: 0,
+          dealsOpen: openDealsMap.get(userId) || 0,
+          dealsWon: wonCount,
+          dealsLost: lostCount,
+          winRate: totalClosed > 0 ? (wonCount / totalClosed) * 100 : 0,
+          totalRevenue: won?.value || 0,
+          avgTicket: wonCount > 0 ? (won?.value || 0) / wonCount : 0,
+        });
+      }
+
+      const users = Array.from(userMap.values())
+        .sort((a, b) => b.messagesSent - a.messagesSent || b.charactersTyped - a.charactersTyped);
+      const totalCharactersTyped = users.reduce((sum, u) => sum + u.charactersTyped, 0);
+
+      return { users, totalCharactersTyped };
+    },
+  });
+};
+
+// ==================== CRM KPIS ====================
+export interface CRMKPIs {
+  dealsOpen: number;
+  valueInPipeline: number;
+  winRate: number;
+  avgSalesCycleDays: number;
+  avgTicket: number;
+  revenueClosed: number;
+  forecastRevenue: number;
+  staleDeals: number;
+}
+
+export const useCRMKPIs = (dateRange: DateRange = '30d', funnelId?: string, customRange?: CustomDateRange) => {
+  return useQuery({
+    queryKey: ['crm-kpis', dateRange, funnelId, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
+    queryFn: async (): Promise<CRMKPIs> => {
+      const { start, end } = getDateRange(dateRange, customRange);
+      const sevenDaysAgo = subDays(new Date(), 7);
+
+      let stagesQuery = supabase.from('funnel_stages').select('id, probability, final_type, funnel_id');
+      if (funnelId) stagesQuery = stagesQuery.eq('funnel_id', funnelId);
+      const { data: stages } = await stagesQuery;
+
+      const stageIds = stages?.map(s => s.id) || [];
+      const wonStageIds = stages?.filter(s => s.final_type === 'won').map(s => s.id) || [];
+      const lostStageIds = stages?.filter(s => s.final_type === 'lost').map(s => s.id) || [];
+      const finalStageIds = [...wonStageIds, ...lostStageIds];
+      const openStageIds = stageIds.filter(id => !finalStageIds.includes(id));
+
+      const [openDealsResult, closedDealsResult] = await Promise.all([
+        supabase
+          .from('funnel_deals')
+          .select('id, stage_id, value, updated_at')
+          .in('stage_id', openStageIds.length > 0 ? openStageIds : ['']),
+        supabase
+          .from('funnel_deals')
+          .select('id, stage_id, value, closed_at, created_at')
+          .in('stage_id', finalStageIds.length > 0 ? finalStageIds : [''])
+          .gte('closed_at', start.toISOString())
+          .lte('closed_at', end.toISOString()),
+      ]);
+
+      const openDealsList = openDealsResult.data || [];
+      const closedDealsList = closedDealsResult.data || [];
+
+      const wonDeals = closedDealsList.filter(d => wonStageIds.includes(d.stage_id));
+      const lostDeals = closedDealsList.filter(d => lostStageIds.includes(d.stage_id));
+      const totalClosed = wonDeals.length + lostDeals.length;
+
+      const revenueClosed = wonDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+      const wonWithValue = wonDeals.filter(d => (d.value || 0) > 0);
+      const avgTicket = wonWithValue.length > 0
+        ? wonWithValue.reduce((sum, d) => sum + (Number(d.value) || 0), 0) / wonWithValue.length
+        : 0;
+
+      let totalCycleDays = 0;
+      let cycleCount = 0;
+      wonDeals.forEach(d => {
+        if (d.closed_at && d.created_at) {
+          const days = Math.floor((new Date(d.closed_at).getTime() - new Date(d.created_at).getTime()) / 86400000);
+          if (days >= 0) { totalCycleDays += days; cycleCount++; }
+        }
+      });
+
+      let forecastRevenue = 0;
+      openDealsList.forEach(deal => {
+        const stage = stages?.find(s => s.id === deal.stage_id);
+        forecastRevenue += (Number(deal.value) || 0) * ((stage?.probability || 0) / 100);
+      });
+
+      const staleDeals = openDealsList.filter(d => new Date(d.updated_at) < sevenDaysAgo).length;
+
+      return {
+        dealsOpen: openDealsList.length,
+        valueInPipeline: openDealsList.reduce((sum, d) => sum + (Number(d.value) || 0), 0),
+        winRate: totalClosed > 0 ? (wonDeals.length / totalClosed) * 100 : 0,
+        avgSalesCycleDays: cycleCount > 0 ? totalCycleDays / cycleCount : 0,
+        avgTicket,
+        revenueClosed,
+        forecastRevenue,
+        staleDeals,
+      };
+    },
+  });
+};
+
 // ==================== ALERT METRICS ====================
 export interface Alert {
   id: string;

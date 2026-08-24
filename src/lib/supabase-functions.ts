@@ -44,7 +44,7 @@ export async function invokeFunctionWithAuth<T = unknown>(
     });
     
     if (error) {
-      const errorMessage = (error as any)?.message ?? String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       
       // Check if it's an auth error
       const isAuthError = /auth|session|jwt|unauthorized|401/i.test(errorMessage);

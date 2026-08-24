@@ -929,18 +929,33 @@ export const useContacts = (options: UseContactsOptions = {}) => {
     mutationFn: async ({
       contactId,
       tagId,
+      tagName,
     }: {
       contactId: string;
       tagId: string;
+      tagName?: string;
     }) => {
       const { error } = await supabase
         .from("contact_tags")
         .insert({ contact_id: contactId, tag_id: tagId });
 
       if (error) throw error;
+      return { contactId, tagName };
     },
-    onSuccess: () => {
+    onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      if (!result?.tagName) return;
+      // Fire on_tag_added for each open deal associated with this contact
+      const { data: deals } = await supabase
+        .from("funnel_deals")
+        .select("id")
+        .eq("contact_id", result.contactId)
+        .is("closed_at", null);
+      for (const deal of deals || []) {
+        supabase.functions.invoke("process-funnel-automations", {
+          body: { dealId: deal.id, triggerType: "on_tag_added", tagName: result.tagName },
+        }).catch(e => console.error("Error triggering on_tag_added:", e));
+      }
     },
   });
 
@@ -948,9 +963,11 @@ export const useContacts = (options: UseContactsOptions = {}) => {
     mutationFn: async ({
       contactId,
       tagId,
+      tagName,
     }: {
       contactId: string;
       tagId: string;
+      tagName?: string;
     }) => {
       const { error } = await supabase
         .from("contact_tags")
@@ -959,9 +976,22 @@ export const useContacts = (options: UseContactsOptions = {}) => {
         .eq("tag_id", tagId);
 
       if (error) throw error;
+      return { contactId, tagName };
     },
-    onSuccess: () => {
+    onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      if (!result?.tagName) return;
+      // Fire on_tag_removed for each open deal associated with this contact
+      const { data: deals } = await supabase
+        .from("funnel_deals")
+        .select("id")
+        .eq("contact_id", result.contactId)
+        .is("closed_at", null);
+      for (const deal of deals || []) {
+        supabase.functions.invoke("process-funnel-automations", {
+          body: { dealId: deal.id, triggerType: "on_tag_removed", tagName: result.tagName },
+        }).catch(e => console.error("Error triggering on_tag_removed:", e));
+      }
     },
   });
 

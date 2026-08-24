@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
-import { Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, UserCheck, Cloud, Phone, MailCheck, Paperclip } from "lucide-react";
+import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck, UserCheck, Cloud, Phone, MailCheck } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { ConversationCardHeader } from "./ConversationCard";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -40,15 +42,10 @@ import { AIAssistantButton } from "./AIAssistantButton";
 import { TransferConversationDialog } from "./TransferConversationDialog";
 import { NotesTab } from "./NotesTab";
 import { TasksTab } from "./TasksTab";
-import { PinnedItemsBar } from "./PinnedItemsBar";
 import { InternalChatTab } from "./InternalChatTab";
-import { PresenceAvatars } from "./PresenceAvatars";
-import { UserTypingIndicator } from "./UserTypingIndicator";
-import { useConversationPresence } from "@/hooks/useConversationPresence";
 import { PhoneCallButton } from "./PhoneCallButton";
 import { SlashCommandPopup } from "./SlashCommandPopup";
 import { FormLinkButton } from "./FormLinkButton";
-import { MessageComposer, MessageComposerHandle } from "./MessageComposer";
 import { useMessageTemplates, MessageTemplate } from "@/hooks/useMessageTemplates";
 import { useMetaTemplates, MetaTemplate } from "@/hooks/useMetaTemplates";
 import { useChatbotFlows, ChatbotFlow } from "@/hooks/useChatbotFlows";
@@ -58,17 +55,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { isToday, isSameDay } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-interface ConversationWithAI extends Conversation {
-  campaign_id?: string | null;
-  ai_handled?: boolean | null;
-  ai_paused?: boolean | null;
-  ai_handoff_requested?: boolean | null;
-  ai_handoff_reason?: string | null;
-  ai_interactions_count?: number | null;
-}
-
 interface MessageViewProps {
-  conversation: ConversationWithAI;
+  conversation: Conversation;
   onBack?: () => void;
   onOpenRightPanel?: () => void;
   onMarkAsRead?: () => void;
@@ -85,12 +73,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const { notes } = useConversationNotes(conversation.id, conversation.contact_id);
   const { pendingTasks } = useConversationTasks(conversation.id, conversation.contact_id);
   const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
-  const { others: presenceOthers, typingUsers: presenceTypingUsers, notifyTyping } = useConversationPresence(conversation.id);
   const { autoCorrectEnabled } = useMemberAutoCorrect();
   const { templates } = useMessageTemplates();
   // Get the WABA ID for the current conversation's Meta number to filter templates
-  const conversationMetaNumberId = (conversation as any).meta_phone_number_id;
-  const conversationWabaId = conversationMetaNumberId 
+  const conversationMetaNumberId = conversation.meta_phone_number_id;
+  const conversationWabaId = conversationMetaNumberId
     ? metaNumbers.find(n => n.phone_number_id === conversationMetaNumberId)?.waba_id || null
     : null;
   // Fetch Meta templates - pass null to get all templates when no specific WABA is linked
@@ -99,21 +86,17 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const { profile } = useProfile();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+  const [newMessage, setNewMessage] = useState("");
   const [selectedTargetPhone, setSelectedTargetPhone] = useState<string>("");
   const isMetaConversation = conversation.provider === 'meta';
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
     conversation.instance_id || ""
   );
   const [selectedMetaNumberId, setSelectedMetaNumberId] = useState<string>(
-    (conversation as any).meta_phone_number_id || ""
+    conversation.meta_phone_number_id || ""
   );
-  // Sender channel: true = Meta (API Oficial), false = Evolution instance.
-  // Available for ANY conversation, regardless of the original provider.
-  const [usingMetaSender, setUsingMetaSender] = useState<boolean>(
-    !!(conversation as any).meta_phone_number_id && !conversation.instance_id
-  );
-  const metaUsingEvoInstance = !usingMetaSender;
-  const setMetaUsingEvoInstance = (v: boolean) => setUsingMetaSender(!v);
+  // For Meta conversations: track if user switched to an Evolution instance
+  const [metaUsingEvoInstance, setMetaUsingEvoInstance] = useState(false);
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
@@ -131,45 +114,16 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const [showSenderName, setShowSenderName] = useState(() => {
     return localStorage.getItem('inbox-show-sender-name') === 'true';
   });
-  const [replyingTo, setReplyingTo] = useState<InboxMessage | null>(null);
+  
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const composerRef = useRef<MessageComposerHandle>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const isScrolledToBottom = useRef(true);
   const isProcessingSlashRef = useRef(false);
 
   // Get connected instances only
   const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
-
-  // Stable refs for MessageBubble callbacks so memoization holds across re-renders.
-  const selectedInstanceIdRef = useRef(selectedInstanceId);
-  selectedInstanceIdRef.current = selectedInstanceId;
-  const conversationIdRef = useRef(conversation.id);
-  conversationIdRef.current = conversation.id;
-  const sendReactionRef = useRef(sendReaction);
-  sendReactionRef.current = sendReaction;
-
-  const handleBubbleReact = useCallback((messageId: string, emoji: string) => {
-    sendReactionRef.current.mutate({
-      messageId,
-      emoji,
-      conversationId: conversationIdRef.current,
-      instanceId: selectedInstanceIdRef.current,
-    });
-  }, []);
-
-  const handleBubbleReply = useCallback((msg: InboxMessage) => {
-    setReplyingTo(msg);
-    setTimeout(() => composerRef.current?.focus(), 50);
-  }, []);
-
-  const instancePhoneNumberForBubble = useMemo(
-    () => connectedInstances.find(i => i.id === selectedInstanceId)?.phone_number,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedInstanceId, instances]
-  );
 
   // Filter active templates for slash commands
   const activeTemplates = useMemo(() => 
@@ -219,121 +173,44 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     );
   }, [activeFlows, slashSearchTerm]);
 
-  const totalSlashItems = filteredSlashTemplates.length + filteredSlashMetaTemplates.length + filteredSlashFlows.length;
-
-  // Set default instance/meta number ONLY when conversation changes (by id)
+  // Set default instance/meta number when conversation changes OR when meta_phone_number_id
+  // changes (e.g. an inbound message arrives on a different Meta number via realtime).
   const conversationId = conversation.id;
   const conversationInstanceId = conversation.instance_id;
-  const conversationMetaPhoneId = (conversation as any).meta_phone_number_id;
+  const conversationMetaPhoneId = conversation.meta_phone_number_id;
   const conversationProvider = conversation.provider;
-  
+
   useEffect(() => {
-    const hasEvoInstance = !!(conversationInstanceId && instances?.find(i => i.id === conversationInstanceId && i.status === 'connected'));
-    const metaId = conversationMetaPhoneId || "";
-
-    if (metaId) setSelectedMetaNumberId(metaId);
-    else if (metaNumbers.length > 0) setSelectedMetaNumberId(metaNumbers[0].phone_number_id);
-    else setSelectedMetaNumberId("");
-
-    if (conversationInstanceId) setSelectedInstanceId(conversationInstanceId);
-    else if (connectedInstances.length > 0) setSelectedInstanceId(connectedInstances[0].id);
-
-    // Prefer the channel the conversation is actually bound to
     if (isMetaConversation) {
-      setUsingMetaSender(!hasEvoInstance);
+      // Check if conversation has an instance_id set (means user previously chose Evo)
+      if (conversationInstanceId && instances?.find(i => i.id === conversationInstanceId && i.status === 'connected')) {
+        setMetaUsingEvoInstance(true);
+        setSelectedInstanceId(conversationInstanceId);
+      } else {
+        setMetaUsingEvoInstance(false);
+        const metaId = conversationMetaPhoneId || "";
+        setSelectedMetaNumberId(metaId);
+        if (!metaId && metaNumbers.length > 0) {
+          setSelectedMetaNumberId(metaNumbers[0].phone_number_id);
+        }
+      }
     } else {
-      setUsingMetaSender(!!metaId && !hasEvoInstance);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId]);
-
-  // Auto-switch the sending number to follow the LAST INBOUND message origin.
-  // If the lead replies through a different company number (e.g. they wrote
-  // to "Centro de Saúde Visual" while the agent had "Brasil Visão Cidadã"
-  // selected), the selector flips automatically so the next reply goes out
-  // through the same number the lead used — avoiding cross-channel replies.
-  const lastSyncedInboundIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!messages || messages.length === 0) return;
-    let lastInbound: InboxMessage | null = null;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m.direction === 'inbound' && (m.sent_via_meta_number_id || m.sent_via_instance_id)) {
-        lastInbound = m;
-        break;
+      setMetaUsingEvoInstance(false);
+      if (conversationInstanceId) {
+        setSelectedInstanceId(conversationInstanceId);
+      } else if (connectedInstances.length > 0) {
+        setSelectedInstanceId(connectedInstances[0].id);
       }
     }
-    if (!lastInbound) return;
-    if (lastSyncedInboundIdRef.current === lastInbound.id) return;
-    lastSyncedInboundIdRef.current = lastInbound.id;
-
-    const inboundMetaId = lastInbound.sent_via_meta_number_id || null;
-    const inboundInstanceId = lastInbound.sent_via_instance_id || null;
-
-    if (inboundMetaId) {
-      const known = metaNumbers.find(n => n.phone_number_id === inboundMetaId);
-      if (!known) return;
-      if (selectedMetaNumberId === inboundMetaId && !metaUsingEvoInstance) return;
-      setSelectedMetaNumberId(inboundMetaId);
-      setMetaUsingEvoInstance(false);
-      supabase
-        .from('conversations')
-        .update({ meta_phone_number_id: inboundMetaId, provider: 'meta', instance_id: null })
-        .eq('id', conversation.id)
-        .then(({ error }) => {
-          if (!error) queryClient.invalidateQueries({ queryKey: ['conversations'] });
-        });
-    } else if (inboundInstanceId) {
-      const known = connectedInstances.find(i => i.id === inboundInstanceId);
-      if (!known) return;
-      if (selectedInstanceId === inboundInstanceId && !usingMetaSender) return;
-      setSelectedInstanceId(inboundInstanceId);
-      setUsingMetaSender(false);
-      supabase
-        .from('conversations')
-        .update({ instance_id: inboundInstanceId })
-        .eq('id', conversation.id)
-        .then(({ error }) => {
-          if (!error) queryClient.invalidateQueries({ queryKey: ['conversations'] });
-        });
-    }
+  // Re-run when the meta_phone_number_id changes so the reply number always
+  // tracks the last inbound message (updated by the webhook via realtime).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, metaNumbers, instances]);
-
-  // Reset the auto-sync tracker when switching conversations
-  useEffect(() => {
-    lastSyncedInboundIdRef.current = null;
-  }, [conversationId]);
+  }, [conversationId, conversationMetaPhoneId]);
 
   // Persist sender name preference
   useEffect(() => {
     localStorage.setItem('inbox-show-sender-name', showSenderName.toString());
   }, [showSenderName]);
-
-  // Clear optimistic messages when real messages arrive
-  useEffect(() => {
-    if (messages?.length) {
-      setOptimisticMessages(prev =>
-        prev.filter(opt => {
-          // Match media optimistic by media_url + type
-          if (opt.media_url) {
-            const matched = messages.some(
-              m => m.direction === 'outbound' && m.media_url === opt.media_url
-            );
-            if (matched) return false;
-            // Also drop media optimistic older than 30s to prevent loop
-            const ageMs = Date.now() - new Date(opt.created_at).getTime();
-            if (ageMs > 30000) return false;
-            return true;
-          }
-          // Text match
-          return !messages.some(
-            m => m.content === opt.content && m.direction === 'outbound'
-          );
-        })
-      );
-    }
-  }, [messages]);
 
   // Scroll handling
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
@@ -372,6 +249,14 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     setOptimisticMessages([]);
   }, [conversation.id, scrollToBottom]);
 
+  // Auto-mark as read when opening a conversation
+  useEffect(() => {
+    if (conversation.unread_count > 0 && onMarkAsRead) {
+      onMarkAsRead();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation.id]);
+
   // Real-time subscription
   useEffect(() => {
     const channel = supabase
@@ -404,32 +289,15 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   }, [optimisticMessages.length]);
 
-  // Pending attachment awaiting caption / confirmation before sending
-  const [pendingMedia, setPendingMedia] = useState<{ url: string; type: 'image' | 'document' | 'video'; name?: string } | null>(null);
+  // Helper: determine effective sender for Meta conversations that may use Evolution
+  const useMetaSender = isMetaConversation && !metaUsingEvoInstance;
+  const effectiveInstanceId = metaUsingEvoInstance ? selectedInstanceId : (isMetaConversation ? selectedMetaNumberId : selectedInstanceId);
 
-  // Helper: determine effective sender (Meta or Evolution) for any conversation
-  const useMetaSender = usingMetaSender;
-  const effectiveInstanceId = usingMetaSender ? selectedMetaNumberId : selectedInstanceId;
-
-  const handleSend = async (messageText?: string) => {
+  const handleSend = async () => {
     const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
-    const textToSend = (messageText ?? composerRef.current?.getValue() ?? "").trim();
+    if (!newMessage.trim() || !hasValidSender) return;
 
-    // If there's a pending attachment, send it (with the typed text as caption)
-    if (pendingMedia && hasValidSender) {
-      const attachment = pendingMedia;
-      setPendingMedia(null);
-      composerRef.current?.clear();
-      if (textareaRef.current) textareaRef.current.style.height = 'auto';
-      await handleSendMedia(attachment.url, attachment.type, attachment.name, textToSend || undefined);
-      composerRef.current?.focus();
-      return;
-    }
-
-    if (!textToSend || !hasValidSender) return;
-
-
-    let messageContent = textToSend;
+    let messageContent = newMessage.trim();
     const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     
     // Se correção automática está ativada, corrigir antes de enviar
@@ -476,17 +344,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       media_url: null,
       whatsapp_message_id: null,
       user_id: '',
-      quoted_message: replyingTo ? {
-        whatsapp_message_id: replyingTo.whatsapp_message_id,
-        content: replyingTo.content,
-        message_type: replyingTo.message_type,
-        from_me: replyingTo.direction === 'outbound',
-      } : null,
       isOptimistic: true,
     };
     
     setOptimisticMessages(prev => [...prev, optimisticMessage]);
-    composerRef.current?.clear();
+    setNewMessage(""); // Clear immediately
     
     // Reset textarea height
     if (textareaRef.current) {
@@ -496,44 +358,33 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     setTimeout(() => scrollToBottom("smooth"), 50);
     
     // Focus back to textarea immediately
-    composerRef.current?.focus();
+    textareaRef.current?.focus();
 
     // Send in background - no await blocking
     const targetPhone = selectedTargetPhone || undefined;
-    const quotedPayload = replyingTo ? {
-      id: replyingTo.id,
-      whatsapp_message_id: replyingTo.whatsapp_message_id,
-      content: replyingTo.content,
-      message_type: replyingTo.message_type,
-      from_me: replyingTo.direction === 'outbound',
-    } : undefined;
-    setReplyingTo(null);
     sendMessage.mutateAsync(useMetaSender ? {
       content: messageContent,
       conversationId: conversation.id,
       instanceId: selectedMetaNumberId,
       targetPhone,
-      quotedMessage: quotedPayload,
     } : {
       content: messageContent,
       conversationId: conversation.id,
       instanceId: selectedInstanceId,
       targetPhone,
-      quotedMessage: quotedPayload,
     }).then(() => {
-      // Mark as read when user replies
-      if (conversation.unread_count > 0 && onMarkAsRead) {
-        onMarkAsRead();
-      }
+      // Remove optimistic by ID once server confirms — real message arrives via query invalidation
+      setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
     }).catch(() => {
-      // Detailed error toast is shown by the sendMessage mutation
-      setOptimisticMessages(prev => 
-        prev.filter(m => m.id !== optimisticId)
+      toast.error("Erro ao enviar mensagem");
+      // Mark as failed instead of removing — keeps message visible so user knows what failed
+      setOptimisticMessages(prev =>
+        prev.map(m => m.id === optimisticId ? { ...m, status: 'failed' } : m)
       );
     });
   };
 
-  const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio' | 'video', fileName?: string, caption?: string) => {
+  const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio' | 'video') => {
     const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
     if (!hasValidSender) {
       toast.error("Selecione um número primeiro");
@@ -551,7 +402,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     const optimisticMessage: OptimisticMessage = {
       id: `optimistic-${Date.now()}`,
       conversation_id: conversation.id,
-      content: caption || contentLabels[mediaType] || '[Mídia]',
+      content: contentLabels[mediaType] || '[Mídia]',
       direction: 'outbound',
       status: 'sending',
       message_type: mediaType,
@@ -576,42 +427,86 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         instanceId: useMetaSender ? selectedMetaNumberId : selectedInstanceId,
         mediaUrl,
         mediaType,
-        fileName,
-        caption,
         targetPhone: selectedTargetPhone || undefined,
       });
-      // Media sent successfully - no toast needed as user sees it in chat
-    } catch (error) {
+      setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
+    } catch {
       toast.error("Erro ao enviar mídia");
-      setOptimisticMessages(prev => 
-        prev.filter(m => m.id !== optimisticMessage.id)
+      setOptimisticMessages(prev =>
+        prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'failed' } : m)
       );
     }
   };
 
-  const handleSlashSearchChange = useCallback((searchTerm: string | null) => {
-    if (searchTerm === null) {
-      setSlashCommandOpen(false);
-      setSlashSearchTerm("");
-      return;
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle slash command navigation
+    if (slashCommandOpen) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const totalItems = filteredSlashTemplates.length + filteredSlashMetaTemplates.length + filteredSlashFlows.length;
+        setSlashSelectedIndex(prev => 
+          Math.min(prev + 1, totalItems - 1)
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashSelectedIndex(prev => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        if (isProcessingSlashRef.current) return;
+        if (slashSelectedIndex < filteredSlashTemplates.length) {
+          handleSlashSelect(filteredSlashTemplates[slashSelectedIndex]);
+        } else if (slashSelectedIndex < filteredSlashTemplates.length + filteredSlashMetaTemplates.length) {
+          const metaIndex = slashSelectedIndex - filteredSlashTemplates.length;
+          if (filteredSlashMetaTemplates[metaIndex]) {
+            handleMetaTemplateSelect(filteredSlashMetaTemplates[metaIndex]);
+          }
+        } else {
+          const flowIndex = slashSelectedIndex - filteredSlashTemplates.length - filteredSlashMetaTemplates.length;
+          if (filteredSlashFlows[flowIndex]) {
+            handleFlowSelect(filteredSlashFlows[flowIndex]);
+          }
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSlashCommandOpen(false);
+        return;
+      }
     }
 
-    setSlashCommandOpen(true);
-    setSlashSearchTerm(searchTerm);
-    setSlashSelectedIndex(0);
-  }, []);
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
 
-  const handleSlashNavigate = useCallback((direction: 1 | -1) => {
-    setSlashSelectedIndex(prev => {
-      if (direction > 0) return Math.min(prev + 1, totalSlashItems - 1);
-      return Math.max(prev - 1, 0);
-    });
-  }, [totalSlashItems]);
-
-  const handleSlashEscape = useCallback(() => {
-    setSlashCommandOpen(false);
-    setSlashSearchTerm("");
-  }, []);
+  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setNewMessage(value);
+    
+    // Detect slash command trigger
+    const cursorPos = e.target.selectionStart || 0;
+    const textBeforeCursor = value.substring(0, cursorPos);
+    const slashMatch = textBeforeCursor.match(/(?:^|\s)\/(\w*)$/);
+    
+    if (slashMatch) {
+      setSlashCommandOpen(true);
+      setSlashSearchTerm(slashMatch[1] || "");
+      setSlashSelectedIndex(0);
+    } else {
+      setSlashCommandOpen(false);
+      setSlashSearchTerm("");
+    }
+    
+    // Auto-resize
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+  };
 
   const handleSlashSelect = async (template: MessageTemplate) => {
     if (isProcessingSlashRef.current) return;
@@ -626,10 +521,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       return;
     }
 
-    const currentMessage = composerRef.current?.getValue() ?? "";
-    const cursorPos = textareaRef.current?.selectionStart || currentMessage.length;
-    const textBeforeCursor = currentMessage.substring(0, cursorPos);
-    const textAfterCursor = currentMessage.substring(cursorPos);
+    const cursorPos = textareaRef.current?.selectionStart || newMessage.length;
+    const textBeforeCursor = newMessage.substring(0, cursorPos);
+    const textAfterCursor = newMessage.substring(cursorPos);
     
     // Find where the /command starts
     const slashMatch = textBeforeCursor.match(/(?:^|\s)(\/\w*)$/);
@@ -644,7 +538,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     if (template.ai_prompt) {
       setSlashCommandOpen(false);
       setSlashSearchTerm("");
-      composerRef.current?.clear();
+      setNewMessage("");
       
       toast.info("Gerando mensagem com IA...");
       
@@ -669,10 +563,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         const prefixText = textBeforeCursor.substring(0, slashStart);
         const finalAiText = prefixText + generatedMessage + textAfterCursor;
 
-        composerRef.current?.setValue(finalAiText);
+        setNewMessage(finalAiText);
         toast.success("Mensagem gerada! Revise e envie.");
         
-        composerRef.current?.focus();
+        textareaRef.current?.focus();
         setTimeout(() => {
           if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
@@ -686,52 +580,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       return;
     }
     
-    // Fetch active deal (with custom fields, value, stage, funnel) for this contact
-    let dealData: any = null;
-    if (conversation.contact_id) {
-      const { data: d } = await supabase
-        .from('funnel_deals')
-        .select('id, title, value, custom_fields, stage:funnel_stages(name), funnel:funnels(name)')
-        .eq('contact_id', conversation.contact_id)
-        .is('closed_at', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      dealData = d;
-    }
-
-    // Build variable map: contact custom fields + deal custom fields (deal wins) + native fields
-    const contactCustom = (conversation.contact?.custom_fields as Record<string, unknown>) || {};
-    const dealCustom = (dealData?.custom_fields as Record<string, unknown>) || {};
-    const now = new Date();
-    const formatVal = (v: unknown): string => {
-      if (v === null || v === undefined) return '';
-      if (Array.isArray(v)) return v.join(', ');
-      if (typeof v === 'object') { try { return JSON.stringify(v); } catch { return String(v); } }
-      return String(v);
-    };
-    const vars: Record<string, string> = {
-      nome: conversation.contact?.name || '',
-      name: conversation.contact?.name || '',
-      telefone: conversation.contact?.phone || '',
-      phone: conversation.contact?.phone || '',
-      email: (conversation.contact as any)?.email || '',
-      valor: dealData?.value != null ? String(dealData.value) : '',
-      titulo: dealData?.title || '',
-      funil: (dealData?.funnel as any)?.name || '',
-      etapa: (dealData?.stage as any)?.name || '',
-      data: now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-    };
-    for (const [k, v] of Object.entries({ ...contactCustom, ...dealCustom })) {
-      vars[k] = formatVal(v);
-    }
-
-    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    let processedContent = template.content;
-    for (const [key, value] of Object.entries(vars)) {
-      const re = new RegExp(`\\{\\{\\s*${escapeRegex(key)}\\s*\\}\\}`, 'gi');
-      processedContent = processedContent.replace(re, value);
-    }
+    // Replace variables with contact data
+    let processedContent = template.content
+      .replace(/\{\{nome\}\}/gi, conversation.contact?.name || "")
+      .replace(/\{\{name\}\}/gi, conversation.contact?.name || "")
+      .replace(/\{\{telefone\}\}/gi, conversation.contact?.phone || "")
+      .replace(/\{\{phone\}\}/gi, conversation.contact?.phone || "");
     
     const finalText = textBeforeCursor.substring(0, slashStart) + processedContent + textAfterCursor;
     
@@ -744,7 +598,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       
       // Send text automatically if there's content
       if (finalText.trim()) {
-        composerRef.current?.clear();
+        setNewMessage("");
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto';
         }
@@ -768,23 +622,24 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         };
         setOptimisticMessages(prev => [...prev, optimisticMessage]);
         setTimeout(() => scrollToBottom("smooth"), 50);
-        
-        sendMessage.mutateAsync({
-          content: finalText.trim(),
-          conversationId: conversation.id,
-          instanceId: useMetaSender ? selectedMetaNumberId : selectedInstanceId,
-        }).catch(() => {
-          toast.error("Erro ao enviar texto do template");
+
+        // Await the text send so media is inserted after text (preserves order)
+        try {
+          await sendMessage.mutateAsync({
+            content: finalText.trim(),
+            conversationId: conversation.id,
+            instanceId: useMetaSender ? selectedMetaNumberId : selectedInstanceId,
+          });
           setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
-        });
+        } catch {
+          toast.error("Erro ao enviar texto do template");
+          setOptimisticMessages(prev => prev.map(m => m.id === optimisticId ? { ...m, status: 'failed' } : m));
+        }
       }
-      
-      // Send media with a small delay to avoid race condition
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       try {
         await handleSendMedia(template.media_url, mediaType);
-      } catch (error) {
+      } catch {
         const mediaLabels: Record<string, string> = { video: 'vídeo', image: 'imagem', audio: 'áudio', document: 'documento' };
         toast.error(`Erro ao enviar ${mediaLabels[mediaType] || 'mídia'} do template`);
       }
@@ -794,7 +649,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
     
     // Template WITHOUT media: keep current behavior (text in input, user sends manually)
-    composerRef.current?.setValue(finalText);
+    setNewMessage(finalText);
     
     // Focus and resize
     textareaRef.current?.focus();
@@ -816,7 +671,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     try {
       setSlashCommandOpen(false);
       setSlashSearchTerm("");
-      composerRef.current?.clear();
+      setNewMessage("");
 
       if (!selectedMetaNumberId) {
         toast.error("Selecione um número Meta primeiro");
@@ -892,7 +747,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const handleFlowSelect = async (flow: ChatbotFlow) => {
     setSlashCommandOpen(false);
     setSlashSearchTerm("");
-    composerRef.current?.clear();
+    setNewMessage("");
 
     if (!selectedInstanceId) {
       toast.error("Selecione uma instância primeiro");
@@ -926,31 +781,65 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   };
 
-  const handleSlashConfirm = useCallback(() => {
-    if (isProcessingSlashRef.current) return;
-    if (slashSelectedIndex < filteredSlashTemplates.length) {
-      handleSlashSelect(filteredSlashTemplates[slashSelectedIndex]);
-    } else if (slashSelectedIndex < filteredSlashTemplates.length + filteredSlashMetaTemplates.length) {
-      const metaIndex = slashSelectedIndex - filteredSlashTemplates.length;
-      if (filteredSlashMetaTemplates[metaIndex]) {
-        handleMetaTemplateSelect(filteredSlashMetaTemplates[metaIndex]);
+  // Shared handler for all instance/number selector changes (desktop Meta, desktop Evo, mobile Meta, mobile Evo)
+  // Persists selection to DB immediately and reverts local state if the update fails
+  const handleInstanceValueChange = useCallback(async (value: string) => {
+    if (value.startsWith('evo:')) {
+      const evoId = value.replace('evo:', '');
+      setSelectedInstanceId(evoId);
+      setMetaUsingEvoInstance(true);
+      const { error } = await supabase
+        .from('conversations')
+        .update({ instance_id: evoId })
+        .eq('id', conversation.id);
+      if (error) {
+        setSelectedInstanceId(conversationInstanceId || '');
+        setMetaUsingEvoInstance(false);
+        toast.error("Erro ao atualizar número de envio");
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        toast.success("Número de envio atualizado");
+      }
+    } else if (value.startsWith('meta:')) {
+      const metaId = value.replace('meta:', '');
+      setSelectedMetaNumberId(metaId);
+      setMetaUsingEvoInstance(false);
+      const { error } = await supabase
+        .from('conversations')
+        .update({ meta_phone_number_id: metaId })
+        .eq('id', conversation.id);
+      if (error) {
+        setSelectedMetaNumberId(conversationMetaPhoneId || '');
+        toast.error("Erro ao atualizar número Meta");
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        toast.success("Número Meta atualizado");
       }
     } else {
-      const flowIndex = slashSelectedIndex - filteredSlashTemplates.length - filteredSlashMetaTemplates.length;
-      if (filteredSlashFlows[flowIndex]) {
-        handleFlowSelect(filteredSlashFlows[flowIndex]);
+      // Plain Evolution instance (non-Meta conversation)
+      setSelectedInstanceId(value);
+      const { error } = await supabase
+        .from('conversations')
+        .update({ instance_id: value })
+        .eq('id', conversation.id);
+      if (error) {
+        setSelectedInstanceId(conversationInstanceId || '');
+        toast.error("Erro ao atualizar número de envio");
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        toast.success("Número de envio atualizado");
       }
     }
-  }, [filteredSlashFlows, filteredSlashMetaTemplates, filteredSlashTemplates, slashSelectedIndex]);
+  }, [conversation.id, conversationInstanceId, conversationMetaPhoneId, queryClient]);
 
   const handleEmojiSelect = (emoji: string) => {
-    composerRef.current?.appendValue(emoji);
-    composerRef.current?.focus();
+    setNewMessage(prev => prev + emoji);
+    textareaRef.current?.focus();
   };
 
   const handleAISuggestion = (text: string) => {
-    composerRef.current?.setValue(text);
-    composerRef.current?.focus();
+    setNewMessage(text);
+    textareaRef.current?.focus();
     // Trigger resize after setting text
     setTimeout(() => {
       if (textareaRef.current) {
@@ -1175,12 +1064,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                     className="text-xs text-muted-foreground"
                   >
                     {conversation.contact?.phone}
-                    {usingMetaSender && selectedMetaNumberId && (
+                    {isMetaConversation && !metaUsingEvoInstance && selectedMetaNumberId && (
                       <span className="ml-1.5 text-blue-500">
                         via {getMetaLabel(selectedMetaNumberId)}
                       </span>
                     )}
-                    {!usingMetaSender && selectedInstanceId && (
+                    {isMetaConversation && metaUsingEvoInstance && selectedInstanceId && (
                       <span className="ml-1.5 text-muted-foreground">
                         via {connectedInstances.find(i => i.id === selectedInstanceId)?.instance_name || 'Lite'}
                       </span>
@@ -1192,12 +1081,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           </div>
         </div>
         
-        <div className="flex items-center gap-1 md:gap-2 shrink-0 flex-wrap justify-end">
-          {presenceOthers.length > 0 && (
-            <div className="mr-1 hidden sm:flex">
-              <PresenceAvatars users={presenceOthers} />
-            </div>
-          )}
+        <div className="flex items-center gap-1 md:gap-2 shrink-0">
           {/* Mark as Read Button */}
           {conversation.unread_count > 0 && onMarkAsRead && (
             <Tooltip>
@@ -1209,7 +1093,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                   onClick={onMarkAsRead}
                 >
                   <MailCheck className="h-4 w-4" />
-                  <span className="hidden 2xl:inline">Marcar como lida</span>
+                  <span className="hidden md:inline">Marcar como lida</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Marcar como lida</TooltipContent>
@@ -1222,17 +1106,17 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                 {conversation.ai_handoff_requested ? (
                   <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30 gap-1 h-8 px-2 cursor-default">
                     <User className="h-3 w-3" />
-                    <span className="hidden 2xl:inline">Aguardando</span>
+                    <span className="hidden xl:inline">Aguardando</span>
                   </Badge>
                 ) : conversation.ai_paused ? (
                   <Badge variant="outline" className="bg-muted text-muted-foreground gap-1 h-8 px-2 cursor-default">
                     <Pause className="h-3 w-3" />
-                    <span className="hidden 2xl:inline">Pausada</span>
+                    <span className="hidden xl:inline">Pausada</span>
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 gap-1 h-8 px-2 cursor-default">
                     <Bot className="h-3 w-3" />
-                    <span className="hidden 2xl:inline">IA Ativa</span>
+                    <span className="hidden xl:inline">IA Ativa</span>
                   </Badge>
                 )}
               </TooltipTrigger>
@@ -1250,40 +1134,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           {!isMobile ? (
             <>
               {/* Instance / Meta Number Selector - Primary */}
-                <Select 
-                  value={usingMetaSender ? `meta:${selectedMetaNumberId}` : `evo:${selectedInstanceId}`} 
-                  onValueChange={async (value) => {
-                    if (value.startsWith('evo:')) {
-                      const evoId = value.replace('evo:', '');
-                      setSelectedInstanceId(evoId);
-                      setMetaUsingEvoInstance(true);
-                      try {
-                        await supabase
-                          .from('conversations')
-                          .update({ instance_id: evoId })
-                          .eq('id', conversation.id);
-                        toast.success("Número de envio atualizado");
-                      } catch (error) {
-                        toast.error("Erro ao atualizar número");
-                      }
-                    } else {
-                      const metaId = value.replace('meta:', '');
-                      setSelectedMetaNumberId(metaId);
-                      setMetaUsingEvoInstance(false);
-                      try {
-                        await supabase
-                          .from('conversations')
-                          .update({ meta_phone_number_id: metaId })
-                          .eq('id', conversation.id);
-                        toast.success("Número Meta atualizado");
-                      } catch (error) {
-                        toast.error("Erro ao atualizar número");
-                      }
-                    }
-                  }}
+              {isMetaConversation ? (
+                <Select
+                  value={metaUsingEvoInstance ? `evo:${selectedInstanceId}` : `meta:${selectedMetaNumberId}`}
+                  onValueChange={handleInstanceValueChange}
                 >
-                  <SelectTrigger className="w-[120px] xl:w-[140px] h-9">
-
+                  <SelectTrigger className="w-[140px] h-9">
                     <div className="flex items-center min-w-0 flex-1">
                       {metaUsingEvoInstance ? (
                         <Smartphone className="h-4 w-4 mr-1 text-muted-foreground shrink-0" />
@@ -1343,6 +1199,41 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                     )}
                   </SelectContent>
                 </Select>
+              ) : (
+              <Select
+                value={selectedInstanceId}
+                onValueChange={handleInstanceValueChange}
+              >
+                <SelectTrigger className="w-[140px] h-9">
+                  <div className="flex items-center min-w-0 flex-1">
+                    <Smartphone className="h-4 w-4 mr-1 text-muted-foreground shrink-0" />
+                    <span className="truncate">
+                      <SelectValue placeholder="Número" />
+                    </span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {connectedInstances.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Nenhuma instância conectada
+                    </div>
+                  ) : (
+                    connectedInstances.map((instance) => (
+                      <SelectItem key={instance.id} value={instance.id}>
+                        <div className="flex flex-col items-start">
+                          <span>{instance.instance_name}</span>
+                          {instance.phone_number && (
+                            <span className="text-xs text-muted-foreground">
+                              {instance.phone_number}
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              )}
 
               {/* Invoke AI Button - Primary */}
               <Tooltip>
@@ -1359,7 +1250,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
-                    <span className="hidden 2xl:inline">Acionar IA</span>
+                    <span className="hidden lg:inline">Acionar IA</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -1519,7 +1410,6 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         </TabsList>
 
         <TabsContent value="chat" className="flex flex-col flex-1 min-h-0 overflow-hidden mt-0 relative">
-      <PinnedItemsBar conversationId={conversation.id} contactId={conversation.contact_id} />
       {/* Messages - WhatsApp style background */}
       <div 
         className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4 whatsapp-chat-bg" 
@@ -1571,15 +1461,20 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                         provider={originInfo.provider}
                         label={originInfo.label}
                         phoneNumber={originInfo.phone}
-                        originKey={currentOrigin}
                       />
                     )}
                     <MessageBubble
                       message={message}
                       isOptimistic={'isOptimistic' in message}
-                      instancePhoneNumber={instancePhoneNumberForBubble}
-                      onReact={handleBubbleReact}
-                      onReply={handleBubbleReply}
+                      instancePhoneNumber={connectedInstances.find(i => i.id === selectedInstanceId)?.phone_number}
+                      onReact={(messageId, emoji) => {
+                        sendReaction.mutate({
+                          messageId,
+                          emoji,
+                          conversationId: conversation.id,
+                          instanceId: selectedInstanceId,
+                        });
+                      }}
                     />
                   </Fragment>
                 );
@@ -1612,43 +1507,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
       {/* Input - WhatsApp style */}
       <div className="shrink-0 bg-[#f0f2f5] dark:bg-[#202c33] z-20 px-3 py-2 md:px-4 md:py-3">
-        {presenceTypingUsers.length > 0 && (
-          <UserTypingIndicator users={presenceTypingUsers} />
-        )}
         {/* Mobile: Instance selector above input */}
         {isMobile && (
           <div className="mb-2">
-              <Select 
-                value={usingMetaSender ? `meta:${selectedMetaNumberId}` : `evo:${selectedInstanceId}`} 
-                onValueChange={async (value) => {
-                  if (value.startsWith('evo:')) {
-                    const evoId = value.replace('evo:', '');
-                    setSelectedInstanceId(evoId);
-                    setMetaUsingEvoInstance(true);
-                    try {
-                      await supabase
-                        .from('conversations')
-                        .update({ instance_id: evoId })
-                        .eq('id', conversation.id);
-                      toast.success("Número atualizado");
-                    } catch (error) {
-                      toast.error("Erro ao atualizar número");
-                    }
-                  } else {
-                    const metaId = value.replace('meta:', '');
-                    setSelectedMetaNumberId(metaId);
-                    setMetaUsingEvoInstance(false);
-                    try {
-                      await supabase
-                        .from('conversations')
-                        .update({ meta_phone_number_id: metaId })
-                        .eq('id', conversation.id);
-                      toast.success("Número Meta atualizado");
-                    } catch (error) {
-                      toast.error("Erro ao atualizar número");
-                    }
-                  }
-                }}
+            {isMetaConversation ? (
+              <Select
+                value={metaUsingEvoInstance ? `evo:${selectedInstanceId}` : `meta:${selectedMetaNumberId}`}
+                onValueChange={handleInstanceValueChange}
               >
                 <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-[#2a3942] border-0">
                   {metaUsingEvoInstance ? (
@@ -1687,85 +1552,64 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                   )}
                 </SelectContent>
               </Select>
+            ) : (
+              <Select
+                value={selectedInstanceId}
+                onValueChange={handleInstanceValueChange}
+              >
+                <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-[#2a3942] border-0">
+                  <Smartphone className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Selecionar número" />
+                </SelectTrigger>
+                <SelectContent>
+                  {connectedInstances.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Nenhuma instância conectada
+                    </div>
+                  ) : (
+                    connectedInstances.map((instance) => (
+                      <SelectItem key={instance.id} value={instance.id}>
+                        {instance.instance_name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         )}
         
-        {replyingTo && (
-          <div className="max-w-3xl mx-auto mb-2 flex items-stretch gap-2 rounded-md bg-white dark:bg-[#2a3942] border-l-4 border-primary px-3 py-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-medium text-primary mb-0.5">
-                Respondendo {replyingTo.direction === 'outbound' ? 'você mesmo' : (conversation.contact?.name || 'cliente')}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {replyingTo.content || `[${replyingTo.message_type || 'mensagem'}]`}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0"
-              onClick={() => setReplyingTo(null)}
-              title="Cancelar resposta"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
-        {pendingMedia && (
-          <div className="flex items-center gap-3 mb-2 p-2 rounded-lg bg-muted/50 border border-border max-w-3xl mx-auto">
-            {pendingMedia.type === 'image' ? (
-              <img src={pendingMedia.url} alt={pendingMedia.name || 'anexo'} className="h-14 w-14 object-cover rounded-md shrink-0" />
-            ) : pendingMedia.type === 'video' ? (
-              <video src={pendingMedia.url} className="h-14 w-14 object-cover rounded-md bg-black shrink-0" />
-            ) : (
-              <div className="h-14 w-14 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-                <Paperclip className="h-5 w-5 text-primary" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{pendingMedia.name || 'Anexo'}</p>
-              <p className="text-xs text-muted-foreground">Escreva uma legenda (opcional) e envie</p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0"
-              onClick={() => setPendingMedia(null)}
-              title="Remover anexo"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              className="shrink-0"
-              onClick={() => handleSend()}
-            >
-              Enviar
-            </Button>
-          </div>
-        )}
-
         <div className="flex gap-2 max-w-3xl mx-auto items-end">
           {!isMobile && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
           
           <MediaUploadButton 
-            onUpload={(url, type, name) => setPendingMedia({ url, type, name })} 
+            onUpload={(url, type) => handleSendMedia(url, type)} 
             disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
           />
-
 
           <FormLinkButton
             contactId={conversation.contact_id}
             conversationId={conversation.id}
-            contactName={conversation.contact?.name || null}
-            contactDisplayId={(conversation.contact as any)?.contact_display_id || null}
-            onInsertMessage={(msg) => composerRef.current?.setValue(msg)}
+            onInsertMessage={(msg) => {
+              setNewMessage(msg);
+              textareaRef.current?.focus();
+              setTimeout(() => {
+                if (textareaRef.current) {
+                  textareaRef.current.style.height = 'auto';
+                  textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+                }
+              }, 0);
+            }}
           />
           
           {/* Phone selector when contact has multiple phones */}
           {(() => {
-            const additionalPhones = (conversation.contact?.custom_fields as any)?.additional_phones as Array<{phone: string; label: string}> | undefined;
+            const customFields = conversation.contact?.custom_fields;
+            const additionalPhones = (
+              customFields && typeof customFields === 'object' && 'additional_phones' in customFields
+                ? (customFields as Record<string, unknown>).additional_phones
+                : undefined
+            ) as Array<{ phone: string; label: string }> | undefined;
             if (!additionalPhones || additionalPhones.length === 0) return null;
             const mainPhone = conversation.contact?.phone || "";
             const allPhones = [
@@ -1796,28 +1640,24 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
             );
           })()}
 
-          <MessageComposer
-            ref={composerRef}
-            textareaRef={textareaRef}
-            disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
-            isMobile={isMobile}
-            isAutoCorrect={isAutoCorrect}
-            autoCorrectEnabled={autoCorrectEnabled}
-            slashCommandOpen={slashCommandOpen}
-            totalSlashItems={totalSlashItems}
-            onTyping={notifyTyping}
-            onSend={handleSend}
-            onSlashSearchChange={handleSlashSearchChange}
-            onSlashNavigate={handleSlashNavigate}
-            onSlashConfirm={handleSlashConfirm}
-            onSlashEscape={handleSlashEscape}
-          />
+          {/* Input container - pill style */}
+          <div className="relative flex-1 flex items-center bg-white dark:bg-[#2a3942] rounded-full px-3 py-1">
+            <Textarea
+              ref={textareaRef}
+              placeholder="Digite uma mensagem"
+              value={newMessage}
+              onChange={handleMessageChange}
+              onKeyDown={handleKeyDown}
+              className="w-full bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[36px] max-h-[100px] resize-none py-2 text-sm md:text-[15px] placeholder:text-[#667781]"
+              rows={1}
+            />
+          </div>
 
           {!isMobile && (
             <AIAssistantButton
               conversationId={conversation.id}
               onSuggestion={handleAISuggestion}
-              getCurrentMessage={() => composerRef.current?.getValue() ?? ""}
+              currentMessage={newMessage}
             />
           )}
 
@@ -1853,6 +1693,31 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
             onSend={(audioUrl) => handleSendMedia(audioUrl, 'audio')}
             disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
           />
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={handleSend}
+                disabled={!newMessage.trim() || !hasValidSender || isAutoCorrect}
+                size={isMobile ? "icon" : "default"}
+                className="shrink-0 min-w-[40px] md:min-w-[44px] relative"
+              >
+                {isAutoCorrect ? (
+                  <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 md:h-5 md:w-5" />
+                )}
+                {autoCorrectEnabled && !isAutoCorrect && (
+                  <SpellCheck className="h-2.5 w-2.5 absolute -top-0.5 -right-0.5 text-primary" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            {autoCorrectEnabled && (
+              <TooltipContent>
+                <p>Correção automática ativada</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
         </div>
         
         {!selectedInstanceId && connectedInstances.length > 0 && (

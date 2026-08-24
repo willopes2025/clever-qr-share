@@ -1,15 +1,15 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signOut: () => Promise<{ error: Error | null }>;
-  signInWithGoogle: (redirectPath?: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signOut: () => Promise<{ error: AuthError | null }>;
+  signInWithGoogle: () => Promise<{ error: AuthError | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -74,26 +74,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error };
   }, []);
 
-  const signInWithGoogle = useCallback(async (redirectPath?: string) => {
-    const safePath = redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')
-      ? redirectPath
-      : '/instances';
+  const signInWithGoogle = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}${safePath}`,
+        redirectTo: `${window.location.origin}/instances`,
       }
     });
-    return { error: error as Error | null };
+    return { error };
   }, []);
 
-  const value = useMemo(
-    () => ({ user, session, loading, signIn, signUp, signOut, signInWithGoogle }),
-    [user, session, loading, signIn, signUp, signOut, signInWithGoogle]
-  );
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut, signInWithGoogle }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,34 +1,39 @@
 import { format, isSameDay as dateFnsIsSameDay, isToday as dateFnsIsToday, isYesterday as dateFnsIsYesterday } from "date-fns";
-import {
-  getActiveTimezone,
-  partsInTimezone,
-  formatDate as formatDateActive,
-  formatTime as formatTimeActive,
-  formatDateTime as formatDateTimeActive,
-} from "@/lib/timezone";
+
+const BRAZIL_TZ = 'America/Sao_Paulo';
 
 /**
- * Convert a UTC date to the active organization timezone.
- * Returns a new Date object adjusted to display wall-clock time when used with date-fns format().
+ * Convert a UTC date to Brazil timezone (America/Sao_Paulo)
+ * Returns a new Date object adjusted to display Brazil time when used with date-fns format()
  */
 export function toBrazilTime(date: Date): Date {
-  const tz = getActiveTimezone();
-  const brString = date.toLocaleString('en-US', { timeZone: tz });
+  if (isNaN(date.getTime())) return date;
+  const brString = date.toLocaleString('en-US', { timeZone: BRAZIL_TZ });
   return new Date(brString);
 }
 
+function parseDate(dateString: string): Date | null {
+  const d = new Date(dateString);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 /**
- * Format a date string (ISO/UTC) to HH:mm (or hh:mm AM/PM) honoring the org's time format.
+ * Format a date string (ISO/UTC) to HH:mm in Brazil timezone
  */
 export function formatTimeBR(dateString: string): string {
-  return formatTimeActive(dateString);
+  const raw = parseDate(dateString);
+  if (!raw) return '';
+  const date = toBrazilTime(raw);
+  return format(date, "HH:mm");
 }
 
 /**
  * Check if a date string is today in Brazil timezone
  */
 export function isTodayBR(dateString: string): boolean {
-  const date = toBrazilTime(new Date(dateString));
+  const raw = parseDate(dateString);
+  if (!raw) return false;
+  const date = toBrazilTime(raw);
   const now = toBrazilTime(new Date());
   return dateFnsIsToday(date) || (date.toDateString() === now.toDateString());
 }
@@ -37,7 +42,9 @@ export function isTodayBR(dateString: string): boolean {
  * Check if a date string is yesterday in Brazil timezone
  */
 export function isYesterdayBR(dateString: string): boolean {
-  const date = toBrazilTime(new Date(dateString));
+  const raw = parseDate(dateString);
+  if (!raw) return false;
+  const date = toBrazilTime(raw);
   const now = toBrazilTime(new Date());
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -45,60 +52,60 @@ export function isYesterdayBR(dateString: string): boolean {
 }
 
 /**
- * Smart format for message/conversation timestamps — honors org date/time formats.
+ * Smart format for message/conversation timestamps in Brazil timezone
  */
 export function formatMessageTimeBR(dateString: string | null): string {
   if (!dateString) return "";
+  const raw = parseDate(dateString);
+  if (!raw) return "";
+  const brDate = toBrazilTime(raw);
   if (isTodayBR(dateString)) {
-    return formatTimeActive(dateString);
+    return format(brDate, "HH:mm");
   }
   if (isYesterdayBR(dateString)) {
     return "Ontem";
   }
-  // Short "day/month" using only the first two parts of the active date format.
-  const full = formatDateActive(dateString);
-  // DD/MM/YYYY -> DD/MM; MM/DD/YYYY -> MM/DD; YYYY-MM-DD -> MM-DD
-  const parts = full.split(/[/\-]/);
-  if (parts.length === 3) {
-    const sep = full.includes('/') ? '/' : '-';
-    // For YYYY-MM-DD show MM-DD; for the others show first two segments.
-    if (full.match(/^\d{4}/)) return `${parts[1]}${sep}${parts[2]}`;
-    return `${parts[0]}${sep}${parts[1]}`;
-  }
-  return full;
+  return format(brDate, "dd/MM");
 }
 
 /**
- * Full format for message bubbles: "<date> às <time>" using org formats.
+ * Full format for message bubbles in Brazil timezone: "dd/MM/yyyy 'às' HH:mm"
  */
 export function formatFullDateTimeBR(dateString: string): string {
-  return formatDateTimeActive(dateString, { separator: " às " });
+  const raw = parseDate(dateString);
+  if (!raw) return "";
+  const brDate = toBrazilTime(raw);
+  return format(brDate, "dd/MM/yyyy 'às' HH:mm");
 }
 
 /**
- * Format for message bubble time display in the active timezone/format.
+ * Format for message bubble time display in Brazil timezone
  */
 export function formatBubbleTimeBR(dateString: string): string {
+  const raw = parseDate(dateString);
+  if (!raw) return "";
+  const brDate = toBrazilTime(raw);
   if (isTodayBR(dateString)) {
-    return formatTimeActive(dateString);
+    return format(brDate, "HH:mm");
   }
   if (isYesterdayBR(dateString)) {
-    return `Ontem ${formatTimeActive(dateString)}`;
+    return `Ontem ${format(brDate, "HH:mm")}`;
   }
-  return `${formatMessageTimeBR(dateString)} ${formatTimeActive(dateString)}`;
+  return format(brDate, "dd/MM HH:mm");
 }
 
 /**
- * Get the date label for DateSeparator in active timezone (long Portuguese form).
+ * Get the date label for DateSeparator in Brazil timezone
  */
 export function getDateLabelBR(dateString: string): string {
+  const raw = parseDate(dateString);
+  if (!raw) return "";
+  const brDate = toBrazilTime(raw);
   if (isTodayBR(dateString)) return "Hoje";
   if (isYesterdayBR(dateString)) return "Ontem";
-
-  const tz = getActiveTimezone();
-  const p = partsInTimezone(new Date(dateString), tz);
+  
   const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-  return `${String(p.day).padStart(2,'0')} de ${months[p.month - 1]} de ${p.year}`;
+  return `${brDate.getDate().toString().padStart(2,'0')} de ${months[brDate.getMonth()]} de ${brDate.getFullYear()}`;
 }
 
 /**
@@ -113,47 +120,14 @@ export function parseDateOnly(dateString: string): Date {
 }
 
 /**
- * Format a date string (YYYY-MM-DD) honoring the org's active date format.
+ * Format a date string (YYYY-MM-DD) to dd/MM/yyyy without timezone issues
  */
 export function formatDateOnly(dateString: string): string {
-  return formatDateActive(dateString);
-}
-
-/**
- * Short date format honoring the active org format (day + month only).
- * DD/MM/YYYY -> DD/MM ; MM/DD/YYYY -> MM/DD ; YYYY-MM-DD -> MM-DD
- */
-export function formatDateShort(value: any): string {
-  if (value === null || value === undefined || value === "") return "";
-  const full = formatDateActive(value);
-  if (!full) return "";
-  const sep = full.includes("/") ? "/" : "-";
-  const parts = full.split(/[/\-]/);
-  if (parts.length === 3) {
-    if (full.match(/^\d{4}/)) return `${parts[1]}${sep}${parts[2]}`;
-    return `${parts[0]}${sep}${parts[1]}`;
-  }
-  return full;
-}
-
-/**
- * Short date+time honoring the active org formats.
- */
-export function formatDateTimeShort(value: any): string {
-  if (value === null || value === undefined || value === "") return "";
-  const d = formatDateShort(value);
-  const t = formatTimeActive(value);
-  if (!d) return t;
-  if (!t) return d;
-  return `${d} ${t}`;
-}
-
-/**
- * Full date+time honoring the active org formats (e.g. "27/05/2026 14:30").
- */
-export function formatDateTimeFull(value: any): string {
-  if (value === null || value === undefined || value === "") return "";
-  return formatDateTimeActive(value);
+  const date = parseDateOnly(dateString);
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 /**
@@ -170,10 +144,7 @@ export function isSameDateString(dateString: string | null, day: Date): boolean 
  * Check if a field name suggests it's a date field (used for auto-detection)
  */
 export function isDateLikeFieldName(fieldName: string): boolean {
-  // Só considera "data-like" quando o nome explicita uma data/prazo.
-  // Termos como "evento", "consulta", "agendamento" sozinhos podem se referir
-  // a outros atributos (ex.: "Local do Evento") e NÃO devem virar campo de data.
-  return /\bdata\b|\bdate\b|vencimento|nascimento|prazo|\bdt[_\s-]/i.test(fieldName);
+  return /\bdata\b|date|vencimento|nascimento|pagamento|data_de_entrada|data_da_entrada|saída|saida|prazo|consulta|evento|agendamento/i.test(fieldName);
 }
 
 /**
@@ -198,19 +169,10 @@ export function parseAnyDateValue(val: any): Date | undefined {
       const [d, m, y] = val.split('/').map(Number);
       return new Date(y, m - 1, d);
     }
-    // ISO with time part — preserve time (interpret naive timestamps as local)
-    const isoWithTime = val.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/);
-    if (isoWithTime) {
-      const [, y, mo, d, h, mi, s, , tz] = isoWithTime;
-      if (tz) {
-        const parsed = new Date(val);
-        if (!isNaN(parsed.getTime())) return parsed;
-      }
-      return new Date(+y, +mo - 1, +d, +h, +mi, s ? +s : 0);
-    }
-    // Date-only YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
-      const [y, m, d] = val.split('-').map(Number);
+    // YYYY-MM-DD or ISO
+    if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
+      const datePart = val.split('T')[0];
+      const [y, m, d] = datePart.split('-').map(Number);
       if (y && m && d) return new Date(y, m - 1, d);
     }
     // Fallback
@@ -228,14 +190,14 @@ export function parseAnyDateValue(val: any): Date | undefined {
  */
 export function formatDateValue(val: any): string | null {
   if (val === null || val === undefined || val === '') return null;
-  // Already formatted as dd/MM/yyyy
-  if (typeof val === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(val)) {
-    const [d, m, y] = val.split('/');
-    return formatDateActive(`${y}-${m}-${d}`);
-  }
+  // Already formatted
+  if (typeof val === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(val)) return val;
   const parsed = parseAnyDateValue(val);
   if (!parsed) return null;
-  return formatDateActive(parsed);
+  const day = parsed.getDate().toString().padStart(2, '0');
+  const month = (parsed.getMonth() + 1).toString().padStart(2, '0');
+  const year = parsed.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 /**

@@ -32,6 +32,10 @@ export class ErrorBoundary extends Component<Props, State> {
     window.location.reload();
   };
 
+  private handleGoHome = () => {
+    window.location.href = '/dashboard';
+  };
+
   private handleReset = () => {
     this.setState({ hasError: false, error: null, errorInfo: null });
   };
@@ -69,9 +73,12 @@ export class ErrorBoundary extends Component<Props, State> {
               </div>
             )}
 
-            <div className="flex gap-3 justify-center">
+            <div className="flex gap-3 justify-center flex-wrap">
               <Button variant="outline" onClick={this.handleReset}>
                 Tentar novamente
+              </Button>
+              <Button variant="outline" onClick={this.handleGoHome}>
+                Ir para o início
               </Button>
               <Button onClick={this.handleReload}>
                 <RefreshCw className="h-4 w-4 mr-2" />

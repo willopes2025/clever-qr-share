@@ -92,6 +92,7 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
   const [exhaustedMessage, setExhaustedMessage] = useState<string | null>(null);
   const [canResetCycle, setCanResetCycle] = useState(false);
   const cacheRef = useRef<Record<string, boolean>>({});
+  const analyzingRef = useRef(false);
 
   useEffect(() => {
     setOpportunityPrompt(funnel.opportunity_prompt || "");
@@ -155,6 +156,8 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
   };
 
   const analyze = async (forceRefresh = false, excludeDealIds: string[] = []) => {
+    if (analyzingRef.current) return;
+    analyzingRef.current = true;
     setIsLoading(true);
     setExhaustedMessage(null);
     setCanResetCycle(false);
@@ -196,6 +199,7 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
       toast.error("Erro ao analisar oportunidades");
     } finally {
       setIsLoading(false);
+      analyzingRef.current = false;
     }
   };
 

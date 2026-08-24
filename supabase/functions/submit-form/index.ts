@@ -5,6 +5,51 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function triggerFormSubmissionAutomations(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  formId: string,
+  dealId: string,
+  stageId: string,
+) {
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const { data: automations } = await supabase
+      .from('funnel_automations')
+      .select('id, trigger_config, funnel_id')
+      .eq('user_id', userId)
+      .eq('trigger_type', 'on_form_submission')
+      .eq('is_active', true);
+
+    for (const automation of automations || []) {
+      const triggerConfig = (automation.trigger_config as Record<string, any>) || {};
+      if (triggerConfig.form_id && triggerConfig.form_id !== formId) continue;
+
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/process-funnel-automations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({
+            dealId,
+            toStageId: stageId,
+            triggerType: 'on_form_submission',
+          }),
+        });
+        console.log(`Triggered on_form_submission automation ${automation.id} for deal ${dealId}`);
+      } catch (e) {
+        console.error(`Error triggering automation ${automation.id}:`, e);
+      }
+    }
+  } catch (e) {
+    console.error('Error in triggerFormSubmissionAutomations:', e);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -48,15 +93,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Block submissions for forms owned by inactive accounts
-    const { data: accountActive } = await supabase.rpc('is_account_active', { _user_id: (form as any).user_id });
-    if (accountActive === false) {
-      return new Response(
-        JSON.stringify({ error: 'Formulário indisponível' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Fetch form fields for mapping
     const { data: fields, error: fieldsError } = await supabase
       .from('form_fields')
@@ -84,20 +120,6 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Build tracking object (UTMs / referrer / landing) from staticParams
-    const trackingKeys = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','referrer','landing_url','utm_referrer_contact_id','utm_referrer_conversation_id','utm_referrer_name'];
-    const trackingFromForm: Record<string, string> = {};
-    for (const k of trackingKeys) {
-      const v = staticParams[k];
-      if (v !== undefined && v !== null && String(v).length > 0) {
-        trackingFromForm[k] = String(v);
-      }
-    }
-    if (Object.keys(trackingFromForm).length > 0) {
-      trackingFromForm.origin_channel = 'form';
-      trackingFromForm.form_id = formId;
-    }
-
     // Process field mappings to find contact info and lead custom fields
     let contactData: { name?: string; email?: string; phone?: string; custom_fields?: Record<string, any> } = {
       custom_fields: {}
@@ -112,68 +134,15 @@ Deno.serve(async (req: Request) => {
     // Additional phones to save
     let additionalPhones: Array<{ phone: string; label: string }> = [];
 
-  // Map a form field type to the corresponding custom_field_definitions.field_type.
-  // Critical for date/time triggers: a 'scheduling' form field must become 'datetime'
-  // in custom_field_definitions, otherwise the automation builder won't list it.
-  const mapFormFieldTypeToCustomFieldType = (formFieldType: string | null | undefined): string => {
-    switch (formFieldType) {
-      case 'scheduling':
-      case 'datetime':
-        return 'datetime';
-      case 'date':
-        return 'date';
-      case 'time':
-        return 'time';
-      case 'number':
-        return 'number';
-      case 'email':
-        return 'email';
-      case 'phone':
-        return 'phone';
-      case 'url':
-        return 'url';
-      case 'select':
-      case 'radio':
-        return 'select';
-      case 'multi_select':
-      case 'checkbox':
-        return 'multi_select';
-      case 'switch':
-      case 'boolean':
-        return 'boolean';
-      default:
-        return 'text';
-    }
-  };
-
-  // Normalize scheduling/date/time field values for storage in custom_fields,
-  // so that process-scheduled-automations can parse them reliably.
-  const normalizeFieldValueForStorage = (formFieldType: string | null | undefined, value: any): any => {
-    if (value === null || value === undefined || value === '') return value;
-    if (formFieldType === 'scheduling') {
-      const str = String(value).trim();
-      const m = str.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(:\d{2})?$/);
-      if (m) return `${m[1]}T${m[2]}${m[3] || ':00'}`;
-    }
-    return value;
-  };
-
-
-  // Check for lookup_by_display_id and lookup_by_lead_number fields first
+  // Check for lookup_by_display_id field first
   let lookupDisplayId: string | null = null;
-  let lookupLeadNumber: number | null = null;
   for (const field of formFields) {
     if (field.mapping_type === 'lookup_by_display_id') {
       const val = submissionData[field.id];
       if (val) {
         lookupDisplayId = String(val).trim();
       }
-    } else if (field.mapping_type === 'lookup_by_lead_number') {
-      const val = submissionData[field.id];
-      if (val) {
-        const digits = String(val).replace(/\D/g, '');
-        if (digits) lookupLeadNumber = parseInt(digits, 10);
-      }
+      break;
     }
   }
 
@@ -209,9 +178,8 @@ Deno.serve(async (req: Request) => {
     const hasNameParts = submissionData[`${field.id}_first`] !== undefined;
     const hasPhoneParts = submissionData[`${field.id}_country_code`] !== undefined;
     
-    // Skip lookup fields from data processing and skip empty values
+    // Skip lookup field from data processing and skip empty values
     if (field.mapping_type === 'lookup_by_display_id') continue;
-    if (field.mapping_type === 'lookup_by_lead_number') continue;
     if (!fieldValue && !hasNameParts && !hasPhoneParts) continue;
 
     if (field.mapping_type === 'contact_field') {
@@ -234,17 +202,15 @@ Deno.serve(async (req: Request) => {
         }
       }
     } else if (field.mapping_type === 'custom_field' && field.mapping_target && fieldValue) {
-      contactData.custom_fields![field.mapping_target] = normalizeFieldValueForStorage(field.field_type, fieldValue);
+      contactData.custom_fields![field.mapping_target] = fieldValue;
     } else if (field.mapping_type === 'lead_field' && field.mapping_target && fieldValue) {
-      dealCustomFields[field.mapping_target] = normalizeFieldValueForStorage(field.field_type, fieldValue);
-
+      dealCustomFields[field.mapping_target] = fieldValue;
     } else if (field.mapping_type === 'new_custom_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-      const inferredType = mapFormFieldTypeToCustomFieldType(field.field_type);
-
+      
       const { data: existingField } = await supabase
         .from('custom_field_definitions')
-        .select('id, field_type')
+        .select('id')
         .eq('user_id', form.user_id)
         .eq('field_key', fieldKey)
         .eq('entity_type', 'contact')
@@ -257,25 +223,14 @@ Deno.serve(async (req: Request) => {
             user_id: form.user_id,
             field_name: field.mapping_target,
             field_key: fieldKey,
-            field_type: inferredType,
+            field_type: 'text',
             is_required: false,
             display_order: 999,
             entity_type: 'contact',
           });
-      } else if (
-        existingField.field_type === 'text' &&
-        ['date', 'datetime', 'time'].includes(inferredType)
-      ) {
-        // Promote a legacy text-typed field to its real date/datetime/time type
-        // so it shows up in automation date-trigger selectors.
-        await supabase
-          .from('custom_field_definitions')
-          .update({ field_type: inferredType })
-          .eq('id', existingField.id);
       }
 
-      contactData.custom_fields![fieldKey] = normalizeFieldValueForStorage(field.field_type, fieldValue);
-
+      contactData.custom_fields![fieldKey] = fieldValue;
     } else if (field.mapping_type === 'deal_native_field' && field.mapping_target && fieldValue) {
       // Map to native deal columns (value, title)
       if (field.mapping_target === 'value') {
@@ -294,11 +249,10 @@ Deno.serve(async (req: Request) => {
       }
     } else if (field.mapping_type === 'new_lead_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-      const inferredType = mapFormFieldTypeToCustomFieldType(field.field_type);
-
+      
       const { data: existingField } = await supabase
         .from('custom_field_definitions')
-        .select('id, field_type')
+        .select('id')
         .eq('user_id', form.user_id)
         .eq('field_key', fieldKey)
         .eq('entity_type', 'lead')
@@ -311,58 +265,16 @@ Deno.serve(async (req: Request) => {
             user_id: form.user_id,
             field_name: field.mapping_target,
             field_key: fieldKey,
-            field_type: inferredType,
+            field_type: 'text',
             is_required: false,
             display_order: 999,
             entity_type: 'lead',
           });
-      } else if (
-        existingField.field_type === 'text' &&
-        ['date', 'datetime', 'time'].includes(inferredType)
-      ) {
-        await supabase
-          .from('custom_field_definitions')
-          .update({ field_type: inferredType })
-          .eq('id', existingField.id);
       }
 
-      dealCustomFields[fieldKey] = normalizeFieldValueForStorage(field.field_type, fieldValue);
+      dealCustomFields[fieldKey] = fieldValue;
     }
   }
-
-  // Align select/multi_select shape with existing custom_field_definitions:
-  // - 'select' (single) expects a string → unwrap single-element arrays
-  // - 'multi_select' expects an array → wrap scalars in array
-  const alignWithDefinitions = async (
-    bag: Record<string, any>,
-    entityType: 'lead' | 'contact'
-  ) => {
-    const keys = Object.keys(bag);
-    if (keys.length === 0) return;
-    const { data: defs } = await supabase
-      .from('custom_field_definitions')
-      .select('field_key, field_type')
-      .eq('user_id', form.user_id)
-      .eq('entity_type', entityType)
-      .in('field_key', keys);
-    const typeByKey = new Map<string, string>((defs || []).map((d: any) => [d.field_key, d.field_type]));
-    for (const k of keys) {
-      const t = typeByKey.get(k);
-      const v = bag[k];
-      if (t === 'select') {
-        if (Array.isArray(v)) bag[k] = v.length > 0 ? String(v[0]) : '';
-      } else if (t === 'multi_select') {
-        if (!Array.isArray(v)) bag[k] = v === null || v === undefined || v === '' ? [] : [v];
-      }
-    }
-  };
-  await alignWithDefinitions(dealCustomFields, 'lead');
-  if (contactData.custom_fields) {
-    await alignWithDefinitions(contactData.custom_fields as Record<string, any>, 'contact');
-  }
-
-
-
 
     let contactId: string | null = null;
 
@@ -376,7 +288,7 @@ Deno.serve(async (req: Request) => {
       
       const { data: lookupContact } = await supabase
         .from('contacts')
-        .select('id, name, custom_fields, user_id')
+        .select('id, custom_fields, user_id')
         .in('user_id', memberIds)
         .eq('contact_display_id', paddedId)
         .limit(1)
@@ -385,8 +297,6 @@ Deno.serve(async (req: Request) => {
       if (lookupContact) {
         contactId = lookupContact.id;
         console.log(`Found contact by display_id ${paddedId}: ${contactId}`);
-
-        const oldName = (lookupContact as any).name as string | null;
 
         // Update contact data if provided
         const updateData: Record<string, any> = {};
@@ -407,19 +317,6 @@ Deno.serve(async (req: Request) => {
             .update(updateData)
             .eq('id', contactId);
         }
-
-        // Propagate new contact name to existing deals with generic/derived titles
-        if (contactData.name && contactData.name !== oldName) {
-          const genericTitles = ['Lead - Cliente', 'Sem nome', '', 'Cliente', 'Lead do Formulário'];
-          if (oldName) {
-            genericTitles.push(oldName, `Lead - ${oldName}`);
-          }
-          await supabase
-            .from('funnel_deals')
-            .update({ title: contactData.name })
-            .eq('contact_id', contactId)
-            .in('title', genericTitles);
-        }
       } else {
         console.warn(`Contact not found for display_id: ${paddedId} across org members`);
         return new Response(
@@ -429,92 +326,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Lookup by lead_number: resolve the specific deal directly
-    let lookupDealId: string | null = null;
-    let lookupDealFunnelId: string | null = null;
-    let lookupDealStageId: string | null = null;
-    if (lookupLeadNumber !== null) {
-      const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: form.user_id });
-      const memberIds = orgMemberIds?.map((r: any) => typeof r === 'string' ? r : r.get_organization_member_ids) || [form.user_id];
-
-      const { data: lookupDeal } = await supabase
-        .from('funnel_deals')
-        .select('id, contact_id, funnel_id, stage_id, user_id, title')
-        .in('user_id', memberIds)
-        .eq('lead_number', lookupLeadNumber)
-        .is('closed_at', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (lookupDeal) {
-        lookupDealId = lookupDeal.id;
-        lookupDealFunnelId = lookupDeal.funnel_id;
-        lookupDealStageId = lookupDeal.stage_id;
-        contactId = lookupDeal.contact_id;
-        console.log(`Found deal by lead_number ${lookupLeadNumber}: ${lookupDealId} (contact: ${contactId})`);
-
-        // Update contact data if provided
-        if (contactId) {
-          const { data: existingContact } = await supabase
-            .from('contacts')
-            .select('id, name, custom_fields')
-            .eq('id', contactId)
-            .maybeSingle();
-
-          if (existingContact) {
-            const oldContactName = existingContact.name as string | null;
-            const updateData: Record<string, any> = {};
-            if (contactData.name) updateData.name = contactData.name;
-            if (contactData.email) updateData.email = contactData.email;
-            if (contactData.phone) updateData.phone = contactData.phone;
-            if (contactData.custom_fields && Object.keys(contactData.custom_fields).length > 0) {
-              updateData.custom_fields = {
-                ...((existingContact.custom_fields as Record<string, any>) || {}),
-                ...contactData.custom_fields,
-              };
-            }
-            if (Object.keys(updateData).length > 0) {
-              await supabase.from('contacts').update(updateData).eq('id', contactId);
-            }
-
-            // Propagate the new name to the deal title when it is generic or derived from the old name
-            if (contactData.name && contactData.name !== oldContactName) {
-              const currentTitle = (lookupDeal.title || '').trim();
-              const genericTitles = ['Lead - Cliente', 'Sem nome', '', 'Cliente', 'Lead do Formulário'];
-              if (oldContactName) {
-                genericTitles.push(oldContactName, `Lead - ${oldContactName}`);
-              }
-              const isStaleTitle =
-                genericTitles.includes(currentTitle) ||
-                currentTitle.toLowerCase().startsWith('lead - ');
-              if (isStaleTitle) {
-                await supabase
-                  .from('funnel_deals')
-                  .update({ title: contactData.name })
-                  .eq('id', lookupDeal.id);
-              }
-            }
-          }
-        }
-      } else {
-
-        console.warn(`Open deal not found for lead_number: ${lookupLeadNumber} across org members`);
-        return new Response(
-          JSON.stringify({ error: `Lead com código #${lookupLeadNumber} não encontrado (ou já está fechado)` }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-
-
-
-
-    // Static contact_id in short link is treated as REFERRER only (see utm_referrer_contact_id).
-    // Reusing the original contact is opt-in via static_params.update_existing_contact === 'true'.
+    // Check if a static contact_id was provided (trackable form link from inbox)
     const staticContactId = staticParams.contact_id;
-    const shouldReuseContact = String(staticParams.update_existing_contact || '').toLowerCase() === 'true';
-    if (shouldReuseContact && staticContactId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(staticContactId)) {
+    if (staticContactId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(staticContactId)) {
+      // Verify the contact exists and belongs to this form's user
       const { data: existingContact } = await supabase
         .from('contacts')
         .select('id, custom_fields')
@@ -524,13 +339,15 @@ Deno.serve(async (req: Request) => {
 
       if (existingContact) {
         contactId = existingContact.id;
-        console.log(`Using static contact_id (opt-in): ${contactId}`);
+        console.log(`Using static contact_id: ${contactId}`);
 
+        // Update contact data if provided
         const updateData: Record<string, any> = {};
         if (contactData.name) updateData.name = contactData.name;
         if (contactData.email) updateData.email = contactData.email;
         if (contactData.phone) updateData.phone = contactData.phone;
-
+        
+        // Merge custom fields
         if (contactData.custom_fields && Object.keys(contactData.custom_fields).length > 0) {
           updateData.custom_fields = {
             ...(existingContact.custom_fields || {}),
@@ -634,24 +451,6 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Resolve "shared_by" attribution (leader/affiliate who sent the short link)
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const sharedByRaw = staticParams.shared_by;
-    const sharedByUserId = sharedByRaw && UUID_RE.test(sharedByRaw) ? sharedByRaw : null;
-
-    // Stamp first_shared_by_user_id on the contact if not set yet
-    if (contactId && sharedByUserId) {
-      try {
-        await supabase
-          .from('contacts')
-          .update({ first_shared_by_user_id: sharedByUserId })
-          .eq('id', contactId)
-          .is('first_shared_by_user_id', null);
-      } catch (attrErr) {
-        console.error('Error stamping first_shared_by_user_id:', attrErr);
-      }
-    }
-
     // Get metadata from request, including static params
     const metadata = {
       ip: req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || 'unknown',
@@ -670,7 +469,6 @@ Deno.serve(async (req: Request) => {
         contact_id: contactId,
         data: submissionData,
         metadata,
-        shared_by_user_id: sharedByUserId,
       })
       .select('id')
       .single();
@@ -682,12 +480,6 @@ Deno.serve(async (req: Request) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // Track which deal (lead card) this submission ends up creating/updating
-    // so we can sync edits/deletes from the Submissions tab back to the card.
-    let resultingDealId: string | null = null;
-
-
 
     // Trigger webhooks (if any configured)
     const { data: webhooks } = await supabase
@@ -723,159 +515,11 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Trigger funnel automations with on_form_submission trigger
-    if (contactId) {
-      try {
-        // Find automations with on_form_submission trigger
-        const { data: automations } = await supabase
-          .from('funnel_automations')
-          .select('*')
-          .eq('user_id', form.user_id)
-          .eq('trigger_type', 'on_form_submission')
-          .eq('is_active', true);
+    // NOTE: on_form_submission automations are triggered AFTER deal creation below,
+    // so the dealId is available. See the triggerFormSubmissionAutomations call below.
 
-        if (automations && automations.length > 0) {
-          for (const automation of automations) {
-            const triggerConfig = automation.trigger_config as Record<string, any> || {};
-            
-            // Check if this automation is for this specific form or any form
-            if (triggerConfig.form_id && triggerConfig.form_id !== formId) {
-              continue; // Skip if it's for a different form
-            }
-
-            // Trigger the automation via process-funnel-automations edge function
-            try {
-              await supabase.functions.invoke('process-funnel-automations', {
-                body: {
-                  automationId: automation.id,
-                  contactId: contactId,
-                  formSubmissionId: submission.id,
-                  formId: formId,
-                  triggerType: 'on_form_submission',
-                },
-              });
-              console.log(`Triggered automation ${automation.id} for form submission`);
-            } catch (automationError) {
-              console.error('Automation trigger error:', automationError);
-            }
-          }
-        }
-      } catch (automationError) {
-      console.error('Error processing form automations:', automationError);
-    }
-  }
-
-  // === LOOKUP BY LEAD_NUMBER: act on the specific resolved deal ===
-  // Move it to the form's target stage (if configured) and apply lead fields.
-  // This bypasses contact-based deal creation entirely.
-  let handledByLeadLookup = false;
-  if (lookupDealId) {
-    handledByLeadLookup = true;
-    resultingDealId = lookupDealId;
-    try {
-      // Determine the effective target funnel.
-      // If form has target_funnel_id, we honor it (cross-funnel move allowed).
-      // Otherwise we stay on the deal's current funnel.
-      const effectiveFunnelId: string = form.target_funnel_id || lookupDealFunnelId;
-      const isCrossFunnel = effectiveFunnelId !== lookupDealFunnelId;
-
-      // Decide the target stage:
-      // - If form.target_stage_id is set AND belongs to effectiveFunnelId, use it.
-      // - Else use the first stage (display_order) of effectiveFunnelId when moving
-      //   (cross-funnel) or when target_funnel_id is explicitly set.
-      // - Else keep current stage.
-      let targetStageId: string | null = null;
-      if (form.target_stage_id) {
-        const { data: stageCheck } = await supabase
-          .from('funnel_stages')
-          .select('id, funnel_id')
-          .eq('id', form.target_stage_id)
-          .maybeSingle();
-        if (stageCheck && stageCheck.funnel_id === effectiveFunnelId) {
-          targetStageId = form.target_stage_id;
-        } else {
-          console.warn(`[lead lookup] target_stage_id ${form.target_stage_id} does not belong to target funnel ${effectiveFunnelId}; falling back to first stage`);
-        }
-      }
-
-      if (!targetStageId && form.target_funnel_id) {
-        const { data: firstStage } = await supabase
-          .from('funnel_stages')
-          .select('id')
-          .eq('funnel_id', effectiveFunnelId)
-          .order('display_order')
-          .limit(1)
-          .maybeSingle();
-        targetStageId = firstStage?.id ?? null;
-      }
-
-      const dealUpdateData: Record<string, any> = {};
-      if (dealNativeFields.value !== undefined) dealUpdateData.value = dealNativeFields.value;
-      if (dealNativeFields.title) dealUpdateData.title = dealNativeFields.title;
-
-      const shouldMove =
-        !!targetStageId && (isCrossFunnel || targetStageId !== lookupDealStageId);
-      if (shouldMove) {
-        if (isCrossFunnel) {
-          dealUpdateData.funnel_id = effectiveFunnelId;
-          console.log(`[lead lookup] Moving deal ${lookupDealId} ACROSS funnels ${lookupDealFunnelId} -> ${effectiveFunnelId}`);
-        }
-        dealUpdateData.stage_id = targetStageId;
-        dealUpdateData.entered_stage_at = new Date().toISOString();
-        console.log(`[lead lookup] Moving deal ${lookupDealId} stage ${lookupDealStageId} -> ${targetStageId}`);
-      }
-
-      if (Object.keys(dealCustomFields).length > 0) {
-        const { data: dealRow } = await supabase
-          .from('funnel_deals')
-          .select('custom_fields')
-          .eq('id', lookupDealId)
-          .single();
-        dealUpdateData.custom_fields = {
-          ...((dealRow?.custom_fields as Record<string, any>) || {}),
-          ...dealCustomFields,
-        };
-      }
-
-      // Merge tracking (UTMs/referrer) into deal — preserves existing keys
-      if (Object.keys(trackingFromForm).length > 0) {
-        const { data: dealTrk } = await supabase
-          .from('funnel_deals')
-          .select('tracking')
-          .eq('id', lookupDealId)
-          .single();
-        const existing = (dealTrk?.tracking as Record<string, any>) || {};
-        dealUpdateData.tracking = { ...trackingFromForm, ...existing };
-      }
-
-      if (Object.keys(dealUpdateData).length > 0) {
-        await supabase.from('funnel_deals').update(dealUpdateData).eq('id', lookupDealId);
-        console.log(`[lead lookup] Updated deal ${lookupDealId}`);
-      }
-
-      if (shouldMove) {
-        try {
-          await supabase.functions.invoke('process-funnel-automations', {
-            body: {
-              dealId: lookupDealId,
-              funnelId: effectiveFunnelId,
-              fromStageId: isCrossFunnel ? null : lookupDealStageId,
-              toStageId: targetStageId,
-              triggerType: 'on_stage_enter',
-            },
-          });
-          console.log(`[lead lookup] Triggered on_stage_enter for deal ${lookupDealId}`);
-        } catch (autoErr) {
-          console.error('[lead lookup] Error triggering on_stage_enter:', autoErr);
-        }
-      }
-    } catch (leadLookupErr) {
-      console.error('[lead lookup] Error processing lead lookup:', leadLookupErr);
-    }
-  }
-
-  // Create deal in funnel if target_funnel_id is configured (skipped when handled by lead lookup)
-  if (!handledByLeadLookup && contactId && form.target_funnel_id) {
+  // Create deal in funnel if target_funnel_id is configured
+  if (contactId && form.target_funnel_id) {
     try {
       let stageId = form.target_stage_id;
       
@@ -911,28 +555,7 @@ Deno.serve(async (req: Request) => {
             user_id: form.user_id,
             title: dealNativeFields.title || contactData.name || 'Lead do Formulário',
             source: `Formulário: ${form.name}`,
-            source_form_id: formId,
           };
-
-          // Link to host deal (anfitrião) when utm_host_deal_id is provided
-          const hostDealId = staticParams.utm_host_deal_id;
-          if (hostDealId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(hostDealId)) {
-            const { data: hostDeal } = await supabase
-              .from('funnel_deals')
-              .select('id, user_id')
-              .eq('id', hostDealId)
-              .maybeSingle();
-            if (hostDeal && hostDeal.user_id) {
-              const { data: orgIds } = await supabase.rpc('get_organization_member_ids', { _user_id: form.user_id });
-              const memberIds: string[] = (orgIds || []).map((r: any) => typeof r === 'string' ? r : r.get_organization_member_ids);
-              if (memberIds.includes(hostDeal.user_id) || hostDeal.user_id === form.user_id) {
-                dealInsertData.parent_deal_id = hostDealId;
-                console.log(`Linking new deal to host deal ${hostDealId}`);
-              } else {
-                console.warn(`utm_host_deal_id ${hostDealId} not in form owner's org — skipping link`);
-              }
-            }
-          }
           
           // Include deal native fields (value, etc)
           if (dealNativeFields.value !== undefined) {
@@ -944,80 +567,46 @@ Deno.serve(async (req: Request) => {
             dealInsertData.custom_fields = dealCustomFields;
             console.log('Adding lead custom fields to deal:', dealCustomFields);
           }
-
-          // Include tracking (UTMs/referrer) — the BEFORE INSERT trigger will fill ad info if conversation is linked
-          if (Object.keys(trackingFromForm).length > 0) {
-            dealInsertData.tracking = trackingFromForm;
-          }
           
           const { data: newDeal, error: dealError } = await supabase
             .from('funnel_deals')
             .insert(dealInsertData)
             .select('id')
             .single();
-          
+
           if (dealError) {
             console.error('Error creating deal:', dealError);
           } else {
-            resultingDealId = newDeal.id;
             console.log(`Deal created: ${newDeal.id} for contact ${contactId} in funnel ${form.target_funnel_id}`);
-
-            // Trigger on_funnel_enter and on_stage_enter automations for the new deal
-            // Single invocation: isNewDeal=true causes the processor to evaluate
-            // both on_funnel_enter and on_stage_enter in one pass (prevents duplicate sends).
-            try {
-              await supabase.functions.invoke('process-funnel-automations', {
-                body: {
-                  dealId: newDeal.id,
-                  funnelId: form.target_funnel_id,
-                  toStageId: stageId,
-                  isNewDeal: true,
-                },
-              });
-              console.log(`Triggered on_funnel_enter + on_stage_enter for new deal ${newDeal.id}`);
-            } catch (autoErr) {
-              console.error('Error triggering stage automations for new deal:', autoErr);
-            }
+            // Trigger on_funnel_enter and on_form_submission automations for the new deal
+            await triggerFormSubmissionAutomations(supabase, form.user_id, formId, newDeal.id, stageId);
           }
         } else {
-          resultingDealId = existingDeal.id;
           // Update existing deal with native fields and custom fields
           const dealUpdateData: Record<string, any> = {};
-
           if (dealNativeFields.value !== undefined) dealUpdateData.value = dealNativeFields.value;
           if (dealNativeFields.title) dealUpdateData.title = dealNativeFields.title;
-          
+
           // Move deal to the form's target stage if it's different
           if (existingDeal.stage_id !== stageId) {
             dealUpdateData.stage_id = stageId;
             dealUpdateData.entered_stage_at = new Date().toISOString();
             console.log(`Moving deal ${existingDeal.id} from stage ${existingDeal.stage_id} to ${stageId}`);
           }
-          
+
           if (Object.keys(dealCustomFields).length > 0) {
             const { data: dealWithFields } = await supabase
               .from('funnel_deals')
               .select('custom_fields')
               .eq('id', existingDeal.id)
               .single();
-            
+
             const mergedDealFields = {
               ...((dealWithFields?.custom_fields as Record<string, any>) || {}),
               ...dealCustomFields,
             };
-            
-            dealUpdateData.custom_fields = mergedDealFields;
-          }
 
-          // Merge tracking — existing keys win (don't overwrite the original origin)
-          if (Object.keys(trackingFromForm).length > 0) {
-            const { data: dealTrk } = await supabase
-              .from('funnel_deals')
-              .select('tracking')
-              .eq('id', existingDeal.id)
-              .single();
-            const existing = (dealTrk?.tracking as Record<string, any>) || {};
-            dealUpdateData.tracking = { ...trackingFromForm, ...existing };
+            dealUpdateData.custom_fields = mergedDealFields;
           }
 
           if (Object.keys(dealUpdateData).length > 0) {
@@ -1025,80 +614,19 @@ Deno.serve(async (req: Request) => {
               .from('funnel_deals')
               .update(dealUpdateData)
               .eq('id', existingDeal.id);
-            
-            console.log(`Updated deal ${existingDeal.id} with form data`);
 
-            // If stage changed, trigger on_stage_enter automations
-            if (dealUpdateData.stage_id && existingDeal.stage_id !== dealUpdateData.stage_id) {
-              try {
-                await supabase.functions.invoke('process-funnel-automations', {
-                  body: {
-                    dealId: existingDeal.id,
-                    funnelId: form.target_funnel_id,
-                    fromStageId: existingDeal.stage_id,
-                    toStageId: dealUpdateData.stage_id,
-                    triggerType: 'on_stage_enter',
-                  },
-                });
-                console.log(`Triggered on_stage_enter for moved deal ${existingDeal.id}`);
-              } catch (autoErr) {
-                console.error('Error triggering on_stage_enter:', autoErr);
-              }
-            }
+            console.log(`Updated deal ${existingDeal.id} with form data`);
           } else {
             console.log(`Existing open deal found for contact ${contactId} in funnel ${form.target_funnel_id}`);
           }
+          // Trigger on_form_submission automations for the existing deal
+          await triggerFormSubmissionAutomations(supabase, form.user_id, formId, existingDeal.id, stageId);
         }
       }
     } catch (dealError) {
       console.error('Error processing funnel deal creation:', dealError);
     }
   }
-
-  // Fallback: when form has no target_funnel_id but we collected lead fields
-  // and the contact was resolved via lookup_by_display_id, apply those fields
-  // to ALL open deals of that contact (don't move stage — no destination configured).
-  if (
-    contactId &&
-    !form.target_funnel_id &&
-    lookupDisplayId &&
-    (Object.keys(dealCustomFields).length > 0 || Object.keys(dealNativeFields).length > 0)
-  ) {
-    try {
-      const { data: openDeals } = await supabase
-        .from('funnel_deals')
-        .select('id, custom_fields')
-        .eq('contact_id', contactId)
-        .is('closed_at', null);
-
-      if (openDeals && openDeals.length > 0) {
-        for (const deal of openDeals) {
-          const updateData: Record<string, any> = {};
-          if (dealNativeFields.value !== undefined) updateData.value = dealNativeFields.value;
-          if (dealNativeFields.title) updateData.title = dealNativeFields.title;
-
-          if (Object.keys(dealCustomFields).length > 0) {
-            updateData.custom_fields = {
-              ...((deal.custom_fields as Record<string, any>) || {}),
-              ...dealCustomFields,
-            };
-          }
-
-          if (Object.keys(updateData).length > 0) {
-            await supabase
-              .from('funnel_deals')
-              .update(updateData)
-              .eq('id', deal.id);
-          }
-        }
-        console.log(`Updated ${openDeals.length} open deal(s) for contact ${contactId} with form lead fields (lookup mode, no target funnel)`);
-      }
-    } catch (lookupDealError) {
-      console.error('Error applying lead fields to looked-up contact deals:', lookupDealError);
-    }
-  }
-
-
 
   // Handle scheduling fields - create tasks
   for (const field of formFields) {
@@ -1162,20 +690,7 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // Persist the resulting deal id on the submission so the UI can sync
-  // edits/deletes of the response back to the lead card.
-  if (resultingDealId) {
-    try {
-      await supabase
-        .from('form_submissions')
-        .update({ deal_id: resultingDealId })
-        .eq('id', submission.id);
-    } catch (linkErr) {
-      console.error('Error linking submission to deal:', linkErr);
-    }
-  }
-
-  console.log(`Form submission saved: ${submission.id} for form ${formId} (deal_id=${resultingDealId ?? 'none'})`);
+  console.log(`Form submission saved: ${submission.id} for form ${formId}`);
 
     return new Response(
       JSON.stringify({ 

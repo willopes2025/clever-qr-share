@@ -34,10 +34,8 @@ import {
   Download,
 } from "lucide-react";
 import { format } from "date-fns";
-import { formatDateTimeFull } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { buildDirectFormUrl, buildFormPreviewShareUrl } from "@/lib/form-share-links";
 
 interface FormCardProps {
   form: Form;
@@ -64,26 +62,15 @@ export const FormCard = ({ form }: FormCardProps) => {
   const { submissions } = useFormSubmissions(form.id);
   const { fields } = useFormFields(form.id);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [copyingLink, setCopyingLink] = useState(false);
 
   const status = statusConfig[form.status] || statusConfig.draft;
-  const publicBaseUrl = buildDirectFormUrl(form.slug);
-  const formUrl = publicBaseUrl;
-  const embedUrl = `${publicBaseUrl}?embed=true`;
-  const embedCode = `<iframe src="${embedUrl}" width="100%" height="600" frameborder="0" style="border: none; max-width: 100%;"></iframe>`;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+  const formUrl = `${supabaseUrl}/functions/v1/public-form?slug=${encodeURIComponent(form.slug)}`;
+  const embedCode = `<iframe src="${formUrl}&embed=true" width="100%" height="600" frameborder="0" style="border: none; max-width: 100%;"></iframe>`;
 
-  const handleCopyLink = async () => {
-    try {
-      setCopyingLink(true);
-      const shareUrl = await buildFormPreviewShareUrl({ formId: form.id, slug: form.slug });
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success("Link copiado para a área de transferência!");
-    } catch (error) {
-      console.error("Erro ao gerar link com preview:", error);
-      toast.error("Não foi possível gerar o link com preview. Tente novamente.");
-    } finally {
-      setCopyingLink(false);
-    }
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(formUrl);
+    toast.success("Link copiado para a área de transferência!");
   };
 
   const handleCopyEmbed = () => {
@@ -147,7 +134,7 @@ export const FormCard = ({ form }: FormCardProps) => {
         return resolveDisplayValue(f, value);
       });
       return [
-        formatDateTimeFull(sub.created_at),
+        format(new Date(sub.created_at), 'dd/MM/yyyy HH:mm'),
         contactName,
         ...fieldValues,
       ];
@@ -194,9 +181,9 @@ export const FormCard = ({ form }: FormCardProps) => {
                   <Eye className="h-4 w-4 mr-2" />
                   Visualizar
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleCopyLink} disabled={copyingLink}>
+                <DropdownMenuItem onClick={handleCopyLink}>
                   <Link2 className="h-4 w-4 mr-2" />
-                  {copyingLink ? 'Gerando Link...' : 'Copiar Link'}
+                  Copiar Link
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleCopyEmbed}>
                   <Code className="h-4 w-4 mr-2" />

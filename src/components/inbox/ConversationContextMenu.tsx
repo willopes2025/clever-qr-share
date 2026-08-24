@@ -6,12 +6,22 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { 
-  Archive, 
-  ArchiveRestore, 
-  Pin, 
-  PinOff, 
-  MailOpen, 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Archive,
+  ArchiveRestore,
+  Pin,
+  PinOff,
+  MailOpen,
   Trash2,
   Tag,
   XCircle,
@@ -36,6 +46,7 @@ interface ConversationContextMenuProps {
 export const ConversationContextMenu = forwardRef<HTMLDivElement, ConversationContextMenuProps>(
   ({ children, conversationId, isArchived, isPinned, isClosed, contactName, contactPhone, onTagClick }, ref) => {
     const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const { 
       archiveConversation, 
       unarchiveConversation, 
@@ -136,7 +147,7 @@ export const ConversationContextMenu = forwardRef<HTMLDivElement, ConversationCo
             <ContextMenuSeparator />
 
             <ContextMenuItem
-              onClick={() => deleteConversation.mutate(conversationId)}
+              onClick={() => setShowDeleteConfirm(true)}
               className="cursor-pointer text-destructive focus:text-destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" />
@@ -152,6 +163,26 @@ export const ConversationContextMenu = forwardRef<HTMLDivElement, ConversationCo
           contactName={contactName || 'Contato'}
           contactPhone={contactPhone || ''}
         />
+
+        <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir conversa?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação não pode ser desfeita. Todas as mensagens desta conversa serão permanentemente excluídas.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => deleteConversation.mutate(conversationId)}
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </>
     );
   }

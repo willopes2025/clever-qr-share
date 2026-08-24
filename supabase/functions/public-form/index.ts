@@ -77,9 +77,8 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const slug = url.searchParams.get('slug');
     const staticParamsJson = url.searchParams.get('static_params');
-    const utmParamsJson = url.searchParams.get('utm_params');
     const embed = url.searchParams.get('embed') === 'true';
-    const originUrl = req.headers.get('origin') || req.headers.get('referer')?.replace(/\/$/, '') || 'https://clever-qr-share.lovable.app';
+
 
     if (!slug) {
       return new Response(
@@ -98,17 +97,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Parse UTM params (used to pre-fill fields by their settings.utm_param_key)
-    let utmParams: Record<string, string> = {};
-    if (utmParamsJson) {
-      try {
-        utmParams = JSON.parse(utmParamsJson) || {};
-      } catch (e) {
-        console.log('Error parsing utm params:', e);
-      }
-    }
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    // Canonical URL = the edge function itself (it IS the page that has OG tags).
+    // Do NOT use origin/referer — bots send neither, causing the fallback SPA URL
+    // to be set as og:url, which makes crawlers re-fetch a page with no meta tags.
+    const canonicalUrl = `${supabaseUrl}/functions/v1/public-form?slug=${encodeURIComponent(slug)}`;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -150,38 +143,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Block forms owned by inactive accounts
-    const { data: accountActive } = await supabase.rpc('is_account_active', { _user_id: (form as any).user_id });
-    if (accountActive === false) {
-      const html = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Formulário indisponível</title>
-  <style>
-    body { font-family: Inter, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f5f5f5; }
-    .container { text-align: center; padding: 2rem; }
-    h1 { color: #333; margin-bottom: 1rem; }
-    p { color: #666; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>Formulário indisponível no momento</h1>
-    <p>Este formulário está temporariamente desativado. Entre em contato com o responsável.</p>
-  </div>
-</body>
-</html>`;
-      return new Response(html, {
-        status: 403,
-        headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
-    }
-
     // Fetch form fields
     const { data: fields, error: fieldsError } = await supabase
       .from('form_fields')
@@ -191,27 +152,19 @@ Deno.serve(async (req) => {
 
     if (fieldsError) {
       console.error('Error fetching fields:', fieldsError);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao carregar campos do formulário' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const formFields = fields || [];
 
-    // Merge UTM params into staticParams so they're forwarded to submit-form
-    // (so utm_host_deal_id and any utm_* values are persisted in submission metadata
-    // and can be used to set parent_deal_id, source_form_id, etc.)
-    if (utmParams && Object.keys(utmParams).length > 0) {
-      const existingKeys = new Set(staticParams.map(p => p.key));
-      for (const [k, v] of Object.entries(utmParams)) {
-        if (v && !existingKeys.has(k)) {
-          staticParams.push({ key: k, value: String(v) });
-        }
-      }
-    }
-
-    // Generate form HTML with static params, embed mode, and UTM pre-fill values
-    const html = generateFormHTML(form, formFields, staticParams, embed, originUrl, utmParams);
+    // Generate form HTML with static params and embed mode
+    const html = generateFormHTML(form, formFields, staticParams, embed, canonicalUrl);
 
     return new Response(html, {
-      headers: {
+      headers: { 
         'Content-Type': 'text/html; charset=utf-8',
         'Access-Control-Allow-Origin': '*',
       },
@@ -226,10 +179,10 @@ Deno.serve(async (req) => {
   }
 });
 
-function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[], embed: boolean = false, originUrl: string = '', utmParams: Record<string, string> = {}): string {
+function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[], embed: boolean = false, canonicalUrl: string = ''): string {
   const fieldsHTML = fields
     .filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type) || f.field_type === 'heading' || f.field_type === 'paragraph' || f.field_type === 'divider')
-    .map(field => generateFieldHTML(field, utmParams))
+    .map(field => generateFieldHTML(field))
     .join('\n');
 
   // Generate hidden fields for static params
@@ -253,19 +206,29 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(form.page_title || form.name)}</title>
   ${form.meta_description ? `<meta name="description" content="${escapeHtml(form.meta_description)}">` : ''}
+  <!-- Open Graph — must point to THIS edge function URL so crawlers don't re-fetch a blank SPA page -->
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="${escapeHtml(form.page_title || form.name)}">
   <meta property="og:title" content="${escapeHtml(form.page_title || form.name)}">
   ${form.meta_description ? `<meta property="og:description" content="${escapeHtml(form.meta_description)}">` : ''}
-  <meta property="og:url" content="${originUrl}/f/${form.slug}">
-  ${form.og_image_url ? `<meta property="og:image" content="${escapeHtml(form.og_image_url)}">` : ''}
+  <meta property="og:url" content="${escapeHtml(canonicalUrl)}">
+  ${form.og_image_url ? `<meta property="og:image" content="${escapeHtml(form.og_image_url)}">
+  <meta property="og:image:secure_url" content="${escapeHtml(form.og_image_url)}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">` : ''}
+  <!-- Twitter / X card -->
+  <meta name="twitter:card" content="${form.og_image_url ? 'summary_large_image' : 'summary'}">
+  <meta name="twitter:title" content="${escapeHtml(form.page_title || form.name)}">
+  ${form.meta_description ? `<meta name="twitter:description" content="${escapeHtml(form.meta_description)}">` : ''}
+  ${form.og_image_url ? `<meta name="twitter:image" content="${escapeHtml(form.og_image_url)}">` : ''}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(sanitizeFontFamily(form.font_family))}:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(form.font_family || 'Inter')}:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --primary-color: ${sanitizeColor(form.primary_color, '#3b82f6')};
-      --bg-color: ${sanitizeColor(form.background_color, '#ffffff')};
-      --font-family: '${sanitizeFontFamily(form.font_family)}', sans-serif;
+      --primary-color: ${form.primary_color || '#3b82f6'};
+      --bg-color: ${form.background_color || '#ffffff'};
+      --font-family: '${form.font_family || 'Inter'}', sans-serif;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { ${bodyStyles} }
@@ -363,35 +326,6 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
     .slot-btn.selected { background: var(--primary-color); color: white; border-color: var(--primary-color); }
     .slots-loading { text-align: center; color: #9ca3af; font-size: 0.85rem; padding: 1rem; }
     .slots-empty { text-align: center; color: #9ca3af; font-size: 0.85rem; padding: 1rem; }
-    /* Error popup */
-    .error-popup-overlay {
-      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
-      display: none; align-items: center; justify-content: center;
-      z-index: 9999; padding: 1rem; animation: fadeIn 0.15s ease-out;
-    }
-    .error-popup-overlay.visible { display: flex; }
-    .error-popup {
-      background: #fff; border-radius: 14px; max-width: 420px; width: 100%;
-      padding: 1.75rem 1.5rem 1.25rem; text-align: center;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-      animation: popIn 0.2s ease-out;
-    }
-    .error-popup-icon {
-      width: 56px; height: 56px; border-radius: 50%;
-      background: #fef2f2; color: #ef4444;
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 1rem; font-size: 1.75rem; font-weight: 700;
-    }
-    .error-popup h3 { font-size: 1.15rem; font-weight: 600; color: #111; margin-bottom: 0.5rem; }
-    .error-popup p { color: #555; font-size: 0.95rem; margin-bottom: 1.25rem; line-height: 1.45; }
-    .error-popup button {
-      background: var(--primary-color); color: #fff; border: none;
-      padding: 0.65rem 1.5rem; border-radius: 8px; font-size: 0.95rem;
-      font-weight: 600; cursor: pointer; transition: opacity 0.2s;
-    }
-    .error-popup button:hover { opacity: 0.9; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes popIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
   </style>
 </head>
 <body>
@@ -413,32 +347,11 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
     </div>
   </div>
 
-  <div id="error-popup-overlay" class="error-popup-overlay" role="dialog" aria-modal="true">
-    <div class="error-popup">
-      <div class="error-popup-icon">!</div>
-      <h3 id="error-popup-title">Não foi possível enviar</h3>
-      <p id="error-popup-message">Ocorreu um erro ao enviar o formulário.</p>
-      <button type="button" id="error-popup-close">Entendi</button>
-    </div>
-  </div>
-
   <script>
     const form = document.getElementById('public-form');
     const successMessage = document.getElementById('success-message');
     const submitBtn = form.querySelector('.submit-btn');
     const redirectUrl = ${form.redirect_url ? `"${escapeHtml(form.redirect_url)}"` : 'null'};
-    const errorOverlay = document.getElementById('error-popup-overlay');
-    const errorTitleEl = document.getElementById('error-popup-title');
-    const errorMessageEl = document.getElementById('error-popup-message');
-    const errorCloseBtn = document.getElementById('error-popup-close');
-    function showErrorPopup(title, message) {
-      errorTitleEl.textContent = title || 'Não foi possível enviar';
-      errorMessageEl.textContent = message || 'Ocorreu um erro ao enviar o formulário.';
-      errorOverlay.classList.add('visible');
-    }
-    function hideErrorPopup() { errorOverlay.classList.remove('visible'); }
-    errorCloseBtn.addEventListener('click', hideErrorPopup);
-    errorOverlay.addEventListener('click', function(e) { if (e.target === errorOverlay) hideErrorPopup(); });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -466,23 +379,7 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
         });
 
         if (!response.ok) {
-          let serverMsg = '';
-          try {
-            const errJson = await response.clone().json();
-            serverMsg = (errJson && (errJson.error || errJson.message)) || '';
-          } catch (_) {
-            try { serverMsg = await response.text(); } catch (_) {}
-          }
-          const isNotFound = response.status === 404 ||
-            /n.o encontrado|not found/i.test(serverMsg || '');
-          const title = isNotFound ? 'Lead/contato não encontrado' : 'Não foi possível enviar';
-          const message = serverMsg && serverMsg.length < 300
-            ? serverMsg
-            : 'Não conseguimos localizar o lead ou contato informado. Verifique os dados e tente novamente.';
-          showErrorPopup(title, message);
-          submitBtn.disabled = false;
-          submitBtn.textContent = '${escapeHtml(form.submit_button_text || 'Enviar')}';
-          return;
+          throw new Error('Erro ao enviar formulário');
         }
 
         form.style.display = 'none';
@@ -498,7 +395,7 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
         }
       } catch (error) {
         console.error('Error:', error);
-        showErrorPopup('Não foi possível enviar', 'Erro ao enviar formulário. Verifique sua conexão e tente novamente.');
+        alert('Erro ao enviar formulário. Tente novamente.');
         submitBtn.disabled = false;
         submitBtn.textContent = '${escapeHtml(form.submit_button_text || 'Enviar')}';
       }
@@ -677,18 +574,10 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
 </html>`;
 }
 
-function generateFieldHTML(field: any, utmParams: Record<string, string> = {}): string {
+function generateFieldHTML(field: any): string {
   const required = field.required ? 'required' : '';
   const requiredStar = field.required ? '<span class="required">*</span>' : '';
   const helpText = field.help_text ? `<p class="help-text">${escapeHtml(field.help_text)}</p>` : '';
-
-  // UTM pre-fill: if this field has a utm_param_key in its settings and the URL
-  // provided a matching value, render only a hidden input so the lead doesn't see/edit it.
-  const utmKey = field?.settings?.utm_param_key;
-  const utmValue = utmKey && utmParams[utmKey] ? String(utmParams[utmKey]) : '';
-  if (utmValue) {
-    return `<input type="hidden" name="${field.id}" value="${escapeHtml(utmValue)}">`;
-  }
 
   // Conditional logic data attributes - supports multiple conditions
   const cl = field.conditional_logic;
@@ -700,7 +589,7 @@ function generateFieldHTML(field: any, utmParams: Record<string, string> = {}): 
       : cl.field_id
         ? [{ field_id: cl.field_id, operator: cl.operator || 'equals', value: cl.value || '' }]
         : [];
-
+    
     if (conditions.length > 0) {
       const logicOp = cl.logic_operator || 'and';
       const conditionsJson = JSON.stringify(conditions).replace(/"/g, '&quot;');
@@ -1033,18 +922,4 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
-}
-
-function sanitizeColor(color: string | null | undefined, fallback: string): string {
-  if (!color || typeof color !== 'string') return fallback;
-  const trimmed = color.trim();
-  // Allow #RGB, #RRGGBB, #RRGGBBAA hex colors only
-  if (/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(trimmed)) return trimmed;
-  return fallback;
-}
-
-function sanitizeFontFamily(font: string | null | undefined): string {
-  if (!font || typeof font !== 'string') return 'Inter';
-  const safe = font.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-  return safe.length > 0 ? safe.slice(0, 64) : 'Inter';
 }

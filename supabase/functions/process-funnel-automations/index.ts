@@ -1,5 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { getMetaTokenForNumber } from '../_shared/metaToken.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,29 +20,6 @@ interface AutomationPayload {
   oldResponsible?: string;
   newResponsible?: string;
   skipDelay?: boolean;
-}
-
-const FORM_SHORT_LINK_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-
-function generateFormShortCode(len = 8): string {
-  let out = "";
-  const bytes = new Uint8Array(len);
-  crypto.getRandomValues(bytes);
-  for (let i = 0; i < len; i++) out += FORM_SHORT_LINK_ALPHABET[bytes[i] % FORM_SHORT_LINK_ALPHABET.length];
-  return out;
-}
-
-function normalizeStaticParams(params: Record<string, string>): Record<string, string> {
-  return Object.keys(params).sort().reduce<Record<string, string>>((acc, key) => {
-    acc[key] = String(params[key]);
-    return acc;
-  }, {});
-}
-
-function buildFormPreviewUrl(code: string): string {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  const publicAppUrl = Deno.env.get("APP_URL") || "https://zap.wideic.com";
-  return `${supabaseUrl.replace(/\/$/, "")}/functions/v1/form-preview/${code}?o=${encodeURIComponent(publicAppUrl)}`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -84,9 +60,10 @@ Deno.serve(async (req: Request) => {
     // Determine trigger types to check
     const triggersToCheck: string[] = [];
 
-    // Check for funnel enter trigger (when deal is newly created)
+    // Check for funnel enter + contact created triggers (when deal is newly created)
     if (isNewDeal) {
       triggersToCheck.push('on_funnel_enter');
+      triggersToCheck.push('on_contact_created');
     }
 
     if (toStageId) {
@@ -142,38 +119,6 @@ Deno.serve(async (req: Request) => {
 
     const results: { automationId: string; success: boolean; error?: string }[] = [];
 
-    // Resolve Meta WhatsApp access token from integrations (self, then org members),
-    // then fall back to system env var META_WHATSAPP_ACCESS_TOKEN.
-    const resolveMetaAccessToken = async (uid: string): Promise<string | null> => {
-      const { data: own } = await supabase
-        .from('integrations')
-        .select('credentials')
-        .eq('user_id', uid)
-        .eq('provider', 'meta_whatsapp')
-        .eq('is_active', true)
-        .maybeSingle();
-      const ownToken = (own?.credentials as any)?.access_token;
-      if (ownToken) return ownToken;
-
-      const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: uid });
-      if (orgMemberIds && Array.isArray(orgMemberIds)) {
-        for (const memberId of orgMemberIds) {
-          if (memberId === uid) continue;
-          const { data: memberInt } = await supabase
-            .from('integrations')
-            .select('credentials')
-            .eq('user_id', memberId)
-            .eq('provider', 'meta_whatsapp')
-            .eq('is_active', true)
-            .maybeSingle();
-          const t = (memberInt?.credentials as any)?.access_token;
-          if (t) return t;
-        }
-      }
-      return Deno.env.get('META_WHATSAPP_ACCESS_TOKEN') || null;
-    };
-
-
     // Helper function to replace variables
     const replaceVariables = (text: string): string => {
       const now = new Date();
@@ -183,7 +128,7 @@ Deno.serve(async (req: Request) => {
         year: 'numeric' 
       });
       
-      let result = text
+      return text
         .replace(/\{\{nome\}\}/g, deal.contact?.name || 'Cliente')
         .replace(/\{\{telefone\}\}/g, deal.contact?.phone || '')
         .replace(/\{\{email\}\}/g, deal.contact?.email || '')
@@ -193,25 +138,6 @@ Deno.serve(async (req: Request) => {
         .replace(/\{\{titulo\}\}/g, deal.title || '')
         .replace(/\{\{data\}\}/g, formattedDate)
         .replace(/\{\{deal_id\}\}/g, deal.id || '');
-
-      // Substituir campos personalizados do deal e do contato
-      const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const formatVal = (v: unknown): string => {
-        if (v === null || v === undefined) return '';
-        if (typeof v === 'object') {
-          try { return JSON.stringify(v); } catch { return String(v); }
-        }
-        return String(v);
-      };
-      const dealCustom = (deal.custom_fields || {}) as Record<string, unknown>;
-      const contactCustom = (deal.contact?.custom_fields || {}) as Record<string, unknown>;
-      // Contact fields first, then deal fields override (deal mais específico)
-      const merged: Record<string, unknown> = { ...contactCustom, ...dealCustom };
-      for (const [key, value] of Object.entries(merged)) {
-        const re = new RegExp(`\\{\\{\\s*${escapeRegex(key)}\\s*\\}\\}`, 'g');
-        result = result.replace(re, formatVal(value));
-      }
-      return result;
     };
 
     // Process each automation
@@ -463,7 +389,6 @@ Deno.serve(async (req: Request) => {
                 .select('id')
                 .eq('user_id', deal.user_id)
                 .eq('status', 'connected')
-                .or('is_notification_only.is.null,is_notification_only.eq.false')
                 .limit(1)
                 .maybeSingle();
               
@@ -634,7 +559,6 @@ Deno.serve(async (req: Request) => {
                 .select('id')
                 .eq('user_id', deal.user_id)
                 .eq('status', 'connected')
-                .or('is_notification_only.is.null,is_notification_only.eq.false')
                 .limit(1)
                 .maybeSingle();
               tplInstanceId = defaultInst?.id || null;
@@ -740,186 +664,6 @@ Deno.serve(async (req: Request) => {
             break;
           }
 
-          case 'send_meta_template': {
-            const metaTemplateId = actionConfig.meta_template_id as string;
-            const metaPhoneNumberId = actionConfig.meta_phone_number_id as string | undefined;
-            const nodeMappings = Array.isArray(actionConfig.variable_mappings)
-              ? (actionConfig.variable_mappings as any[])
-              : null;
-
-            if (!metaTemplateId) {
-              results.push({ automationId: automation.id, success: false, error: 'No Meta template selected' });
-              break;
-            }
-            if (!deal.contact?.phone) {
-              results.push({ automationId: automation.id, success: false, error: 'Contact has no phone' });
-              break;
-            }
-
-            const { data: metaTemplate } = await supabase
-              .from('meta_templates')
-              .select('*')
-              .eq('id', metaTemplateId)
-              .maybeSingle();
-
-            if (!metaTemplate) {
-              results.push({ automationId: automation.id, success: false, error: 'Meta template not found' });
-              break;
-            }
-
-            // Resolve phone_number_id: prefer action config, else conversation's, else first active number of WABA
-            let phoneNumberId = metaPhoneNumberId || null;
-            if (!phoneNumberId && deal.conversation_id) {
-              const { data: conv } = await supabase
-                .from('conversations')
-                .select('meta_phone_number_id')
-                .eq('id', deal.conversation_id)
-                .maybeSingle();
-              phoneNumberId = (conv as any)?.meta_phone_number_id || null;
-            }
-            if (!phoneNumberId) {
-              const { data: num } = await supabase
-                .from('meta_whatsapp_numbers')
-                .select('phone_number_id')
-                .eq('waba_id', metaTemplate.waba_id)
-                .eq('is_active', true)
-                .limit(1)
-                .maybeSingle();
-              phoneNumberId = num?.phone_number_id || null;
-            }
-            if (!phoneNumberId) {
-              results.push({ automationId: automation.id, success: false, error: 'No Meta phone number available' });
-              break;
-            }
-
-            const accessToken = await getMetaTokenForNumber(supabase, phoneNumberId, await resolveMetaAccessToken(deal.user_id));
-            if (!accessToken) {
-              results.push({ automationId: automation.id, success: false, error: 'Meta access token not found' });
-              break;
-            }
-
-            const bodyText: string = metaTemplate.body_text || '';
-            const detected = [...new Set((bodyText.match(/\{\{(\d+)\}\}/g) || [])
-              .map((m: string) => parseInt(m.replace(/[{}]/g, ''))))]
-              .sort((a, b) => a - b);
-
-            const tplMappings = Array.isArray(metaTemplate.variable_mappings)
-              ? (metaTemplate.variable_mappings as any[])
-              : null;
-            const mappings: any[] | null = (nodeMappings && nodeMappings.length > 0)
-              ? nodeMappings
-              : (tplMappings && tplMappings.length > 0 ? tplMappings : null);
-
-            const fullName = (deal.contact?.name || '').trim();
-            const isValidName = !!fullName && !/^\+?\d+$/.test(fullName);
-            const dealCustom = (deal.custom_fields || {}) as Record<string, any>;
-            const contactCustom = (deal.contact?.custom_fields || {}) as Record<string, any>;
-            const fmt = (v: any) => (v === null || v === undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
-
-            const resolveVar = (idx: number): string => {
-              const m = mappings?.find((mm: any) => mm.variable_index === idx);
-              if (m) {
-                switch (m.source) {
-                  case 'contact_name': return isValidName ? fullName : ' ';
-                  case 'contact_phone': return deal.contact?.phone || '';
-                  case 'contact_email': return deal.contact?.email || '';
-                  case 'contact_custom_field': return fmt(contactCustom?.[m.field_key]);
-                  case 'lead_custom_field': return fmt(dealCustom?.[m.field_key]);
-                  case 'deal_value': return deal.value != null ? String(deal.value) : '';
-                  case 'deal_name': return deal.title || '';
-                  case 'fixed_text': return m.fixed_value || '';
-                }
-              }
-              if (idx === 1) return isValidName ? fullName : ' ';
-              if (idx === 2) return deal.contact?.phone || '';
-              return ' ';
-            };
-
-            const resolvedVars = detected.map((i) => resolveVar(i) || ' ');
-            const components: any[] = [];
-            if (resolvedVars.length > 0) {
-              components.push({
-                type: 'body',
-                parameters: resolvedVars.map(v => ({ type: 'text', text: String(v) || ' ' })),
-              });
-            }
-
-            const formattedPhone = deal.contact.phone.replace(/[^0-9]/g, '');
-            const payload: any = {
-              messaging_product: 'whatsapp',
-              recipient_type: 'individual',
-              to: formattedPhone,
-              type: 'template',
-              template: {
-                name: metaTemplate.name,
-                language: { code: metaTemplate.language || 'pt_BR' },
-              },
-            };
-            if (components.length > 0) payload.template.components = components;
-
-            const META_API_URL = 'https://graph.facebook.com/v21.0';
-            let previewText = bodyText || `[Template: ${metaTemplate.name}]`;
-            detected.forEach((i, idx) => { previewText = previewText.replaceAll(`{{${i}}}`, resolvedVars[idx] ?? ''); });
-
-            try {
-              const resp = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-              });
-              const result = await resp.json();
-              const ok = resp.ok && !result?.error;
-
-              // Ensure a conversation exists for logging
-              let convId = deal.conversation_id;
-              if (!convId) {
-                const { data: existingConv } = await supabase
-                  .from('conversations')
-                  .select('id')
-                  .eq('contact_id', deal.contact_id)
-                  .eq('user_id', deal.user_id)
-                  .order('last_message_at', { ascending: false })
-                  .limit(1)
-                  .maybeSingle();
-                convId = existingConv?.id || null;
-              }
-              if (convId) {
-                await supabase.from('inbox_messages').insert({
-                  conversation_id: convId,
-                  user_id: deal.user_id,
-                  content: previewText,
-                  direction: 'outbound',
-                  status: ok ? 'sent' : 'failed',
-                  message_type: 'template',
-                  sent_at: new Date().toISOString(),
-                  sent_via_meta_number_id: phoneNumberId,
-                  sent_via_meta_template_id: metaTemplateId,
-                  whatsapp_message_id: result?.messages?.[0]?.id || null,
-                  error_message: result?.error ? (result.error?.message || JSON.stringify(result.error)) : null,
-                });
-                await supabase.from('conversations').update({
-                  last_message_at: new Date().toISOString(),
-                  last_message_preview: previewText.substring(0, 100),
-                  last_message_direction: 'outbound',
-                }).eq('id', convId);
-              }
-
-              if (ok) {
-                console.log(`[FUNNEL-AUTOMATIONS] Meta template "${metaTemplate.name}" sent OK`);
-                results.push({ automationId: automation.id, success: true });
-              } else {
-                console.error(`[FUNNEL-AUTOMATIONS] Meta template send FAILED:`, JSON.stringify(result));
-                results.push({ automationId: automation.id, success: false, error: result?.error?.message || 'Meta send failed' });
-              }
-            } catch (err) {
-              console.error(`[FUNNEL-AUTOMATIONS] Error sending Meta template:`, err);
-              results.push({ automationId: automation.id, success: false, error: err instanceof Error ? err.message : 'Meta send error' });
-            }
-            break;
-          }
-
-
-
           case 'send_form_link': {
             const formId = actionConfig.form_id as string;
             const messageTemplate = (actionConfig.message as string) || 'Olá {{nome}}! Por favor, preencha o formulário: {{link}}';
@@ -961,62 +705,14 @@ Deno.serve(async (req: Request) => {
               }))
               .filter(p => p.value);
 
-            const staticParams = resolvedParams.reduce<Record<string, string>>((acc, param) => {
-              acc[param.key] = param.value;
-              return acc;
-            }, {});
-
-            const normalizedParamsJson = JSON.stringify(normalizeStaticParams(staticParams));
-            const { data: organizationIdRaw } = await supabase.rpc('resolve_user_organization_id', { _user_id: deal.user_id });
-            const organizationId: string | null = (organizationIdRaw as string | null) ?? null;
-            const { data: existingShortLinks } = await supabase
-              .from('form_short_links')
-              .select('code, static_params')
-              .eq('form_id', formId)
-              .eq('shared_by_user_id', deal.user_id)
-              .limit(50);
-
-            const existingShortLink = (existingShortLinks || []).find((row: any) => {
-              const currentParams = normalizeStaticParams((row.static_params || {}) as Record<string, string>);
-              return JSON.stringify(currentParams) === normalizedParamsJson;
-            });
-
-            let shortCode: string | null = existingShortLink?.code || null;
-            if (!shortCode) {
-              for (let attempt = 0; attempt < 6; attempt++) {
-                const candidate = generateFormShortCode();
-                const { data: insertedShortLink, error: insertShortLinkError } = await supabase
-                  .from('form_short_links')
-                  .insert({
-                    code: candidate,
-                    form_id: formId,
-                    slug: form.slug,
-                    static_params: staticParams,
-                    shared_by_user_id: deal.user_id,
-                    organization_id: organizationId,
-                  })
-                  .select('code')
-                  .maybeSingle();
-
-                if (!insertShortLinkError && insertedShortLink?.code) {
-                  shortCode = insertedShortLink.code;
-                  break;
-                }
-
-                if (insertShortLinkError && !/duplicate|unique/i.test(insertShortLinkError.message)) {
-                  console.error('[FUNNEL-AUTOMATIONS] Failed to create form short link:', insertShortLinkError);
-                  break;
-                }
-              }
-            }
-
-            const publicAppUrl = Deno.env.get('APP_URL') || 'https://zap.wideic.com';
-            const fallbackBaseUrl = `${publicAppUrl}/form/${form.slug}`;
-            const fallbackParamsPath = resolvedParams
+            // Build URL with path-based params
+            const publicUrl = Deno.env.get('PUBLIC_APP_URL') || 'https://clever-qr-share.lovable.app';
+            const baseUrl = `${publicUrl}/form/${form.slug}`;
+            const paramsPath = resolvedParams
               .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
               .join('/');
-            const fallbackFormUrl = fallbackParamsPath ? `${fallbackBaseUrl}/${fallbackParamsPath}` : fallbackBaseUrl;
-            const formUrl = shortCode ? buildFormPreviewUrl(shortCode) : fallbackFormUrl;
+            
+            const formUrl = paramsPath ? `${baseUrl}/${paramsPath}` : baseUrl;
 
             // Replace variables in message and insert link
             const message = replaceVariables(messageTemplate).replace(/\{\{link\}\}/g, formUrl);
@@ -1059,7 +755,6 @@ Deno.serve(async (req: Request) => {
                 .select('id')
                 .eq('user_id', deal.user_id)
                 .eq('status', 'connected')
-                .or('is_notification_only.is.null,is_notification_only.eq.false')
                 .limit(1)
                 .maybeSingle();
               
@@ -1357,12 +1052,6 @@ Deno.serve(async (req: Request) => {
 
           case 'trigger_chatbot_flow': {
             const flowId = actionConfig.flow_id as string;
-            const sender = (actionConfig.sender as string) || '';
-            let overrideInstanceId: string | null = null;
-            let overrideMetaPhoneNumberId: string | null = null;
-            if (sender.startsWith('evo:')) overrideInstanceId = sender.slice(4) || null;
-            else if (sender.startsWith('meta:')) overrideMetaPhoneNumberId = sender.slice(5) || null;
-
             if (flowId && deal.contact_id) {
               const { data: chatbotFlow, error: flowError } = await supabase
                 .from('chatbot_flows')
@@ -1392,9 +1081,7 @@ Deno.serve(async (req: Request) => {
                   contact_name: deal.contact?.name,
                   contact_phone: deal.contact?.phone,
                   funnel_name: deal.funnel?.name,
-                  stage_name: deal.stage?.name,
-                  override_instance_id: overrideInstanceId,
-                  override_meta_phone_number_id: overrideMetaPhoneNumberId,
+                  stage_name: deal.stage?.name
                 }
               }).select('id').single();
 
@@ -1402,6 +1089,7 @@ Deno.serve(async (req: Request) => {
                 console.error(`[FUNNEL-AUTOMATIONS] Error creating chatbot execution:`, execError);
                 results.push({ automationId: automation.id, success: false, error: execError?.message || 'Failed to create execution' });
               } else {
+                // Actually call the execute-chatbot-flow function to start the flow
                 try {
                   const execResponse = await fetch(`${supabaseUrl}/functions/v1/execute-chatbot-flow`, {
                     method: 'POST',
@@ -1416,8 +1104,6 @@ Deno.serve(async (req: Request) => {
                       userId: deal.user_id,
                       executionId: newExec.id,
                       dealId: dealId,
-                      overrideInstanceId,
-                      overrideMetaPhoneNumberId,
                     }),
                   });
                   const execResult = await execResponse.json();
@@ -1425,7 +1111,7 @@ Deno.serve(async (req: Request) => {
                 } catch (flowExecErr) {
                   console.error(`[FUNNEL-AUTOMATIONS] Error calling execute-chatbot-flow:`, flowExecErr);
                 }
-                console.log(`[FUNNEL-AUTOMATIONS] Triggered chatbot flow: ${chatbotFlow.name} for contact ${deal.contact_id} (sender=${sender || 'auto'})`);
+                console.log(`[FUNNEL-AUTOMATIONS] Triggered chatbot flow: ${chatbotFlow.name} for contact ${deal.contact_id}`);
                 results.push({ automationId: automation.id, success: true });
               }
             } else {
@@ -1469,11 +1155,21 @@ Deno.serve(async (req: Request) => {
           case 'change_responsible': {
             const responsibleId = actionConfig.responsible_id as string;
             if (responsibleId) {
-              // For now, log the change - in a full implementation, you'd update the deal's assigned user
-              console.log(`[FUNNEL-AUTOMATIONS] Would change responsible to ${responsibleId}`);
-              // TODO: Add assigned_to field to funnel_deals if needed
+              const { error: respError } = await supabase
+                .from('funnel_deals')
+                .update({ responsible_id: responsibleId })
+                .eq('id', dealId);
+
+              if (respError) {
+                console.error(`[FUNNEL-AUTOMATIONS] Error changing responsible:`, respError);
+                results.push({ automationId: automation.id, success: false, error: respError.message });
+              } else {
+                console.log(`[FUNNEL-AUTOMATIONS] Changed responsible to ${responsibleId}`);
+                results.push({ automationId: automation.id, success: true });
+              }
+            } else {
+              results.push({ automationId: automation.id, success: false, error: 'No responsible_id configured' });
             }
-            results.push({ automationId: automation.id, success: true });
             break;
           }
 
@@ -1856,8 +1552,6 @@ Não adicione explicações, apenas o número.`
               .update({
                 ai_handled: true,
                 ai_paused: false,
-                ai_handoff_requested: false,
-                ai_handoff_reason: null,
                 ai_interactions_count: 0,
               })
               .eq('id', aiConversationId);
@@ -1975,105 +1669,10 @@ Retorne APENAS a mensagem, sem explicações ou aspas.`;
             break;
           }
 
-          case 'send_email': {
-            const templateId = actionConfig.email_template_id as string | undefined;
-            const channelId = actionConfig.email_channel_id as string | undefined;
-            let subject = (actionConfig.subject as string) || '';
-            let bodyHtml = (actionConfig.body_html as string) || '';
-            const toEmail = (deal.contact?.email as string | undefined)?.trim();
-
-            if (!toEmail) {
-              results.push({ automationId: automation.id, success: false, error: 'Contato sem e-mail' });
-              break;
-            }
-            if (!channelId) {
-              results.push({ automationId: automation.id, success: false, error: 'Canal de e-mail não configurado' });
-              break;
-            }
-            if (templateId) {
-              const { data: tpl } = await supabase.from('email_templates')
-                .select('subject, body_html').eq('id', templateId).maybeSingle();
-              if (tpl) { subject = tpl.subject; bodyHtml = tpl.body_html; }
-            }
-            if (!subject || !bodyHtml) {
-              results.push({ automationId: automation.id, success: false, error: 'Assunto ou corpo do e-mail vazios' });
-              break;
-            }
-
-            const renderedSubject = replaceVariables(subject);
-            const renderedHtml = replaceVariables(bodyHtml);
-
-            const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-            const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-            try {
-              // Buscar canal + refresh token na própria supabase (via edge admin)
-              const { data: channel } = await supabase.from('email_channels').select('*').eq('id', channelId).maybeSingle();
-              if (!channel) throw new Error('canal não encontrado');
-
-              // Refresh token
-              const now = Date.now();
-              const expAt = channel.oauth_token_expires_at ? new Date(channel.oauth_token_expires_at).getTime() : 0;
-              let accessToken = channel.oauth_access_token as string;
-              if (!accessToken || expAt - 60_000 <= now) {
-                const clientId = Deno.env.get('GMAIL_OAUTH_CLIENT_ID')!;
-                const clientSecret = Deno.env.get('GMAIL_OAUTH_CLIENT_SECRET')!;
-                const rres = await fetch('https://oauth2.googleapis.com/token', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                  body: new URLSearchParams({
-                    client_id: clientId, client_secret: clientSecret,
-                    refresh_token: channel.oauth_refresh_token, grant_type: 'refresh_token',
-                  }),
-                });
-                if (!rres.ok) throw new Error(`refresh: ${await rres.text()}`);
-                const t = await rres.json();
-                accessToken = t.access_token;
-                await supabase.from('email_channels').update({
-                  oauth_access_token: t.access_token,
-                  oauth_token_expires_at: new Date(Date.now() + (t.expires_in ?? 3600) * 1000).toISOString(),
-                }).eq('id', channel.id);
-              }
-
-              const fromHeader = channel.display_name ? `"${channel.display_name}" <${channel.email_address}>` : channel.email_address;
-              const boundary = `bnd_${crypto.randomUUID().replace(/-/g, '')}`;
-              const mime = [
-                `From: ${fromHeader}`,
-                `To: ${toEmail}`,
-                `Subject: ${renderedSubject}`,
-                'MIME-Version: 1.0',
-                `Content-Type: multipart/alternative; boundary="${boundary}"`,
-                '',
-                `--${boundary}`,
-                'Content-Type: text/plain; charset="UTF-8"',
-                '',
-                renderedHtml.replace(/<[^>]+>/g, ''),
-                `--${boundary}`,
-                'Content-Type: text/html; charset="UTF-8"',
-                '',
-                renderedHtml,
-                `--${boundary}--`, '',
-              ].join('\r\n');
-              const raw = btoa(unescape(encodeURIComponent(mime))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-              const sendRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ raw }),
-              });
-              if (!sendRes.ok) throw new Error(`gmail send [${sendRes.status}]: ${await sendRes.text()}`);
-              results.push({ automationId: automation.id, success: true });
-            } catch (mailErr) {
-              console.error('[FUNNEL-AUTOMATIONS] send_email error', mailErr);
-              results.push({ automationId: automation.id, success: false, error: mailErr instanceof Error ? mailErr.message : 'send_email failed' });
-            }
-            break;
-          }
-
           default:
             console.log(`[FUNNEL-AUTOMATIONS] Unknown action type: ${automation.action_type}`);
             results.push({ automationId: automation.id, success: false, error: 'Unknown action type' });
         }
-
       } catch (actionError) {
         console.error(`[FUNNEL-AUTOMATIONS] Error executing automation ${automation.id}:`, actionError);
         results.push({ 
