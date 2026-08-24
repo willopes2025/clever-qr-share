@@ -297,6 +297,62 @@ function onlyDigits(v: unknown): string {
   return String(v ?? '').replace(/\D/g, '');
 }
 
+// The ERP only accepts AAAA-MM-DD; the UI may send DD/MM/AAAA
+function toIsoDate(v: unknown): string {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return iso ? iso[0] : s;
+}
+
+// bloco is 1-based in the GPASI API; bloco 0 returns nothing
+function toBloco(v: unknown): number {
+  const n = Number(v ?? 1);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
+
+const PEDIDO_TIPOS = ['ORCAMENTO', 'CONDICIONAL', 'PRE-VENDA', 'E-COMMERCE'];
+
+function normalizeTipos(v: unknown): string[] {
+  const list = Array.isArray(v) ? v : String(v ?? '').split(',');
+  const normalized = list
+    .map((t) => String(t)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase().trim()
+      .replace(/\s+/g, '-')
+      .replace(/^PRE-?VENDA$/, 'PRE-VENDA')
+      .replace(/^E-?COMMERCE$/, 'E-COMMERCE'))
+    .filter((t) => PEDIDO_TIPOS.includes(t));
+  return normalized.length ? Array.from(new Set(normalized)) : [...PEDIDO_TIPOS];
+}
+
+/** Normaliza respostas paginadas do ERP em { items, totalblocos, blocoatual } */
+function normalizePaged(raw: unknown, listKeys: string[]): unknown {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const obj = raw as Record<string, unknown>;
+    let items: unknown[] | null = null;
+    for (const key of listKeys) {
+      if (Array.isArray(obj[key])) { items = obj[key] as unknown[]; break; }
+    }
+    if (!items) {
+      for (const value of Object.values(obj)) {
+        if (Array.isArray(value)) { items = value as unknown[]; break; }
+      }
+    }
+    return {
+      items: items ?? [],
+      totalblocos: Number(obj.totalblocos ?? 0),
+      blocoatual: Number(obj.blocoatual ?? 0),
+      ...(obj.message ? { message: obj.message } : {}),
+    };
+  }
+  if (Array.isArray(raw)) return { items: raw, totalblocos: 1, blocoatual: 1 };
+  return { items: [], totalblocos: 0, blocoatual: 0 };
+}
+
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
