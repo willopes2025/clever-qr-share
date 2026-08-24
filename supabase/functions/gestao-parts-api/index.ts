@@ -330,6 +330,12 @@ function normalizeTipos(v: unknown): string[] {
 
 /** Normaliza respostas paginadas do ERP em { items, totalblocos, blocoatual } */
 function normalizePaged(raw: unknown, listKeys: string[]): unknown {
+  // Algumas rotas (ex: /peca/dados) devolvem [{ totalblocos, blocoatual, pecas: [...] }]
+  if (Array.isArray(raw) && raw.length === 1 && raw[0] && typeof raw[0] === 'object'
+    && 'totalblocos' in (raw[0] as Record<string, unknown>)) {
+    return normalizePaged(raw[0], listKeys);
+  }
+
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     const obj = raw as Record<string, unknown>;
     let items: unknown[] | null = null;
@@ -351,6 +357,73 @@ function normalizePaged(raw: unknown, listKeys: string[]): unknown {
   if (Array.isArray(raw)) return { items: raw, totalblocos: 1, blocoatual: 1 };
   return { items: [], totalblocos: 0, blocoatual: 0 };
 }
+
+/**
+ * As rotas de busca rápida de peça devolvem uma frase única em `apresenta`
+ * ("PD368 - FRASLE - PASTILHA FREIO DIANTEIRA - QTD. 1.000 R$ 179.29")
+ * e a imagem inteira em base64. Aqui quebramos isso em colunas utilizáveis.
+ */
+function parsePecaApresenta(row: Record<string, unknown>): Record<string, unknown> {
+  const texto = String(row.apresenta ?? '').trim();
+  const base64 = String(row.imgbase64 ?? '').trim();
+
+  let codigo = '';
+  let marca = '';
+  let descricao = texto;
+  let quantidade: number | null = null;
+  let preco: number | null = null;
+
+  if (texto) {
+    const precoMatch = texto.match(/R\$\s*([\d.,]+)\s*$/);
+    if (precoMatch) preco = Number(precoMatch[1].replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+
+    const qtdMatch = texto.match(/QTD\.\s*([\d.,]+)/i);
+    if (qtdMatch) quantidade = Number(qtdMatch[1].replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+
+    const semCauda = texto.replace(/\s*-\s*QTD\..*$/i, '').trim();
+    const partes = semCauda.split(/\s+-\s+/);
+    if (partes.length >= 3) {
+      codigo = partes[0].trim();
+      marca = partes[1].trim();
+      descricao = partes.slice(2).join(' - ').trim();
+    } else if (partes.length === 2) {
+      codigo = partes[0].trim();
+      descricao = partes[1].trim();
+    } else {
+      descricao = semCauda;
+    }
+  }
+
+  const { imgbase64: _omit, ...rest } = row as Record<string, unknown>;
+  return {
+    ...rest,
+    codigo: row.codigo ?? codigo,
+    codigoerp: row.codigoerp ?? row.img ?? '',
+    marca: row.marca ?? marca,
+    descricao: row.descricao ?? descricao,
+    quantidade,
+    preco,
+    imagem: base64 ? `data:image/jpeg;base64,${base64}` : null,
+    apresenta: texto,
+  };
+}
+
+function mapPecaResult(raw: unknown): unknown {
+  const list = Array.isArray(raw)
+    ? raw
+    : (raw && typeof raw === 'object' && Array.isArray((raw as Record<string, unknown>).pecas)
+      ? (raw as Record<string, unknown>).pecas as unknown[]
+      : null);
+
+  if (!list) return raw;
+
+  const items = list
+    .filter((r) => r && typeof r === 'object')
+    .map((r) => parsePecaApresenta(r as Record<string, unknown>));
+
+  return { items, totalblocos: 1, blocoatual: 1 };
+}
+
 
 
 Deno.serve(async (req: Request) => {
