@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useGestaoParts";
 import { GestaoPartsTable } from "@/components/gestao-parts/GestaoPartsTable";
 import { PecasTable, PecaRow } from "@/components/gestao-parts/PecasTable";
+import { PedidosTable, PedidoRow } from "@/components/gestao-parts/PedidosTable";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const daysAgoISO = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
@@ -156,6 +157,31 @@ const GestaoParts = () => {
       </>
     );
   };
+
+  /** Pedidos com colunas próprias, busca local e detalhe em pop-up */
+  const renderPedidos = (key: string, empty: string) => {
+    const data = results[key];
+    const rows = (isPaged(data) ? (data as GestaoPartsPaged).items : []) as PedidoRow[];
+    return (
+      <>
+        {errors[key] && (
+          <Alert variant="destructive" className="mb-3">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-xs break-all">{errors[key]}</AlertDescription>
+          </Alert>
+        )}
+        {data === undefined ? (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            Faça uma consulta para ver os resultados
+          </div>
+        ) : (
+          <PedidosTable rows={rows} emptyMessage={empty} raw={data} />
+        )}
+      </>
+    );
+  };
+
+
 
 
   const renderPagination = (key: string, bloco: number, onChange: (b: number) => void) => {
@@ -303,7 +329,7 @@ const GestaoParts = () => {
                   </Button>
                 </div>
 
-                {renderResult("pedidos", "Nenhum pedido no período para os tipos selecionados")}
+                {renderPedidos("pedidos", "Nenhum pedido no período para os tipos selecionados")}
                 {renderPagination("pedidos", pedidoBloco, buscarPedidos)}
               </CardContent>
             </Card>

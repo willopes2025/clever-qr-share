@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -8,6 +8,8 @@ import { Code2, ImageOff, Loader2 } from "lucide-react";
 import { callGestaoParts } from "@/hooks/useGestaoParts";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ResultSearch } from "./ResultSearch";
+import { filterRecords } from "./utils";
 
 export interface PecaRow {
   codigo?: string;
@@ -108,9 +110,12 @@ const pickPrice = (raw: unknown): unknown => {
 
 export const PecasTable = ({ rows, emptyMessage = "Nenhuma peça encontrada", raw }: PecasTableProps) => {
   const [showRaw, setShowRaw] = useState(false);
+  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<PecaRow | null>(null);
   const [detail, setDetail] = useState<{ preco?: unknown; estoque?: unknown } | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+
+  const filtered = useMemo(() => filterRecords(rows, query), [rows, query]);
 
   if (!rows.length) {
     return <div className="text-center py-10 text-muted-foreground text-sm">{emptyMessage}</div>;
@@ -137,8 +142,17 @@ export const PecasTable = ({ rows, emptyMessage = "Nenhuma peça encontrada", ra
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">{rows.length} peça(s)</span>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="flex-1">
+          <ResultSearch
+            value={query}
+            onChange={setQuery}
+            placeholder="Filtrar por código, descrição, marca..."
+            shown={filtered.length}
+            total={rows.length}
+            label="peça(s)"
+          />
+        </div>
         {raw !== undefined && (
           <Button variant="ghost" size="sm" onClick={() => setShowRaw((v) => !v)}>
             <Code2 className="h-3.5 w-3.5 mr-1.5" />
@@ -151,8 +165,13 @@ export const PecasTable = ({ rows, emptyMessage = "Nenhuma peça encontrada", ra
         <ScrollArea className="h-[420px] rounded-md border bg-muted/30">
           <pre className="p-3 text-xs whitespace-pre-wrap break-all">{JSON.stringify(raw, null, 2)}</pre>
         </ScrollArea>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground text-sm">
+          Nenhum registro corresponde a "{query}"
+        </div>
       ) : (
         <ScrollArea className="h-[420px] rounded-md border">
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -166,7 +185,7 @@ export const PecasTable = ({ rows, emptyMessage = "Nenhuma peça encontrada", ra
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row, i) => (
+              {filtered.map((row, i) => (
                 <TableRow
                   key={`${row.codigo ?? i}-${i}`}
                   className="cursor-pointer"
