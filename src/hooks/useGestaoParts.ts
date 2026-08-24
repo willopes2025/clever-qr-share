@@ -17,11 +17,23 @@ export type GestaoPartsAction =
   | 'peca_veiculo_placa'
   | 'list_pedidos'
   | 'get_pedido'
+  | 'get_pedido_status'
   | 'pedidos_cpf'
   | 'contas_receber'
   | 'boletos'
   | 'empresas'
   | 'lead_summary';
+
+export const PEDIDO_TIPOS = ['ORCAMENTO', 'CONDICIONAL', 'PRE-VENDA', 'E-COMMERCE'] as const;
+export type PedidoTipo = (typeof PEDIDO_TIPOS)[number];
+
+/** Resposta padronizada das rotas paginadas do ERP */
+export interface GestaoPartsPaged<T = Record<string, unknown>> {
+  items: T[];
+  totalblocos: number;
+  blocoatual: number;
+  message?: string;
+}
 
 export interface GestaoPartsLeadSummary {
   pessoa: Record<string, unknown> | null;
@@ -29,6 +41,7 @@ export interface GestaoPartsLeadSummary {
   financeiro: unknown;
   credito?: unknown;
 }
+
 
 export const callGestaoParts = async <T = unknown>(
   action: GestaoPartsAction,
