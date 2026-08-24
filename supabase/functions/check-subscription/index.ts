@@ -92,7 +92,7 @@ async function checkAndResetLeads(supabaseClient: any, userId: string) {
 // Helper to get subscription for a specific user
 async function getSubscriptionForUser(
   supabaseClient: any, 
-  stripe: any, 
+  stripe: any | null, 
   userId: string, 
   userEmail: string
 ): Promise<{
@@ -160,7 +160,23 @@ async function getSubscriptionForUser(
     }
   }
 
-  // Verificar no Stripe
+  // Verificar no Stripe (apenas se a chave estiver configurada)
+  if (!stripeKey) {
+    logStep("No Stripe key, returning free plan for user", { userId });
+    return {
+      subscribed: true,
+      status: "active",
+      plan: FREE_PLAN.plan,
+      max_instances: FREE_PLAN.maxInstances,
+      max_contacts: FREE_PLAN.maxContacts,
+      max_messages: FREE_PLAN.maxMessages,
+      max_leads: FREE_PLAN.maxLeads,
+      leads_used: existingSub?.leads_used || 0,
+      leads_reset_at: existingSub?.leads_reset_at || null,
+      subscription_end: null,
+    };
+  }
+
   const customers = await stripe.customers.list({ email: userEmail, limit: 1 });
 
   if (customers.data.length === 0) {
@@ -229,8 +245,9 @@ Deno.serve(async (req: Request) => {
     logStep("Function started");
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-    logStep("Stripe key verified");
+    if (!stripeKey) {
+      logStep("STRIPE_SECRET_KEY not set, checking manual subscription only");
+    }
 
     const authResult = await requireUser(req);
     if (!authResult.success) {
@@ -252,7 +269,7 @@ Deno.serve(async (req: Request) => {
     logStep("User authenticated", { userId, email: userEmail });
 
 
-    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+    const stripe = stripeKey ? new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" }) : null;
 
     // Check and reset leads if needed
     await checkAndResetLeads(supabaseClient, userId);

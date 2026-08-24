@@ -137,6 +137,14 @@ project_id = "fgbenetdksqnvwkgnips"
     verify_jwt = false
   [functions.process-warming]
     verify_jwt = false
+  [functions.public-api]
+    verify_jwt = false
+  [functions.admin-create-api-key]
+    verify_jwt = true
+  [functions.admin-webhook-config]
+    verify_jwt = true
+  [functions.dispatch-webhook]
+    verify_jwt = false
   [functions.public-form]
     verify_jwt = false
   [functions.purchase-ai-tokens]
