@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -8,6 +8,8 @@ import { Code2, ImageOff, Loader2 } from "lucide-react";
 import { callGestaoParts } from "@/hooks/useGestaoParts";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ResultSearch } from "./ResultSearch";
+import { filterRecords } from "./utils";
 
 export interface PecaRow {
   codigo?: string;
