@@ -580,9 +580,27 @@ Deno.serve(async (req: Request) => {
         const pessoa = summary.pessoa as { codigo?: string; codstatus?: number } | null;
         const clienteCodigo = pessoa?.codigo ? String(pessoa.codigo) : '';
 
-        if (documento) {
+        // Pedidos do cliente: feed v3 (últimos 12 meses) filtrado pelo código da pessoa
+        if (clienteCodigo || documento) {
           try {
-            summary.pedidos = await gpCall(creds, 'GET', `/erpssplus/pedido/requisicao/cpf${buildQuery({ cpf: documento })}`);
+            const hoje = new Date();
+            const inicio = new Date(hoje.getTime() - 365 * 86400000);
+            const feed = normalizePaged(
+              await gpCall(creds, 'GET', '/erpssplus/v3/pedido/feed', {
+                bloco: 1,
+                tipopedido: PEDIDO_TIPOS,
+                dtinicio: inicio.toISOString().slice(0, 10),
+                dtfinal: hoje.toISOString().slice(0, 10),
+              }),
+              ['pedidos'],
+            ) as { items: Array<Record<string, unknown>> };
+
+            const doDocumento = feed.items.filter((p) => {
+              const cod = onlyDigits(p.codpessoa);
+              const cpfCnpj = onlyDigits(p.cpfcnpj ?? p.cnpj ?? p.cpf);
+              return (clienteCodigo && cod === onlyDigits(clienteCodigo)) || (documento && cpfCnpj === documento);
+            });
+            summary.pedidos = doDocumento;
           } catch (e) {
             console.error('[GestaoParts] lead_summary pedidos:', (e as Error).message);
           }
@@ -590,19 +608,23 @@ Deno.serve(async (req: Request) => {
 
         if (clienteCodigo) {
           try {
-            summary.financeiro = await gpCall(creds, 'GET', '/erpssplus/financeiro/contas/receber', {
-              bloco: 0,
-              cliente: clienteCodigo,
-              empresa: '',
-              dtemissaoinicio: '',
-              dtemissaofim: '',
-              dtvencimentoinicio: '',
-              dtvencimentofim: '',
-              numeroduplicata: '',
-              planilha: '',
-            });
+            summary.financeiro = (normalizePaged(
+              await gpCall(creds, 'GET', '/erpssplus/financeiro/contas/receber', {
+                bloco: 1,
+                cliente: clienteCodigo,
+                empresa: '',
+                dtemissaoinicio: '',
+                dtemissaofim: '',
+                dtvencimentoinicio: '',
+                dtvencimentofim: '',
+                numeroduplicata: '',
+                planilha: '',
+              }),
+              ['receber'],
+            ) as { items: unknown[] }).items;
           } catch (e) {
             console.error('[GestaoParts] lead_summary financeiro:', (e as Error).message);
+
           }
 
           try {
