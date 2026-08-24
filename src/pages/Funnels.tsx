@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow, UserPlus, Sparkles, ListChecks } from "lucide-react";
+import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow, UserPlus, Sparkles, ListChecks, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { AppLayout } from "@/layouts/AppLayout";
 import { FeatureGate } from "@/components/FeatureGate";
 import { Button } from "@/components/ui/button";
@@ -166,6 +167,14 @@ const Funnels = () => {
                 
                 {currentFunnel && (
                   <>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => navigator.clipboard.writeText(currentFunnel.id) && toast.success(`ID do funil copiado!`)}
+                      title="Copiar ID do funil"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="outline"
                       size="icon"

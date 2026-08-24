@@ -2,6 +2,7 @@ import { AppLayout } from "@/layouts/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { ApiSettings } from "@/components/settings/ApiSettings";
+import { ApiKeysSettings } from "@/components/settings/ApiKeysSettings";
 import { DataSettings } from "@/components/settings/DataSettings";
 import { TeamSettings } from "@/components/settings/TeamSettings";
 import { IntegrationsSettings } from "@/components/settings/IntegrationsSettings";
@@ -12,7 +13,7 @@ import { NotificationSettings } from "@/components/settings/NotificationSettings
 import { ElevenLabsSIPSettings } from "@/components/settings/ElevenLabsSIPSettings";
 import { AITokensSettings } from "@/components/ai-tokens/AITokensSettings";
 import { AutoLeadSettings } from "@/components/settings/AutoLeadSettings";
-import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, MessageSquare, Zap, Share2, LucideIcon } from "lucide-react";
+import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, MessageSquare, Zap, Share2, KeyRound, LucideIcon } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
 import { useMemo } from "react";
@@ -39,6 +40,7 @@ const allTabs: SettingsTab[] = [
   { value: "sip-calls", label: "Chamadas IA", icon: Phone, permission: "manage_settings", adminOnly: true, component: ElevenLabsSIPSettings },
   { value: "integrations", label: "Integrações", icon: Plug, permission: "manage_settings", adminOnly: true, component: IntegrationsSettings },
   { value: "api", label: "API", icon: Server, permission: "manage_settings", adminOnly: true, component: ApiSettings },
+  { value: "api-keys", label: "API Keys", icon: KeyRound, permission: "manage_settings", adminOnly: true, component: ApiKeysSettings },
   { value: "data", label: "Dados", icon: Database, permission: "manage_settings", adminOnly: true, component: DataSettings },
 ];
 

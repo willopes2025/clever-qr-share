@@ -1,6 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { WebhookLog } from "@/hooks/useWebhookConnections";
+import { WebhookLogEntry } from "@/hooks/useWebhookConfig";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatDateTimeShort } from "@/lib/date-utils";
@@ -10,7 +10,7 @@ import { Eye, ScrollText } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Props {
-  logs: WebhookLog[];
+  logs: WebhookLogEntry[];
 }
 
 export function WebhookLogsTable({ logs }: Props) {

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Edit, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Users } from "lucide-react";
+import { Edit, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Users, Copy } from "lucide-react";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +39,11 @@ export const StageContextMenu = ({ stage, stages, funnelId }: StageContextMenuPr
   const canMoveRight = currentIndex < stages.length - 1;
   const hasDeals = (stage.deals?.length || 0) > 0;
   const dealCount = stage.deals?.length || 0;
+
+  const handleCopyStageId = async () => {
+    await navigator.clipboard.writeText(stage.id);
+    toast.success(`ID da etapa "${stage.name}" copiado!`);
+  };
 
   const handleMoveLeft = async () => {
     if (!canMoveLeft) return;
@@ -82,6 +88,11 @@ export const StageContextMenu = ({ stage, stages, funnelId }: StageContextMenuPr
           <DropdownMenuItem onClick={() => setShowEdit(true)}>
             <Edit className="h-4 w-4 mr-2" />
             Editar Etapa
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={handleCopyStageId}>
+            <Copy className="h-4 w-4 mr-2" />
+            Copiar ID da Etapa
           </DropdownMenuItem>
           
           <DropdownMenuSeparator />
