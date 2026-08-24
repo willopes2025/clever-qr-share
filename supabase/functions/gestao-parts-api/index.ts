@@ -251,12 +251,13 @@ class GpError extends Error {
 }
 
 async function gpCall(
-  creds: { username: string; password: string },
+  creds: { username: string; password: string; endpoint: GpEndpoint },
   method: string,
   path: string,
   body?: Record<string, unknown>,
 ): Promise<unknown> {
-  const doCall = async (token: string) => rawRequest(method, path, {
+  const ep = creds.endpoint;
+  const doCall = async (token: string) => rawRequest(ep, method, path, {
     headers: {
       Authorization: `Bearer ${token}`,
       ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -264,12 +265,12 @@ async function gpCall(
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
-  let token = await getToken(creds.username, creds.password);
+  let token = await getToken(ep, creds.username, creds.password);
   let res = await doCall(token);
 
   if (res.status === 401 || res.status === 403) {
     console.log('[GestaoParts] Token expirado, renovando...');
-    token = await getToken(creds.username, creds.password, true);
+    token = await getToken(ep, creds.username, creds.password, true);
     res = await doCall(token);
   }
 
