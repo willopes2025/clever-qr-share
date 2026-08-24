@@ -87,7 +87,8 @@ async function rawRequestOnce(
     if (bodyBytes) headers['Content-Length'] = String(bodyBytes.byteLength);
 
     const headerLines = Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\r\n');
-    const head = `${method} ${path} HTTP/1.1\r\n${headerLines}\r\n\r\n`;
+    const fullPath = `${ep.basePath}${path.startsWith('/') ? path : `/${path}`}`;
+    const head = `${method} ${fullPath} HTTP/1.1\r\n${headerLines}\r\n\r\n`;
 
     await conn.write(new TextEncoder().encode(head));
     if (bodyBytes) await conn.write(bodyBytes);
