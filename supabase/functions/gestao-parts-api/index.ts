@@ -435,15 +435,17 @@ Deno.serve(async (req: Request) => {
       }
 
       case 'list_clientes': {
-        result = await gpCall(creds, 'GET', '/erpssplus/cliente', {
-          bloco: Number(params.bloco ?? 0),
+        const raw = await gpCall(creds, 'GET', '/erpssplus/cliente', {
+          bloco: toBloco(params.bloco),
           codigo: params.codigo ?? '',
           cpf: onlyDigits(params.cpf) || '',
           cnpj: onlyDigits(params.cnpj) || '',
           situacao: params.situacao ?? 'T',
-          ...(params.dtatualizacao ? { dtatualizacao: params.dtatualizacao } : {}),
+          ...(params.dtatualizacao ? { dtatualizacao: toIsoDate(params.dtatualizacao) } : {}),
         });
+        result = normalizePaged(raw, ['clientes', 'cliente']);
         break;
+
       }
 
       case 'cliente_credito': {
