@@ -102,6 +102,15 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
           />
         )}
 
+        {/* Gestão Parts (ERP) */}
+        <GestaoPartsLeadTab
+          contactId={conversation.contact_id}
+          contactPhone={conversation.contact?.phone}
+          contactCustomFields={conversation.contact?.custom_fields as Record<string, unknown> | null}
+          dealCustomFields={activeDeal?.custom_fields as Record<string, unknown> | null}
+          dealId={activeDeal?.id ?? null}
+        />
+
         {/* Notes */}
         <LeadPanelNotes conversation={conversation} />
 
