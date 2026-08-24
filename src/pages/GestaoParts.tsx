@@ -303,7 +303,7 @@ const GestaoParts = () => {
                   </Button>
                 </div>
 
-                {renderResult("pedidos", "Nenhum pedido no período para os tipos selecionados")}
+                {renderPedidos("pedidos", "Nenhum pedido no período para os tipos selecionados")}
                 {renderPagination("pedidos", pedidoBloco, buscarPedidos)}
               </CardContent>
             </Card>
