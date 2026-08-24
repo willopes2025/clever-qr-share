@@ -44,6 +44,54 @@ const text = (v: unknown) => {
   return s.trim() ? s : "-";
 };
 
+const num = (v: unknown): number | null => {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = Number(v.replace(/\./g, "").replace(",", "."));
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+};
+
+/** Extrai lista de registros de qualquer formato retornado pelo ERP */
+const toRecords = (raw: unknown): Record<string, unknown>[] => {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.filter((r) => r && typeof r === "object") as Record<string, unknown>[];
+  if (typeof raw === "object") {
+    const obj = raw as Record<string, unknown>;
+    for (const key of ["estoque", "estoques", "itens", "items", "precos", "preco", "tabelapreco", "pecas"]) {
+      if (Array.isArray(obj[key])) return (obj[key] as unknown[]).filter((r) => r && typeof r === "object") as Record<string, unknown>[];
+    }
+    return [obj];
+  }
+  return [];
+};
+
+const pick = (rec: Record<string, unknown>, keys: string[]): unknown => {
+  const lower = Object.fromEntries(Object.entries(rec).map(([k, v]) => [k.toLowerCase(), v]));
+  for (const k of keys) {
+    const v = lower[k.toLowerCase()];
+    if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+  }
+  return undefined;
+};
+
+const QTY_KEYS = ["quantidade", "qtde", "qtd", "estoqueatual", "estoque_atual", "saldo", "quantidadeatual", "disponivel"];
+const PRICE_KEYS = ["preco", "precovenda", "preco_venda", "valor", "valorvenda", "precotabela"];
+const LOCAL_KEYS = ["empresa", "empresanome", "filial", "deposito", "local", "almoxarifado", "loja", "codigoempresa"];
+
+/** Soma o estoque total retornado pelo ERP */
+const totalEstoque = (raw: unknown): number | null => {
+  const recs = toRecords(raw);
+  let total: number | null = null;
+  for (const r of recs) {
+    const q = num(pick(r, QTY_KEYS));
+    if (q !== null) total = (total ?? 0) + q;
+  }
+  return total;
+};
+
+
 export const PecasTable = ({ rows, emptyMessage = "Nenhuma peça encontrada", raw }: PecasTableProps) => {
   const [showRaw, setShowRaw] = useState(false);
   const [selected, setSelected] = useState<PecaRow | null>(null);
