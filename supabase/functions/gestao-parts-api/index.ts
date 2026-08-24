@@ -606,10 +606,11 @@ Deno.serve(async (req: Request) => {
         const placa = String(params.placa || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         if (!placa) throw new GpError(400, 'Informe a placa');
         // A API espera placa/produto no CORPO da requisição (GET com body)
-        result = await gpCall(creds, 'GET', '/erpssplus/v2/peca/veiculo/placa/', {
+        const rawPlaca = await gpCall(creds, 'GET', '/erpssplus/v2/peca/veiculo/placa/', {
           placa,
           ...(params.produto ? { produto: String(params.produto) } : {}),
         });
+        result = mapPecaResult(rawPlaca);
         break;
       }
 
