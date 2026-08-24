@@ -345,6 +345,7 @@ Deno.serve(async (req: Request) => {
 
     const username = rawCreds.username || Deno.env.get('GESTAO_PARTS_USERNAME') || '';
     const password = rawCreds.password || Deno.env.get('GESTAO_PARTS_PASSWORD') || '';
+    const baseUrl = rawCreds.base_url || Deno.env.get('GESTAO_PARTS_BASE_URL') || '';
 
     if (!username || !password) {
       return new Response(JSON.stringify({ error: 'Integração Gestão Parts não configurada. Cadastre usuário e senha em Configurações → Integrações.' }), {
@@ -353,13 +354,17 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const creds = { username, password };
+    // Cada cliente possui seu próprio servidor Gestão Parts (host/porta próprios)
+    const endpoint = parseEndpoint(baseUrl);
+    console.log(`[GestaoParts] Endpoint: ${endpoint.origin}${endpoint.basePath}`);
+
+    const creds = { username, password, endpoint };
     let result: unknown = null;
 
     switch (action) {
       case 'test_connection': {
-        await getToken(username, password, true);
-        result = { connected: true };
+        await getToken(endpoint, username, password, true);
+        result = { connected: true, endpoint: `${endpoint.origin}${endpoint.basePath}` };
         break;
       }
 
