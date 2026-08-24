@@ -689,8 +689,12 @@ Deno.serve(async (req: Request) => {
       }
 
       // ------- Resumo para o card do lead -------
-      case 'lead_summary': {
+      // `lead_summary` só consulta; `lead_sync` também grava o snapshot no card do lead
+      case 'lead_summary':
+      case 'lead_sync': {
         const telefone = params.telefone ? toErpPhone(String(params.telefone)) : '';
+        const telefoneDigits = onlyDigits(params.telefone);
+        const telTail = telefoneDigits.length >= 8 ? telefoneDigits.slice(-8) : '';
         const documento = onlyDigits(params.documento);
         const summary: Record<string, unknown> = { pessoa: null, pedidos: [], financeiro: [] };
 
@@ -703,11 +707,11 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        const pessoa = summary.pessoa as { codigo?: string; codstatus?: number } | null;
+        const pessoa = summary.pessoa as { codigo?: string; nome?: string; codstatus?: number } | null;
         const clienteCodigo = pessoa?.codigo ? String(pessoa.codigo) : '';
 
-        // Pedidos do cliente: feed v3 (últimos 12 meses) filtrado pelo código da pessoa
-        if (clienteCodigo || documento) {
+        // Pedidos do cliente: feed v3 (últimos 12 meses) filtrado por código, documento ou telefone
+        if (clienteCodigo || documento || telTail) {
           try {
             const hoje = new Date();
             const inicio = new Date(hoje.getTime() - 365 * 86400000);
@@ -724,7 +728,15 @@ Deno.serve(async (req: Request) => {
             const doDocumento = feed.items.filter((p) => {
               const cod = onlyDigits(p.codpessoa);
               const cpfCnpj = onlyDigits(p.cpfcnpj ?? p.cnpj ?? p.cpf);
-              return (clienteCodigo && cod === onlyDigits(clienteCodigo)) || (documento && cpfCnpj === documento);
+              if (clienteCodigo && cod === onlyDigits(clienteCodigo)) return true;
+              if (documento && cpfCnpj === documento) return true;
+              if (telTail && p.fones && typeof p.fones === 'object') {
+                const fones = Object.values(p.fones as Record<string, unknown>)
+                  .map((v) => onlyDigits(v))
+                  .filter((v) => v.length >= 8);
+                if (fones.some((f) => f.slice(-8) === telTail)) return true;
+              }
+              return false;
             });
             summary.pedidos = doDocumento;
           } catch (e) {
@@ -763,9 +775,46 @@ Deno.serve(async (req: Request) => {
           }
         }
 
+        if (action === 'lead_sync' && params.contact_id) {
+          const pedidosArr = (summary.pedidos as Array<Record<string, unknown>>) || [];
+          const total = pedidosArr.reduce((sum, p) => {
+            const v = Number(String(p.total ?? 0).replace(',', '.'));
+            return sum + (Number.isFinite(v) ? v : 0);
+          }, 0);
+
+          const record = {
+            user_id: user.id,
+            contact_id: String(params.contact_id),
+            deal_id: params.deal_id ? String(params.deal_id) : null,
+            lookup_phone: telefoneDigits || null,
+            lookup_document: documento || null,
+            erp_codigo: clienteCodigo || null,
+            erp_nome: pessoa?.nome ? String(pessoa.nome) : null,
+            pessoa: summary.pessoa ?? null,
+            pedidos: pedidosArr,
+            financeiro: summary.financeiro ?? [],
+            credito: summary.credito ?? null,
+            pedidos_count: pedidosArr.length,
+            pedidos_total: total,
+            last_synced_at: new Date().toISOString(),
+            synced_by: user.id,
+          };
+
+          const { data: saved, error: saveError } = await supabaseAdmin
+            .from('gestao_parts_lead_data')
+            .upsert(record, { onConflict: 'contact_id' })
+            .select()
+            .maybeSingle();
+
+          if (saveError) console.error('[GestaoParts] lead_sync save:', saveError.message);
+          result = saved ?? summary;
+          break;
+        }
+
         result = summary;
         break;
       }
+
 
       default:
         return new Response(JSON.stringify({ error: `Ação desconhecida: ${action}` }), {
