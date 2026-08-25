@@ -34,17 +34,39 @@ const documento = (row: ClienteRow): string => {
   return String(v ?? "").replace(/\D/g, "");
 };
 
-const telefone = (row: ClienteRow): string => {
-  const direct = pick(row, ["celular", "telefone", "fone", "fone1", "telefone1", "whatsapp"]);
-  if (direct) return String(direct).replace(/\D/g, "");
-  const fones = row.fones;
-  if (fones && typeof fones === "object") {
-    for (const v of Object.values(fones as Record<string, unknown>)) {
-      const digits = String(v ?? "").replace(/\D/g, "");
-      if (digits.length >= 10) return digits;
-    }
+const FAKE_PHONES = /^(0+|9+|1+|0{2}9{9})$/;
+const PHONE_KEY = /(fone|tel|celul|cel$|whats|zap)/i;
+const DDD_KEY = /^dd[di]/i;
+
+/** Varre o objeto (inclusive aninhados) procurando qualquer campo de telefone válido */
+const collectPhones = (value: unknown, keyHint = "", depth = 0): string[] => {
+  if (depth > 4 || value == null) return [];
+  if (typeof value === "string" || typeof value === "number") {
+    if (!PHONE_KEY.test(keyHint)) return [];
+    const digits = String(value).replace(/\D/g, "");
+    if (digits.length < 8 || FAKE_PHONES.test(digits)) return [];
+    return [digits];
   }
-  return "";
+  if (Array.isArray(value)) return value.flatMap((v) => collectPhones(v, keyHint, depth + 1));
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const ddd = Object.entries(obj).find(([k]) => DDD_KEY.test(k))?.[1];
+    const dddDigits = String(ddd ?? "").replace(/\D/g, "");
+    return Object.entries(obj).flatMap(([k, v]) => {
+      // campos aninhados de contato/telefone entram mesmo sem hint no nome
+      const hint = PHONE_KEY.test(k) ? k : /(fones|contato|telefones)/i.test(k) ? "fone" : keyHint;
+      return collectPhones(v, hint, depth + 1).map((p) =>
+        p.length === 8 || p.length === 9 ? (dddDigits.length === 2 ? dddDigits + p : p) : p,
+      );
+    });
+  }
+  return [];
+};
+
+const telefone = (row: ClienteRow): string => {
+  const all = collectPhones(row).filter((p) => p.replace(/^55/, "").length >= 10);
+  // prefere celular (11 dígitos com DDD)
+  return all.find((p) => p.replace(/^55/, "").length === 11) ?? all[0] ?? "";
 };
 
 const emailCliente = (row: ClienteRow): string =>
