@@ -127,15 +127,19 @@ const GestaoParts = () => {
     });
   };
 
+  const CATALOGO_BLOCOS = 10; // blocos do ERP agregados por página (~10 peças cada)
+
   const buscarCatalogo = (bloco: number) => {
     setCatalogoBloco(bloco);
     run("catalogo", "peca_dados", {
-      bloco,
+      bloco: (bloco - 1) * CATALOGO_BLOCOS + 1,
+      blocos: CATALOGO_BLOCOS,
       codigo: catalogoCodigo,
       marca: catalogoMarca,
       grupo: catalogoGrupo,
     });
   };
+
 
   /** Peças têm colunas próprias (imagem, preço, quantidade) */
   const renderPecas = (key: string, empty: string) => {
