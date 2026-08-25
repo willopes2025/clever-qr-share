@@ -20,6 +20,7 @@ import { GestaoPartsTable } from "@/components/gestao-parts/GestaoPartsTable";
 import { PecasTable, PecaRow } from "@/components/gestao-parts/PecasTable";
 import { PedidosTable, PedidoRow } from "@/components/gestao-parts/PedidosTable";
 import { TitulosTable, TituloRow } from "@/components/gestao-parts/TitulosTable";
+import { ClientesTable, ClienteRow } from "@/components/gestao-parts/ClientesTable";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const daysAgoISO = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
@@ -204,6 +205,34 @@ const GestaoParts = () => {
       </>
     );
   };
+
+  /** Clientes: busca local, colunas principais, detalhe e criação de lead */
+  const renderClientes = (key: string, empty: string) => {
+    const data = results[key];
+    const rows = (isPaged(data)
+      ? (data as GestaoPartsPaged).items
+      : data && typeof data === "object"
+        ? [data as ClienteRow]
+        : []) as ClienteRow[];
+    return (
+      <>
+        {errors[key] && (
+          <Alert variant="destructive" className="mb-3">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-xs break-all">{errors[key]}</AlertDescription>
+          </Alert>
+        )}
+        {data === undefined ? (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            Faça uma consulta para ver os resultados
+          </div>
+        ) : (
+          <ClientesTable rows={rows} emptyMessage={empty} raw={data} />
+        )}
+      </>
+    );
+  };
+
 
 
 
@@ -425,7 +454,7 @@ const GestaoParts = () => {
                     Consultar
                   </Button>
                 </div>
-                {renderResult("pessoa", "Cadastro não localizado no ERP")}
+                {renderClientes("pessoa", "Cadastro não localizado no ERP")}
               </CardContent>
             </Card>
 
@@ -439,7 +468,7 @@ const GestaoParts = () => {
                   {busy("clientes") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
                   Carregar clientes
                 </Button>
-                {renderResult("clientes", "Nenhum cliente retornado")}
+                {renderClientes("clientes", "Nenhum cliente retornado")}
                 {renderPagination("clientes", clientesBloco, buscarClientes)}
               </CardContent>
             </Card>
