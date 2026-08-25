@@ -468,7 +468,7 @@ const GestaoParts = () => {
                   {busy("clientes") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
                   Carregar clientes
                 </Button>
-                {renderResult("clientes", "Nenhum cliente retornado")}
+                {renderClientes("clientes", "Nenhum cliente retornado")}
                 {renderPagination("clientes", clientesBloco, buscarClientes)}
               </CardContent>
             </Card>
