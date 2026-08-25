@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 import { useGestaoParts } from "@/hooks/useGestaoParts";
 import { useGestaoPartsLeadData } from "@/hooks/useGestaoPartsLeadData";
 import { PedidosTable, PedidoRow } from "@/components/gestao-parts/PedidosTable";
-import { brDate, money, num, pick, text } from "@/components/gestao-parts/utils";
+import { TitulosTable, TituloRow } from "@/components/gestao-parts/TitulosTable";
+import { money, num, pick } from "@/components/gestao-parts/utils";
 import { formatDateTime } from "@/lib/timezone";
 
 interface GestaoPartsLeadTabProps {
