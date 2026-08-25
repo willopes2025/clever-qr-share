@@ -47,6 +47,8 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
     const days = Math.min(Math.max(Number(body.days ?? 20) || 20, 1), 90);
     const background = body.background !== false;
+    // Cargas manuais, retroativas e periódicas nunca enviam mensagens.
+    const source = body.source === 'manual_sync' ? 'manual_sync' : 'periodic_sync';
 
     const doWork = async () => {
       const ctx = await loadStatusFunnel(admin);
@@ -96,7 +98,11 @@ Deno.serve(async (req: Request) => {
             const status = info.chaveProcesso ? await fetchProcessStatus(creds, info.chaveProcesso) : '';
             if (!status) { summary.sem_status++; return; }
 
-            const applied = await applyStatus(admin, ctx, ids.dealId, ids.contactId, status, info.chaveProcesso);
+            const applied = await applyStatus(admin, ctx, ids.dealId, ids.contactId, status, {
+              chaveProcesso: info.chaveProcesso,
+              silent: true,
+              source,
+            });
             if (applied.moved) summary.movidos++;
           } catch (e) {
             if (summary.erros.length < 20) summary.erros.push((e as Error).message);
