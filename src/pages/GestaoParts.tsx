@@ -332,14 +332,26 @@ const GestaoParts = () => {
   return (
     <AppLayout pageTitle="Gestão Parts">
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Cog className="h-7 w-7 text-primary" />
-            Gestão Parts
-          </h1>
-          <p className="text-muted-foreground">
-            Consultas ao ERP SSPlus: pedidos, clientes, financeiro, peças, estoque e preços
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Cog className="h-7 w-7 text-primary" />
+              Gestão Parts
+            </h1>
+            <p className="text-muted-foreground">
+              Consultas ao ERP SSPlus: pedidos, clientes, financeiro, peças, estoque e preços
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" disabled={statusBusy} onClick={registrarWebhook}>
+              {statusBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
+              Registrar webhook de status
+            </Button>
+            <Button variant="outline" size="sm" disabled={statusBusy} onClick={sincronizarStatus}>
+              {statusBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Sincronizar status agora
+            </Button>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
