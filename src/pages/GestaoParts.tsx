@@ -475,7 +475,7 @@ const GestaoParts = () => {
                     Buscar
                   </Button>
                 </div>
-                {renderResult("receber", "Nenhum título encontrado")}
+                {renderTitulos("receber", "Nenhum título encontrado")}
                 {renderPagination("receber", finBloco, buscarFinanceiro)}
               </CardContent>
             </Card>
