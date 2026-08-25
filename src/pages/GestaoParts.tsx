@@ -206,6 +206,34 @@ const GestaoParts = () => {
     );
   };
 
+  /** Clientes: busca local, colunas principais, detalhe e criação de lead */
+  const renderClientes = (key: string, empty: string) => {
+    const data = results[key];
+    const rows = (isPaged(data)
+      ? (data as GestaoPartsPaged).items
+      : data && typeof data === "object"
+        ? [data as ClienteRow]
+        : []) as ClienteRow[];
+    return (
+      <>
+        {errors[key] && (
+          <Alert variant="destructive" className="mb-3">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-xs break-all">{errors[key]}</AlertDescription>
+          </Alert>
+        )}
+        {data === undefined ? (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            Faça uma consulta para ver os resultados
+          </div>
+        ) : (
+          <ClientesTable rows={rows} emptyMessage={empty} raw={data} />
+        )}
+      </>
+    );
+  };
+
+
 
 
 
