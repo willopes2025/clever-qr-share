@@ -454,7 +454,7 @@ const GestaoParts = () => {
                     Consultar
                   </Button>
                 </div>
-                {renderResult("pessoa", "Cadastro não localizado no ERP")}
+                {renderClientes("pessoa", "Cadastro não localizado no ERP")}
               </CardContent>
             </Card>
 
