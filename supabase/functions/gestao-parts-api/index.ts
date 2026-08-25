@@ -358,6 +358,32 @@ function normalizePaged(raw: unknown, listKeys: string[]): unknown {
   return { items: [], totalblocos: 0, blocoatual: 0 };
 }
 
+function recordsFromPaged(raw: unknown): Record<string, unknown>[] {
+  const normalized = normalizePaged(raw, ['clientes', 'cliente']) as { items?: unknown[] };
+  return (normalized.items ?? []).filter(
+    (item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item),
+  );
+}
+
+function findPessoaCode(raw: unknown): string {
+  const queue: unknown[] = [raw];
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') continue;
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+    const obj = current as Record<string, unknown>;
+    for (const key of ['codigo', 'codpessoa', 'codcliente']) {
+      const value = obj[key];
+      if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+    }
+    queue.push(...Object.values(obj));
+  }
+  return '';
+}
+
 /**
  * As rotas de busca rápida de peça devolvem uma frase única em `apresenta`
  * ("PD368 - FRASLE - PASTILHA FREIO DIANTEIRA - QTD. 1.000 R$ 179.29")
@@ -503,7 +529,40 @@ Deno.serve(async (req: Request) => {
           ? toErpPhone(String(params.telefone))
           : onlyDigits(params.documento || params.id);
         if (!id) throw new GpError(400, 'Informe telefone, CPF ou CNPJ');
-        result = await gpCall(creds, 'GET', `/erpssplus/pessoas/${encodeURIComponent(id)}`);
+
+        // /pessoas/{id} apenas confirma que a pessoa existe e normalmente devolve
+        // código + o próprio termo pesquisado. Use o código encontrado para buscar
+        // o cadastro completo na rota de clientes.
+        const pessoaRaw = await gpCall(creds, 'GET', `/erpssplus/pessoas/${encodeURIComponent(id)}`);
+        const codigo = findPessoaCode(pessoaRaw);
+        let clientes: Record<string, unknown>[] = [];
+
+        if (codigo) {
+          const clienteRaw = await gpCall(creds, 'GET', '/erpssplus/cliente', {
+            bloco: 1,
+            codigo,
+            cpf: '',
+            cnpj: '',
+            situacao: 'T',
+          });
+          clientes = recordsFromPaged(clienteRaw);
+        }
+
+        // Fallback para documentos quando a rota de pessoas não devolve código.
+        if (!clientes.length && (id.length === 11 || id.length === 14)) {
+          const clienteRaw = await gpCall(creds, 'GET', '/erpssplus/cliente', {
+            bloco: 1,
+            codigo: '',
+            cpf: id.length === 11 ? id : '',
+            cnpj: id.length === 14 ? id : '',
+            situacao: 'T',
+          });
+          clientes = recordsFromPaged(clienteRaw);
+        }
+
+        result = clientes.length
+          ? { items: clientes, totalblocos: 1, blocoatual: 1 }
+          : { items: [], totalblocos: 0, blocoatual: 0, message: 'Cadastro encontrado, mas o ERP não retornou os dados completos do cliente.' };
         break;
       }
 
