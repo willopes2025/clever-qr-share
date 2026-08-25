@@ -20,6 +20,7 @@ import { GestaoPartsTable } from "@/components/gestao-parts/GestaoPartsTable";
 import { PecasTable, PecaRow } from "@/components/gestao-parts/PecasTable";
 import { PedidosTable, PedidoRow } from "@/components/gestao-parts/PedidosTable";
 import { TitulosTable, TituloRow } from "@/components/gestao-parts/TitulosTable";
+import { ClientesTable, ClienteRow } from "@/components/gestao-parts/ClientesTable";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const daysAgoISO = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
