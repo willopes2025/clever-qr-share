@@ -86,10 +86,10 @@ const GestaoParts = () => {
     setStatusBusy(true);
     try {
       const { error } = await supabase.functions.invoke("gestao-parts-sync-status", {
-        body: { days: 20 },
+        body: { days: 20, source: "manual_sync" },
       });
       if (error) throw error;
-      toast.success("Sincronização de status iniciada — os cards serão atualizados em instantes");
+      toast.success("Sincronização silenciosa iniciada — os cards serão atualizados sem enviar mensagens");
     } catch (e) {
       toast.error("Erro ao sincronizar status: " + (e as Error).message);
     } finally {
@@ -385,7 +385,7 @@ const GestaoParts = () => {
             </Button>
             <Button variant="outline" size="sm" disabled={statusBusy} onClick={sincronizarStatus}>
               {statusBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Sincronizar status agora
+              Sincronizar status sem mensagens
             </Button>
           </div>
         </div>

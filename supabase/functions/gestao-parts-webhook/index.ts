@@ -75,7 +75,11 @@ Deno.serve(async (req: Request) => {
       const ids = await ensureDeal(admin, ctx, info);
       if (!ids) { results.push({ pedido: info.numero, skipped: 'sem contato' }); continue; }
 
-      const applied = await applyStatus(admin, ctx, ids.dealId, ids.contactId, status, info.chaveProcesso);
+      const applied = await applyStatus(admin, ctx, ids.dealId, ids.contactId, status, {
+        chaveProcesso: info.chaveProcesso,
+        silent: true,
+        source: 'webhook',
+      });
       results.push({ pedido: info.numero, status, ...applied });
     }
 

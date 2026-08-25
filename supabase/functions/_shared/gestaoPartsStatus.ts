@@ -234,8 +234,13 @@ export async function applyStatus(
   dealId: string,
   contactId: string | null,
   statusText: string,
-  chaveProcesso?: string,
+  options: {
+    chaveProcesso?: string;
+    silent?: boolean;
+    source?: 'webhook' | 'periodic_sync' | 'manual_sync';
+  } = {},
 ): Promise<{ moved: boolean; stage?: string }> {
+  const { chaveProcesso, silent = true, source = 'periodic_sync' } = options;
   const stageName = stageNameForStatus(statusText);
   if (!stageName) return { moved: false };
   const target = ctx.stages.get(stageName);
@@ -255,7 +260,7 @@ export async function applyStatus(
     from_stage_id: deal.stage_id,
     to_stage_id: target.id,
     changed_by: ctx.ownerId,
-    notes: `ERP: ${statusText}`,
+    notes: `ERP (${source}${silent ? ', silencioso' : ''}): ${statusText}`,
   }).then(() => {}, () => {});
 
   if (contactId) {
@@ -266,7 +271,14 @@ export async function applyStatus(
     }).eq('contact_id', contactId).then(() => {}, () => {});
   }
 
-  // Dispara as automações da etapa (mensagem automática pela Evolution)
+  // Importações, reprocessamentos e sincronizações são silenciosos por padrão.
+  // O envio só pode ocorrer quando uma chamada futura o habilitar explicitamente.
+  if (silent) {
+    console.log('[GP-STATUS] silent transition', JSON.stringify({ dealId, stage: stageName, source }));
+    return { moved: true, stage: stageName };
+  }
+
+  // Dispara as automações da etapa somente após ativação explícita.
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   await fetch(`${supabaseUrl}/functions/v1/process-funnel-automations`, {
