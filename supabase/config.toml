@@ -197,3 +197,9 @@ project_id = "fgbenetdksqnvwkgnips"
     verify_jwt = true
   [functions.wil-assistant]
     verify_jwt = false
+  [functions.gestao-parts-webhook]
+    verify_jwt = false
+  [functions.gestao-parts-webhook-register]
+    verify_jwt = false
+  [functions.gestao-parts-sync-status]
+    verify_jwt = false

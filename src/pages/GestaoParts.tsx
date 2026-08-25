@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Cog, Search, Loader2, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Cog, Search, Loader2, AlertCircle, ChevronLeft, ChevronRight, PlugZap, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   useGestaoParts,
   GestaoPartsAction,
@@ -60,6 +61,41 @@ const GestaoParts = () => {
   // Clientes
   const [clienteBusca, setClienteBusca] = useState("");
   const [clientesBloco, setClientesBloco] = useState(1);
+
+  // Funil de status (webhook + sincronização)
+  const [statusBusy, setStatusBusy] = useState(false);
+
+  const registrarWebhook = async () => {
+    setStatusBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("gestao-parts-webhook-register", {
+        body: { action: "register" },
+      });
+      if (error) throw error;
+      const results = (data as { data?: { results?: Array<{ ok: boolean }> } })?.data?.results || [];
+      const ok = results.filter((r) => r.ok).length;
+      toast.success(`Webhook registrado no ERP (${ok}/${results.length} endpoints)`);
+    } catch (e) {
+      toast.error("Erro ao registrar webhook: " + (e as Error).message);
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
+  const sincronizarStatus = async () => {
+    setStatusBusy(true);
+    try {
+      const { error } = await supabase.functions.invoke("gestao-parts-sync-status", {
+        body: { days: 20 },
+      });
+      if (error) throw error;
+      toast.success("Sincronização de status iniciada — os cards serão atualizados em instantes");
+    } catch (e) {
+      toast.error("Erro ao sincronizar status: " + (e as Error).message);
+    } finally {
+      setStatusBusy(false);
+    }
+  };
 
   // Pedidos
   const [pedidoInicio, setPedidoInicio] = useState(daysAgoISO(30));
@@ -332,14 +368,26 @@ const GestaoParts = () => {
   return (
     <AppLayout pageTitle="Gestão Parts">
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Cog className="h-7 w-7 text-primary" />
-            Gestão Parts
-          </h1>
-          <p className="text-muted-foreground">
-            Consultas ao ERP SSPlus: pedidos, clientes, financeiro, peças, estoque e preços
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Cog className="h-7 w-7 text-primary" />
+              Gestão Parts
+            </h1>
+            <p className="text-muted-foreground">
+              Consultas ao ERP SSPlus: pedidos, clientes, financeiro, peças, estoque e preços
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" disabled={statusBusy} onClick={registrarWebhook}>
+              {statusBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
+              Registrar webhook de status
+            </Button>
+            <Button variant="outline" size="sm" disabled={statusBusy} onClick={sincronizarStatus}>
+              {statusBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Sincronizar status agora
+            </Button>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
