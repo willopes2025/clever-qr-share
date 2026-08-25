@@ -61,6 +61,41 @@ const GestaoParts = () => {
   const [clienteBusca, setClienteBusca] = useState("");
   const [clientesBloco, setClientesBloco] = useState(1);
 
+  // Funil de status (webhook + sincronização)
+  const [statusBusy, setStatusBusy] = useState(false);
+
+  const registrarWebhook = async () => {
+    setStatusBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("gestao-parts-webhook-register", {
+        body: { action: "register" },
+      });
+      if (error) throw error;
+      const results = (data as { data?: { results?: Array<{ ok: boolean }> } })?.data?.results || [];
+      const ok = results.filter((r) => r.ok).length;
+      toast.success(`Webhook registrado no ERP (${ok}/${results.length} endpoints)`);
+    } catch (e) {
+      toast.error("Erro ao registrar webhook: " + (e as Error).message);
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
+  const sincronizarStatus = async () => {
+    setStatusBusy(true);
+    try {
+      const { error } = await supabase.functions.invoke("gestao-parts-sync-status", {
+        body: { days: 20 },
+      });
+      if (error) throw error;
+      toast.success("Sincronização de status iniciada — os cards serão atualizados em instantes");
+    } catch (e) {
+      toast.error("Erro ao sincronizar status: " + (e as Error).message);
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
   // Pedidos
   const [pedidoInicio, setPedidoInicio] = useState(daysAgoISO(30));
   const [pedidoFim, setPedidoFim] = useState(todayISO());
