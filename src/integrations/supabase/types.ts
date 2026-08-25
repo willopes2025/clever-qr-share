@@ -5169,6 +5169,7 @@ export type Database = {
       }
       gestao_parts_lead_data: {
         Row: {
+          chave_processo: string | null
           contact_id: string
           created_at: string
           credito: Json | null
@@ -5185,10 +5186,13 @@ export type Database = {
           pedidos_total: number
           pessoa: Json | null
           synced_by: string | null
+          ultimo_status: string | null
+          ultimo_status_em: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          chave_processo?: string | null
           contact_id: string
           created_at?: string
           credito?: Json | null
@@ -5205,10 +5209,13 @@ export type Database = {
           pedidos_total?: number
           pessoa?: Json | null
           synced_by?: string | null
+          ultimo_status?: string | null
+          ultimo_status_em?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          chave_processo?: string | null
           contact_id?: string
           created_at?: string
           credito?: Json | null
@@ -5225,6 +5232,8 @@ export type Database = {
           pedidos_total?: number
           pessoa?: Json | null
           synced_by?: string | null
+          ultimo_status?: string | null
+          ultimo_status_em?: string | null
           updated_at?: string
           user_id?: string
         }
