@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 import { useGestaoParts } from "@/hooks/useGestaoParts";
 import { useGestaoPartsLeadData } from "@/hooks/useGestaoPartsLeadData";
 import { PedidosTable, PedidoRow } from "@/components/gestao-parts/PedidosTable";
-import { brDate, money, num, pick, text } from "@/components/gestao-parts/utils";
+import { TitulosTable, TituloRow } from "@/components/gestao-parts/TitulosTable";
+import { money, num, pick } from "@/components/gestao-parts/utils";
 import { formatDateTime } from "@/lib/timezone";
 
 interface GestaoPartsLeadTabProps {
@@ -114,21 +115,13 @@ export const GestaoPartsLeadTab = ({
             </div>
 
             {financeiro.length > 0 && (
-              <div className="rounded-md border divide-y">
-                <div className="flex items-center justify-between p-2">
-                  <span className="text-[11px] font-medium">Contas a receber ({financeiro.length})</span>
-                  <span className="text-[11px] font-semibold">{money(emAberto)}</span>
-                </div>
-                {financeiro.slice(0, 8).map((f, i) => (
-                  <div key={i} className="flex items-center justify-between p-2 text-[11px]">
-                    <span className="truncate max-w-[55%]">
-                      {text(pick(f, ["numeroduplicata", "documento", "planilha"]))}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {brDate(pick(f, ["vencimento", "dtvencimento"]))} · {money(pick(f, ["valor", "valorsaldo"]))}
-                    </span>
-                  </div>
-                ))}
+              <div>
+                <p className="text-[11px] font-medium mb-1">Contas a receber ({financeiro.length})</p>
+                <TitulosTable
+                  rows={financeiro as TituloRow[]}
+                  compact
+                  emptyMessage="Nenhum título no ERP"
+                />
               </div>
             )}
 

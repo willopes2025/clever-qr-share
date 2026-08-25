@@ -19,6 +19,7 @@ import {
 import { GestaoPartsTable } from "@/components/gestao-parts/GestaoPartsTable";
 import { PecasTable, PecaRow } from "@/components/gestao-parts/PecasTable";
 import { PedidosTable, PedidoRow } from "@/components/gestao-parts/PedidosTable";
+import { TitulosTable, TituloRow } from "@/components/gestao-parts/TitulosTable";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const daysAgoISO = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
@@ -180,6 +181,31 @@ const GestaoParts = () => {
       </>
     );
   };
+
+  /** Financeiro: colunas próprias, totais, busca local e detalhe em pop-up */
+  const renderTitulos = (key: string, empty: string) => {
+    const data = results[key];
+    const rows = (isPaged(data) ? (data as GestaoPartsPaged).items : []) as TituloRow[];
+    return (
+      <>
+        {errors[key] && (
+          <Alert variant="destructive" className="mb-3">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-xs break-all">{errors[key]}</AlertDescription>
+          </Alert>
+        )}
+        {data === undefined ? (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            Faça uma consulta para ver os resultados
+          </div>
+        ) : (
+          <TitulosTable rows={rows} emptyMessage={empty} raw={data} />
+        )}
+      </>
+    );
+  };
+
+
 
 
 
@@ -449,7 +475,7 @@ const GestaoParts = () => {
                     Buscar
                   </Button>
                 </div>
-                {renderResult("receber", "Nenhum título encontrado")}
+                {renderTitulos("receber", "Nenhum título encontrado")}
                 {renderPagination("receber", finBloco, buscarFinanceiro)}
               </CardContent>
             </Card>
