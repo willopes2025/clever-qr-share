@@ -609,10 +609,13 @@ Deno.serve(async (req: Request) => {
         break;
       }
 
-      // Catálogo de produtos com campos estruturados (paginado por bloco)
+      // Catálogo de produtos com campos estruturados (paginado por bloco).
+      // O ERP devolve poucos registros por bloco (~10), então agregamos vários
+      // blocos em uma única resposta (padrão 10 blocos = ~100 peças).
       case 'peca_dados': {
-        const raw = await gpCall(creds, 'GET', '/erpssplus/peca/dados', {
-          bloco: toBloco(params.bloco),
+        const startBloco = toBloco(params.bloco);
+        const maxBlocos = Math.min(Math.max(Number(params.blocos ?? 10) || 10, 1), 30);
+        const baseParams = {
           ...(params.codigo ? { codigo: String(params.codigo) } : {}),
           ...(params.marca ? { marca: String(params.marca) } : {}),
           ...(params.grupo ? { grupo: String(params.grupo) } : {}),
@@ -620,10 +623,35 @@ Deno.serve(async (req: Request) => {
           ...(params.secao ? { secao: String(params.secao) } : {}),
           ...(params.habilitadoecommerce ? { habilitadoecommerce: String(params.habilitadoecommerce) } : {}),
           ...(params.dtatualizacao ? { dtatualizacao: toIsoDate(params.dtatualizacao) } : {}),
-        });
-        result = normalizePaged(raw, ['pecas', 'produtos']);
+        };
+
+        const items: unknown[] = [];
+        let totalblocos = 0;
+        let lastBloco = startBloco;
+
+        for (let i = 0; i < maxBlocos; i++) {
+          const bloco = startBloco + i;
+          const raw = await gpCall(creds, 'GET', '/erpssplus/peca/dados', { bloco, ...baseParams });
+          const page = normalizePaged(raw, ['pecas', 'produtos']) as {
+            items: unknown[];
+            totalblocos: number;
+          };
+          items.push(...page.items);
+          totalblocos = page.totalblocos || totalblocos;
+          lastBloco = bloco;
+          if (!page.items.length) break;
+          if (totalblocos && bloco >= totalblocos) break;
+        }
+
+        result = {
+          items,
+          totalblocos: totalblocos ? Math.ceil(totalblocos / maxBlocos) : (items.length ? 1 : 0),
+          blocoatual: Math.ceil(lastBloco / maxBlocos) || 1,
+          blocosbrutos: totalblocos,
+        };
         break;
       }
+
 
       case 'peca_barcode': {
         const barcode = onlyDigits(params.barcode);
