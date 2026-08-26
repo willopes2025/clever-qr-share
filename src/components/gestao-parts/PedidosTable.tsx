@@ -322,7 +322,10 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                 <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
                   <span className="text-xs font-medium">
-                    Pedido cancelado — não considerar como venda válida.
+                    {selectedKind === "parcial"
+                      ? "Pedido com itens cancelados — confira os itens abaixo."
+                      : "Pedido cancelado — não considerar como venda válida."}
+
                   </span>
                 </div>
               )}
