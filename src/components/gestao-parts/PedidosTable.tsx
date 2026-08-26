@@ -318,6 +318,16 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
           </SheetHeader>
 
           {selected && (
+            <div className="mt-3">
+              <AbrirChatButton
+                phone={bestPhone(selected)}
+                name={text(selected.despessoa)}
+                extraFields={{ erp_codigo: text(selected.codpessoa) }}
+              />
+            </div>
+          )}
+
+          {selected && (
             <div className="space-y-4 mt-4 text-sm">
               {selectedCancelado && (
                 <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive">
