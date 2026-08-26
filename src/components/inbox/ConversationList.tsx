@@ -702,8 +702,8 @@ export const ConversationList = ({
                     </div>
                     {/* Assigned + SLA Badges */}
                     <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                      {/* Assigned To Badge */}
-                      {conversation.assigned_to ? (
+                      {/* Assigned To Badge (exclusivo Martins / Gestão Parts) */}
+                      {hasGestaoParts && (conversation.assigned_to ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Badge variant="secondary" className="h-4 px-1.5 text-[9px] gap-0.5">
@@ -739,7 +739,7 @@ export const ConversationList = ({
                             </Button>
                           )}
                         </>
-                      )}
+                      ))}
                       {/* SLA Warning Badge */}
                       {(() => {
                         const slaStatus = getSLAStatus(conversation);
