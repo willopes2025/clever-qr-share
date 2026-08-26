@@ -524,7 +524,7 @@ export const ConversationList = ({
         {/* Filters */}
         <ConversationFiltersComponent filters={filters} onFiltersChange={setFilters} />
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FilterTab)}>
-          <TabsList className="grid w-full grid-cols-3 h-9">
+          <TabsList className="grid w-full grid-cols-4 h-9">
             <TabsTrigger value="all" className="text-xs gap-1.5">
               <Inbox className="h-3.5 w-3.5" />
               Todas
@@ -538,6 +538,18 @@ export const ConversationList = ({
                   className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px] bg-primary"
                 >
                   {unreadCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="unassigned" className="text-xs gap-1.5 relative">
+              <UserPlus className="h-3.5 w-3.5" />
+              Sem dono
+              {unassignedCount > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px]"
+                >
+                  {unassignedCount}
                 </Badge>
               )}
             </TabsTrigger>
