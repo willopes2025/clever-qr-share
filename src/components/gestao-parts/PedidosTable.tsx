@@ -147,15 +147,15 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
   const filtered = useMemo(() => {
     const base = filterRecords(rows, query) as PedidoRow[];
     if (cancelFilter === "todos") return base;
-    return base.filter((r) =>
-      cancelFilter === "somente" ? statusKind(r) === "cancelado" : statusKind(r) !== "cancelado",
-    );
+    const temCancelamento = (r: PedidoRow) => ["cancelado", "parcial"].includes(statusKind(r));
+    return base.filter((r) => (cancelFilter === "somente" ? temCancelamento(r) : !temCancelamento(r)));
   }, [rows, query, cancelFilter]);
 
   const canceladosCount = useMemo(
-    () => rows.filter((r) => statusKind(r) === "cancelado").length,
+    () => rows.filter((r) => ["cancelado", "parcial"].includes(statusKind(r))).length,
     [rows],
   );
+
 
   const openDetail = (row: PedidoRow) => {
     setSelected(row);
