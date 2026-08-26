@@ -107,6 +107,14 @@ const GestaoParts = () => {
   const [pedidoNumero, setPedidoNumero] = useState("");
   const [pedidoCpf, setPedidoCpf] = useState("");
 
+  // Orçamentos
+  const [orcInicio, setOrcInicio] = useState(daysAgoISO(7));
+  const [orcFim, setOrcFim] = useState(todayISO());
+  const [orcVendedor, setOrcVendedor] = useState("");
+  const [orcBloco, setOrcBloco] = useState(1);
+  const [orcNumero, setOrcNumero] = useState("");
+
+
   // Financeiro
   const [finCliente, setFinCliente] = useState("");
   const [finVencInicio, setFinVencInicio] = useState(daysAgoISO(30));
