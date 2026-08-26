@@ -23,6 +23,8 @@ import { parseAnyDateValue, isDateLikeFieldName, formatDateValue } from "@/lib/d
 import { useCustomFields, CustomFieldDefinition, FieldType, EntityType } from "@/hooks/useCustomFields";
 import { useLeadPanelTabs } from "@/hooks/useLeadPanelTabs";
 import { CustomFieldsManager } from "../CustomFieldsManager";
+import { AssigneeSelector } from "@/components/calendar/AssigneeSelector";
+import { useLeadDistribution } from "@/hooks/useLeadDistribution";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -35,11 +37,14 @@ interface LeadFieldsSectionProps {
     custom_fields?: Record<string, any> | null;
   } | null;
   activeTabId?: string | null;
+  conversationId?: string;
+  assignedTo?: string | null;
 }
 
-export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps) => {
+export const LeadFieldsSection = ({ deal, activeTabId, conversationId, assignedTo }: LeadFieldsSectionProps) => {
   const { leadFieldDefinitions, updateDealCustomFields } = useCustomFields();
   const { tabs } = useLeadPanelTabs();
+  const { assignConversation } = useLeadDistribution();
   const queryClient = useQueryClient();
 
   // Filter fields based on active tab's field_keys
@@ -455,6 +460,23 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
         </div>
         <CustomFieldsManager />
       </div>
+
+      {/* Responsável pelo lead */}
+      {conversationId && (
+        <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
+          <span className="text-xs font-medium text-foreground/70 shrink-0">Responsável</span>
+          <div className="flex justify-end min-w-0">
+            <AssigneeSelector
+              value={assignedTo || null}
+              onChange={(memberId) =>
+                assignConversation.mutate({ conversationId, memberId })
+              }
+              compact
+            />
+          </div>
+        </div>
+      )}
+
 
       {/* Título do Lead - Campo Editável */}
       <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
