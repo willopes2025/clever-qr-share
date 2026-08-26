@@ -554,18 +554,30 @@ const GestaoParts = () => {
             <div className="flex justify-end">
               <Button variant="ghost" size="sm" onClick={() => setOrcConfigOpen(true)}>
                 <Settings className="h-4 w-4 mr-2" />
-                Configurações de envio
+                Configurações
               </Button>
             </div>
 
             <Dialog open={orcConfigOpen} onOpenChange={setOrcConfigOpen}>
-              <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+              <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle className="text-base">Configurações de envio de orçamentos</DialogTitle>
+                  <DialogTitle className="text-base">Configurações da Gestão Parts</DialogTitle>
                 </DialogHeader>
-                <OrcamentoAutoCard />
+                <Tabs defaultValue="envio" className="w-full">
+                  <TabsList>
+                    <TabsTrigger value="envio">Envio</TabsTrigger>
+                    <TabsTrigger value="vendedores">Vendedores</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="envio" className="mt-4">
+                    <OrcamentoAutoCard />
+                  </TabsContent>
+                  <TabsContent value="vendedores" className="mt-4">
+                    <VendedoresMappingCard />
+                  </TabsContent>
+                </Tabs>
               </DialogContent>
             </Dialog>
+
 
             <Card>
               <CardHeader>
