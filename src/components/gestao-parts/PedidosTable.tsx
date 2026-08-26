@@ -85,16 +85,49 @@ const pedidoVendedor = (row: PedidoRow): string => {
   ]) ?? "").trim();
 };
 
+/** Classifica o status do pedido para destaque visual */
+type StatusKind = "cancelado" | "faturado" | "outro";
 
+const normalize = (v: unknown) =>
+  String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .trim();
 
+const statusKind = (row: PedidoRow): StatusKind => {
+  const record = row as Record<string, unknown>;
+  const flag = record.cancelado;
+  if (flag === true || normalize(flag) === "S" || normalize(flag) === "SIM") return "cancelado";
+  if (String(record.dtcancelamento ?? record.datacancelamento ?? "").trim()) return "cancelado";
+
+  const s = normalize(pedidoStatus(row));
+  if (s.includes("CANCEL")) return "cancelado";
+  if (s.includes("FATURAD") || s.includes("CONCLU") || s.includes("ENTREGUE")) return "faturado";
+  return "outro";
+};
+
+type CancelFilter = "todos" | "somente" | "ocultar";
 
 export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", raw }: PedidosTableProps) => {
   const [showRaw, setShowRaw] = useState(false);
   const [query, setQuery] = useState("");
+  const [cancelFilter, setCancelFilter] = useState<CancelFilter>("todos");
   const [selected, setSelected] = useState<PedidoRow | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const filtered = useMemo(() => filterRecords(rows, query), [rows, query]);
+  const filtered = useMemo(() => {
+    const base = filterRecords(rows, query) as PedidoRow[];
+    if (cancelFilter === "todos") return base;
+    return base.filter((r) =>
+      cancelFilter === "somente" ? statusKind(r) === "cancelado" : statusKind(r) !== "cancelado",
+    );
+  }, [rows, query, cancelFilter]);
+
+  const canceladosCount = useMemo(
+    () => rows.filter((r) => statusKind(r) === "cancelado").length,
+    [rows],
+  );
 
   const openDetail = (row: PedidoRow) => {
     setSelected(row);
@@ -110,6 +143,8 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
 
   const itens = toRecords(selected?.itens, ["itens"]);
   const totalItens = itens.reduce((s, i) => s + (itemTotal(i) ?? 0), 0);
+  const selectedCancelado = selected ? statusKind(selected) === "cancelado" : false;
+
 
   return (
     <div className="space-y-2">
