@@ -88,8 +88,12 @@ const pedidoVendedor = (row: PedidoRow): string => {
   ]) ?? "").trim();
 };
 
-/** Classifica o status do pedido para destaque visual */
-type StatusKind = "cancelado" | "parcial" | "faturado" | "outro";
+/**
+ * O campo "status" do feed do ERP é o status de SEPARAÇÃO
+ * (AGUARDANDO SEPARAÇÃO / SEPARADO / CONFERIDO), não o status comercial.
+ * A situação comercial é deduzida da NF-e e do status de cada item.
+ */
+type StatusKind = "cancelado" | "parcial" | "faturado" | "atendido" | "andamento" | "outro";
 
 const normalize = (v: unknown) =>
   String(v ?? "")
@@ -106,37 +110,59 @@ export const itemCancelado = (item: Record<string, unknown>): boolean => {
   return s.includes("CANCEL");
 };
 
+/** Item totalmente atendido (ITA) */
+const itemAtendido = (item: Record<string, unknown>): boolean =>
+  normalize(pick(item, ["statusitempedido", "status"])).includes("ATENDIDO");
+
+/** Status de separação, exatamente como o ERP devolve */
+const pedidoSeparacao = (row: PedidoRow): string =>
+  String(pick(row as Record<string, unknown>, ["status", "statusseparacao"]) ?? "").trim();
+
+const temNfe = (row: PedidoRow): boolean =>
+  Boolean(String(row.nfe_numero ?? "").trim() || String(row.nfe_chave ?? "").trim());
+
+/** Situação comercial do pedido */
 const statusKind = (row: PedidoRow): StatusKind => {
   const record = row as Record<string, unknown>;
   const flag = record.cancelado;
   if (flag === true || normalize(flag) === "S" || normalize(flag) === "SIM") return "cancelado";
   if (String(record.dtcancelamento ?? record.datacancelamento ?? "").trim()) return "cancelado";
+  if (normalize(pedidoStatus(row)).includes("CANCEL")) return "cancelado";
 
-  const s = normalize(pedidoStatus(row));
-  if (s.includes("CANCEL")) return "cancelado";
-
-  // Sem status no cabeçalho: deduzimos pelos itens
   const itens = toRecords(record.itens, ["itens"]);
   if (itens.length) {
     const cancelados = itens.filter(itemCancelado).length;
     if (cancelados === itens.length) return "cancelado";
     if (cancelados > 0) return "parcial";
+    if (temNfe(row)) return "faturado";
+    if (itens.every(itemAtendido)) return "atendido";
+    return "andamento";
   }
 
-  if (s.includes("FATURAD") || s.includes("CONCLU") || s.includes("ENTREGUE")) return "faturado";
+  if (temNfe(row)) return "faturado";
   return "outro";
 };
 
-/** Texto exibido na etiqueta de status */
-const statusLabel = (row: PedidoRow): string => {
-  const kind = statusKind(row);
-  if (kind === "cancelado") return "CANCELADO";
-  if (kind === "parcial") return "PARCIALMENTE CANCELADO";
-  return pedidoStatus(row);
+const SITUACAO_LABEL: Record<StatusKind, string> = {
+  cancelado: "CANCELADO",
+  parcial: "PARCIALMENTE CANCELADO",
+  faturado: "FATURADO",
+  atendido: "ATENDIDO",
+  andamento: "EM ANDAMENTO",
+  outro: "—",
 };
 
+/** Texto exibido na etiqueta de situação */
+const statusLabel = (row: PedidoRow): string => SITUACAO_LABEL[statusKind(row)];
 
-type CancelFilter = "todos" | "somente" | "ocultar";
+/** Chave da NF-e formatada em grupos de 4 */
+export const formatChaveNfe = (chave: unknown): string =>
+  String(chave ?? "")
+    .replace(/\D/g, "")
+    .replace(/(.{4})/g, "$1 ")
+    .trim();
+
+type SituacaoFilter = "todos" | StatusKind;
 
 export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", raw }: PedidosTableProps) => {
   const [showRaw, setShowRaw] = useState(false);
