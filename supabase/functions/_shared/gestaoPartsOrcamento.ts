@@ -240,7 +240,7 @@ export interface SendResult {
 export async function sendOrcamento(
   admin: Admin,
   row: Row,
-  opts: { origin: 'manual' | 'auto'; force?: boolean; dryRun?: boolean; template?: string | null; ctx?: OwnerCtx },
+  opts: { origin: 'manual' | 'auto'; force?: boolean; dryRun?: boolean; template?: string | null; ctx?: OwnerCtx; overrideText?: string | null },
 ): Promise<SendResult> {
   const numero = orcamentoNumero(row);
   const empresa = orcamentoEmpresa(row);
@@ -304,7 +304,9 @@ export async function sendOrcamento(
 
   if (!phone) return await fail('Cliente sem telefone válido no ERP');
 
-  const content = buildMessage(row, opts.template);
+  const content = (opts.overrideText && opts.overrideText.trim())
+    ? opts.overrideText.trim()
+    : buildMessage(row, opts.template);
 
   if (opts.dryRun) {
     await admin.from('gestao_parts_orcamento_envios')
