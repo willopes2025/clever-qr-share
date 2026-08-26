@@ -248,9 +248,9 @@ export const VendedoresMappingCard = () => {
                     <TableCell className="text-sm">{row.nome}</TableCell>
                     <TableCell>
                       <Select
-                        value={row.user_id || NONE}
+                        value={(row.id in pending ? pending[row.id] : row.user_id) || NONE}
                         onValueChange={(v) => setUser(row, v)}
-                        disabled={savingId === row.id}
+                        disabled={saving}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Não vinculado" />
