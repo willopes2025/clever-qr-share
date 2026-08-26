@@ -422,13 +422,20 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                       <p className="text-xs text-muted-foreground">Nenhum item retornado pelo ERP.</p>
                     ) : (
                       <div className="rounded-lg border divide-y">
-                        {itens.map((item, i) => (
-                          <div key={i} className="p-2.5 space-y-1">
+                        {itens.map((item, i) => {
+                          const cancel = itemCancelado(item);
+                          return (
+                          <div key={i} className={cn("p-2.5 space-y-1", cancel && "bg-destructive/10")}>
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-xs font-medium">
+                              <p className={cn("text-xs font-medium", cancel && "line-through text-muted-foreground")}>
                                 {text(pick(item, ["descricaoproduto", "descricao"]))}
                               </p>
-                              <span className="text-xs font-semibold whitespace-nowrap">
+                              <span
+                                className={cn(
+                                  "text-xs font-semibold whitespace-nowrap",
+                                  cancel && "line-through text-muted-foreground font-normal",
+                                )}
+                              >
                                 {money(itemTotal(item))}
                               </span>
                             </div>
@@ -443,12 +450,20 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                                 .join(" · ")}
                             </p>
                             {pick(item, ["statusitempedido"]) ? (
-                              <p className="text-[11px] text-muted-foreground">
+                              <p
+                                className={cn(
+                                  "text-[11px] flex items-center gap-1",
+                                  cancel ? "text-destructive font-medium" : "text-muted-foreground",
+                                )}
+                              >
+                                {cancel && <AlertTriangle className="h-3 w-3 shrink-0" />}
                                 {String(pick(item, ["statusitempedido"]))}
                               </p>
                             ) : null}
                           </div>
-                        ))}
+                          );
+                        })}
+
                         <div className="flex items-center justify-between p-2.5 bg-muted/40">
                           <span className="text-xs font-medium">Total dos itens</span>
                           <span className="text-xs font-semibold">{money(totalItens)}</span>
