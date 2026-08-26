@@ -25,6 +25,8 @@ import { TitulosTable, TituloRow } from "@/components/gestao-parts/TitulosTable"
 import { ClientesTable, ClienteRow } from "@/components/gestao-parts/ClientesTable";
 import { OrcamentosTable, OrcamentoRow } from "@/components/gestao-parts/OrcamentosTable";
 import { OrcamentoAutoCard } from "@/components/gestao-parts/OrcamentoAutoCard";
+import { VendedoresMappingCard } from "@/components/gestao-parts/VendedoresMappingCard";
+
 
 
 
