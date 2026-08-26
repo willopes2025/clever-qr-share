@@ -156,12 +156,6 @@ const SITUACAO_LABEL: Record<StatusKind, string> = {
 /** Texto exibido na etiqueta de situação */
 const statusLabel = (row: PedidoRow): string => SITUACAO_LABEL[statusKind(row)];
 
-/** Chave da NF-e formatada em grupos de 4 */
-export const formatChaveNfe = (chave: unknown): string =>
-  String(chave ?? "")
-    .replace(/\D/g, "")
-    .replace(/(.{4})/g, "$1 ")
-    .trim();
 
 type SituacaoFilter = "todos" | StatusKind;
 
