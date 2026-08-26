@@ -498,6 +498,7 @@ export const ConversationList = ({
   });
 
   const unreadCount = conversations.filter(c => c.unread_count > 0 && c.status !== "archived").length;
+  const unassignedCount = conversations.filter(c => !c.assigned_to && c.status !== "archived").length;
 
   return (
     <div className="w-full border-r border-border flex flex-col h-full bg-card">
