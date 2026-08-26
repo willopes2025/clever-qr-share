@@ -144,6 +144,10 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                   <TableCell className="text-xs whitespace-nowrap">{text(row.tipo)}</TableCell>
                   <TableCell className="text-xs min-w-[220px]">{text(row.despessoa)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
+                    {pedidoVendedor(row) || <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">
+
                     {pedidoStatus(row) ? (
                       <Badge variant="secondary" className="font-normal">{pedidoStatus(row)}</Badge>
                     ) : (
