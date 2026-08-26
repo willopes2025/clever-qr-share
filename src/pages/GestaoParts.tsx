@@ -451,7 +451,9 @@ const GestaoParts = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
+            <TabsTrigger value="orcamentos">Orçamentos</TabsTrigger>
             <TabsTrigger value="clientes">Clientes</TabsTrigger>
+
             <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
             <TabsTrigger value="pecas">Peças</TabsTrigger>
           </TabsList>
