@@ -5382,6 +5382,57 @@ export type Database = {
           },
         ]
       }
+      gestao_parts_status_queue: {
+        Row: {
+          attempts: number
+          contact_id: string | null
+          created_at: string
+          deal_id: string
+          dedupe_key: string
+          from_stage_id: string | null
+          id: string
+          last_error: string | null
+          processed_at: string | null
+          scheduled_at: string
+          stage_id: string
+          status: string
+          status_text: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          contact_id?: string | null
+          created_at?: string
+          deal_id: string
+          dedupe_key: string
+          from_stage_id?: string | null
+          id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          scheduled_at?: string
+          stage_id: string
+          status?: string
+          status_text?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          contact_id?: string | null
+          created_at?: string
+          deal_id?: string
+          dedupe_key?: string
+          from_stage_id?: string | null
+          id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          scheduled_at?: string
+          stage_id?: string
+          status?: string
+          status_text?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       gestao_parts_vendedores: {
         Row: {
           codvendedor: string | null
