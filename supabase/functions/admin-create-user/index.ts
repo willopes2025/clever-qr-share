@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
     console.log("Creating user with email:", email);
 
     // Criar usuário com Admin API
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    let { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true, // Confirma email automaticamente
@@ -104,21 +104,51 @@ Deno.serve(async (req) => {
 
     if (createError) {
       console.error("Create user error:", createError);
-      
-      if (createError.message.includes("already been registered")) {
+
+      const alreadyExists =
+        createError.message.includes("already been registered") ||
+        createError.message.toLowerCase().includes("already exists");
+
+      if (alreadyExists) {
+        // Buscar o usuário existente e apenas vinculá-lo à organização
+        const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const existing = list?.users?.find(
+          (u: any) => (u.email ?? "").toLowerCase() === String(email).toLowerCase()
+        );
+
+        if (!existing) {
+          return new Response(
+            JSON.stringify({ error: "Este email já está registrado em outra conta e não pôde ser localizado" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const { data: existingMember } = await supabaseAdmin
+          .from("team_members")
+          .select("id")
+          .eq("organization_id", organizationId)
+          .eq("user_id", existing.id)
+          .maybeSingle();
+
+        if (existingMember) {
+          return new Response(
+            JSON.stringify({ error: "Este email já é membro desta organização" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        newUser = { user: existing } as any;
+      } else {
         return new Response(
-          JSON.stringify({ error: "Este email já está registrado" }),
+          JSON.stringify({ error: createError.message }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      
-      return new Response(
-        JSON.stringify({ error: createError.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
 
-    console.log("User created:", newUser.user.id);
+    const createdNewUser = !createError;
+    console.log("User resolved:", newUser!.user.id, "created:", createdNewUser);
+
 
     // Definir permissões padrão baseadas na role
     const defaultPermissions = role === "admin" 
