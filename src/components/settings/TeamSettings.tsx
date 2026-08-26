@@ -509,7 +509,24 @@ export function TeamSettings() {
                                 Redefinir Senha
                               </DropdownMenuItem>
                             )}
+                            {isOwner && member.role !== 'admin' && member.user_id && (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setMemberWalletOnly.mutate({
+                                    memberId: member.id,
+                                    walletOnly: !member.wallet_only,
+                                  })
+                                }
+                                disabled={setMemberWalletOnly.isPending}
+                              >
+                                <Briefcase className="mr-2 h-4 w-4" />
+                                {member.wallet_only
+                                  ? 'Ver conversas da equipe'
+                                  : 'Ver apenas a própria carteira'}
+                              </DropdownMenuItem>
+                            )}
                             {member.status !== 'invited' && (
+
                               <DropdownMenuItem
                                 onClick={() =>
                                   setMemberStatus.mutate({
