@@ -88,7 +88,7 @@ const pedidoVendedor = (row: PedidoRow): string => {
 };
 
 /** Classifica o status do pedido para destaque visual */
-type StatusKind = "cancelado" | "faturado" | "outro";
+type StatusKind = "cancelado" | "parcial" | "faturado" | "outro";
 
 const normalize = (v: unknown) =>
   String(v ?? "")
@@ -96,6 +96,14 @@ const normalize = (v: unknown) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
     .trim();
+
+/** O ERP marca o cancelamento no item (ex.: "ITCD - ITEM TOTALMENTE CANCELADO DEVOLVIDO") */
+export const itemCancelado = (item: Record<string, unknown>): boolean => {
+  const s = normalize(
+    pick(item, ["statusitempedido", "status", "situacao", "dessituacao", "descstatus"]),
+  );
+  return s.includes("CANCEL");
+};
 
 const statusKind = (row: PedidoRow): StatusKind => {
   const record = row as Record<string, unknown>;
@@ -105,9 +113,27 @@ const statusKind = (row: PedidoRow): StatusKind => {
 
   const s = normalize(pedidoStatus(row));
   if (s.includes("CANCEL")) return "cancelado";
+
+  // Sem status no cabeçalho: deduzimos pelos itens
+  const itens = toRecords(record.itens, ["itens"]);
+  if (itens.length) {
+    const cancelados = itens.filter(itemCancelado).length;
+    if (cancelados === itens.length) return "cancelado";
+    if (cancelados > 0) return "parcial";
+  }
+
   if (s.includes("FATURAD") || s.includes("CONCLU") || s.includes("ENTREGUE")) return "faturado";
   return "outro";
 };
+
+/** Texto exibido na etiqueta de status */
+const statusLabel = (row: PedidoRow): string => {
+  const kind = statusKind(row);
+  if (kind === "cancelado") return "CANCELADO";
+  if (kind === "parcial") return "PARCIALMENTE CANCELADO";
+  return pedidoStatus(row);
+};
+
 
 type CancelFilter = "todos" | "somente" | "ocultar";
 
