@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, Code2, Loader2 } from "lucide-react";
 import { ResultSearch } from "./ResultSearch";
 import { AbrirChatButton, bestPhone } from "./AbrirChatButton";
+import { NotaFiscalBlock } from "./NotaFiscalBlock";
 import { cn } from "@/lib/utils";
 import { brDate, filterRecords, money, num, pick, text, toRecords } from "./utils";
 
