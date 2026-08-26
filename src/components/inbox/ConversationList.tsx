@@ -698,7 +698,7 @@ export const ConversationList = ({
                     {/* Assigned + SLA Badges */}
                     <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                       {/* Assigned To Badge */}
-                      {conversation.assigned_to && (
+                      {conversation.assigned_to ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Badge variant="secondary" className="h-4 px-1.5 text-[9px] gap-0.5">
@@ -708,6 +708,32 @@ export const ConversationList = ({
                           </TooltipTrigger>
                           <TooltipContent>Responsável: {getMemberName(conversation.assigned_to)}</TooltipContent>
                         </Tooltip>
+                      ) : (
+                        <>
+                          <Badge variant="outline" className="h-4 px-1.5 text-[9px] gap-0.5 text-muted-foreground border-dashed">
+                            <User className="h-2.5 w-2.5" />
+                            Sem responsável
+                          </Badge>
+                          {activeTab === "unassigned" && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-5 px-2 text-[10px] gap-1"
+                              disabled={claimingId === conversation.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleClaim(conversation.id);
+                              }}
+                            >
+                              {claimingId === conversation.id ? (
+                                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                              ) : (
+                                <UserPlus className="h-2.5 w-2.5" />
+                              )}
+                              Assumir
+                            </Button>
+                          )}
+                        </>
                       )}
                       {/* SLA Warning Badge */}
                       {(() => {
