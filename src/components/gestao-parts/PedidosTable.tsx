@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, Code2, Loader2 } from "lucide-react";
 import { ResultSearch } from "./ResultSearch";
+import { AbrirChatButton, bestPhone } from "./AbrirChatButton";
 import { cn } from "@/lib/utils";
 import { brDate, filterRecords, money, num, pick, text, toRecords } from "./utils";
 
@@ -315,6 +316,16 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
               Pedido {text(selected?.numpedido)} · {text(selected?.tipo)}
             </SheetTitle>
           </SheetHeader>
+
+          {selected && (
+            <div className="mt-3">
+              <AbrirChatButton
+                phone={bestPhone(selected)}
+                name={text(selected.despessoa)}
+                extraFields={{ erp_codigo: text(selected.codpessoa) }}
+              />
+            </div>
+          )}
 
           {selected && (
             <div className="space-y-4 mt-4 text-sm">
