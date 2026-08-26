@@ -23,6 +23,8 @@ import { PedidosTable, PedidoRow } from "@/components/gestao-parts/PedidosTable"
 import { TitulosTable, TituloRow } from "@/components/gestao-parts/TitulosTable";
 import { ClientesTable, ClienteRow } from "@/components/gestao-parts/ClientesTable";
 import { OrcamentosTable, OrcamentoRow } from "@/components/gestao-parts/OrcamentosTable";
+import { OrcamentoAutoCard } from "@/components/gestao-parts/OrcamentoAutoCard";
+
 
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
