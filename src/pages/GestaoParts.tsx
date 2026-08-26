@@ -157,7 +157,26 @@ const GestaoParts = () => {
     });
   };
 
+  const ORC_BLOCOS = 10; // blocos do ERP agregados por página
+
+  const buscarOrcamentos = (bloco: number) => {
+    setOrcBloco(bloco);
+    run("orcamentos", "list_orcamentos", {
+      bloco,
+      blocos: ORC_BLOCOS,
+      dtinicio: orcInicio,
+      dtfinal: orcFim,
+      vendedor: orcVendedor,
+    });
+  };
+
+  const buscarOrcamentoPorId = () => {
+    if (!orcNumero.trim()) return;
+    run("orcamento-id", "get_orcamento", { numero: orcNumero.trim() });
+  };
+
   const buscarClientes = (bloco: number) => {
+
     setClientesBloco(bloco);
     run("clientes", "list_clientes", { bloco, situacao: "T" });
   };
