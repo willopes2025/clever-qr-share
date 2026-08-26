@@ -26,6 +26,7 @@ import { ClientesTable, ClienteRow } from "@/components/gestao-parts/ClientesTab
 import { OrcamentosTable, OrcamentoRow } from "@/components/gestao-parts/OrcamentosTable";
 import { OrcamentoAutoCard } from "@/components/gestao-parts/OrcamentoAutoCard";
 import { VendedoresMappingCard } from "@/components/gestao-parts/VendedoresMappingCard";
+import { useAdmin } from "@/hooks/useAdmin";
 
 
 
@@ -44,6 +45,7 @@ const isPaged = (v: unknown): v is GestaoPartsPaged =>
   !!v && typeof v === "object" && Array.isArray((v as GestaoPartsPaged).items);
 
 const GestaoParts = () => {
+  const { isAdmin } = useAdmin();
   const { hasGestaoParts, isLoading: isLoadingStatus, call } = useGestaoParts();
   const [activeTab, setActiveTab] = useState("pedidos");
 
