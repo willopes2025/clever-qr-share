@@ -94,7 +94,7 @@ const buildSnippet = (
   return { before, match, after };
 };
 
-type FilterTab = "all" | "unread" | "archived";
+type FilterTab = "all" | "unread" | "unassigned" | "archived";
 
 export const ConversationList = ({ 
   conversations, 
