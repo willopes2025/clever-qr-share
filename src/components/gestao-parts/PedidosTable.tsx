@@ -286,6 +286,15 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
 
           {selected && (
             <div className="space-y-4 mt-4 text-sm">
+              {selectedCancelado && (
+                <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span className="text-xs font-medium">
+                    Pedido cancelado — não considerar como venda válida.
+                  </span>
+                </div>
+              )}
+
               {loadingDetail ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
