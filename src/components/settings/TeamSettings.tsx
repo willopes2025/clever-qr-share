@@ -87,10 +87,12 @@ export function TeamSettings() {
     updateMember,
     removeMember, 
     setMemberStatus,
+    setMemberWalletOnly,
     resendInvite,
 
     resetPassword 
   } = useTeamMembers();
+
   const { instances } = useWhatsAppInstances();
   
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
