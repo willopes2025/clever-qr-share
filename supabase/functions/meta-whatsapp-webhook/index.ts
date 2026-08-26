@@ -633,6 +633,13 @@ Deno.serve(async (req) => {
                   console.log('[META-WEBHOOK] Created new conversation:', conversation?.id);
                 }
 
+                // Roteamento Gestão Parts: conversa nova sem responsável -> consulta o ERP em background
+                if (conversation && !conversation.assigned_to) {
+                  routeGestaoPartsLead(conversation.id, contactPhone);
+                }
+
+
+
                 // Auto-create lead for new conversations
                 // Priority: 1) Meta number's default funnel, 2) User settings auto-lead funnel
                 if (conversation && userId) {
