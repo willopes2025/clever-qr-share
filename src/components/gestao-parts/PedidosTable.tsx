@@ -123,6 +123,8 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                 <TableHead className="whitespace-nowrap">Data</TableHead>
                 <TableHead className="whitespace-nowrap">Tipo</TableHead>
                 <TableHead>Cliente</TableHead>
+                <TableHead className="whitespace-nowrap">Vendedor</TableHead>
+
                 <TableHead className="whitespace-nowrap">Status</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Total</TableHead>
               </TableRow>
