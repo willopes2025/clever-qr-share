@@ -78,23 +78,52 @@ export const VendedoresMappingCard = () => {
     load();
   }, []);
 
-  const setUser = async (row: VendedorRow, userId: string) => {
+  const setUser = (row: VendedorRow, userId: string) => {
     const value = userId === NONE ? null : userId;
-    setSavingId(row.id);
-    const { error } = await supabase
-      .from("gestao_parts_vendedores")
-      .update({ user_id: value })
-      .eq("id", row.id);
-    setSavingId(null);
-    if (error) return toast.error(error.message);
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, user_id: value } : r)));
-    toast.success("Vínculo atualizado");
+    setPending((prev) => {
+      const next = { ...prev };
+      if ((row.user_id ?? null) === value) delete next[row.id];
+      else next[row.id] = value;
+      return next;
+    });
+  };
+
+  const dirtyCount = Object.keys(pending).length;
+
+  const saveAll = async () => {
+    if (dirtyCount === 0) return;
+    setSaving(true);
+    try {
+      for (const [id, user_id] of Object.entries(pending)) {
+        const { data, error } = await supabase
+          .from("gestao_parts_vendedores")
+          .update({ user_id })
+          .eq("id", id)
+          .select("id");
+        if (error) throw new Error(error.message);
+        if (!data || data.length === 0) {
+          throw new Error("Sem permissão para alterar os vínculos. Peça a um administrador.");
+        }
+      }
+      setRows((prev) => prev.map((r) => (r.id in pending ? { ...r, user_id: pending[r.id] } : r)));
+      setPending({});
+      toast.success("Vínculos salvos");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao salvar vínculos");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async (row: VendedorRow) => {
     const { error } = await supabase.from("gestao_parts_vendedores").delete().eq("id", row.id);
     if (error) return toast.error(error.message);
     setRows((prev) => prev.filter((r) => r.id !== row.id));
+    setPending((prev) => {
+      const next = { ...prev };
+      delete next[row.id];
+      return next;
+    });
   };
 
   const addManual = async () => {
