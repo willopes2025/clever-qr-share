@@ -309,22 +309,35 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                     {pedidoVendedor(row) || <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
-                    {statusLabel(row) ? (
+                    {kind === "outro" ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
                       <Badge
-                        variant={cancelado || kind === "parcial" ? "destructive" : "secondary"}
+                        variant={destaque ? "destructive" : "secondary"}
                         className={cn(
                           "font-normal gap-1",
                           kind === "parcial" && "bg-destructive/20 text-destructive hover:bg-destructive/25",
                           kind === "faturado" && "bg-primary/15 text-primary hover:bg-primary/20",
                         )}
                       >
-                        {(cancelado || kind === "parcial") && <AlertTriangle className="h-3 w-3" />}
+                        {destaque && <AlertTriangle className="h-3 w-3" />}
                         {statusLabel(row)}
                       </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">Sem status</span>
                     )}
                   </TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">
+                    {pedidoSeparacao(row) ? (
+                      <Badge variant="outline" className="font-normal">
+                        {pedidoSeparacao(row)}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">
+                    {text(row.nfe_numero) || (String(row.nfe_chave ?? "").trim() ? "Sim" : <span className="text-muted-foreground">—</span>)}
+                  </TableCell>
+
 
 
                   <TableCell
