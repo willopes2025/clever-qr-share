@@ -113,20 +113,38 @@ export const VendedoresMappingCard = () => {
   const importFromErp = async () => {
     setImporting(true);
     try {
-      const data = await callGestaoParts<GestaoPartsPaged>("list_pedidos", {
-        bloco: 1,
-        tipopedido: ["ORCAMENTO", "CONDICIONAL", "PRE-VENDA", "E-COMMERCE"],
-        dtinicio: daysAgoISO(60),
-        dtfinal: todayISO(),
-      });
-
       const found = new Map<string, { codvendedor: string | null; nome: string }>();
-      for (const item of data?.items || []) {
-        for (const v of pickVendedores(item as Record<string, unknown>)) {
-          const key = (v.codvendedor || v.nome).toLowerCase();
-          if (!found.has(key)) found.set(key, v);
+
+      // Janelas curtas e sequenciais: o ERP devolve o pedido inteiro (com itens),
+      // então períodos longos estouram o limite de memória da função.
+      const windows = [
+        { dtinicio: daysAgoISO(10), dtfinal: todayISO() },
+        { dtinicio: daysAgoISO(20), dtfinal: daysAgoISO(11) },
+        { dtinicio: daysAgoISO(30), dtfinal: daysAgoISO(21) },
+      ];
+
+      let anySuccess = false;
+      for (const w of windows) {
+        try {
+          const data = await callGestaoParts<GestaoPartsPaged>("list_pedidos", {
+            bloco: 1,
+            tipopedido: ["ORCAMENTO"],
+            ...w,
+          });
+          anySuccess = true;
+          for (const item of data?.items || []) {
+            for (const v of pickVendedores(item as Record<string, unknown>)) {
+              const key = (v.codvendedor || v.nome).toLowerCase();
+              if (!found.has(key)) found.set(key, v);
+            }
+          }
+        } catch {
+          // segue para a próxima janela
         }
       }
+
+      if (!anySuccess) throw new Error("Não foi possível consultar o ERP agora. Tente novamente.");
+
 
       const existing = new Set(rows.map((r) => (r.codvendedor || r.nome).toLowerCase()));
       const missing = [...found.entries()].filter(([key]) => !existing.has(key)).map(([, v]) => v);
