@@ -5,7 +5,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Roteamento por carteira (exclusivo do cliente com Gestão Parts ativo).
+// Dispara em background: nunca bloqueia nem falha a entrada da mensagem.
+function routeGestaoPartsLead(conversationId: string, phone: string) {
+  try {
+    const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/gestao-parts-route-lead`;
+    const task = fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({ conversation_id: conversationId, phone }),
+    }).catch((e) => console.error('[ROUTE-LEAD] falha ao invocar:', e?.message));
+    // deno-lint-ignore no-explicit-any
+    (globalThis as any).EdgeRuntime?.waitUntil?.(task);
+  } catch (e) {
+    console.error('[ROUTE-LEAD] erro ao agendar:', (e as Error).message);
+  }
+}
+
 // Helper functions for media handling
+
 function getExtension(messageType: string, mimeType?: string): string {
   // Try to get extension from mimeType first
   if (mimeType) {
@@ -1433,6 +1454,14 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         conversation = newConversation;
         console.log('Created/updated conversation:', conversation?.id, 'assigned_to:', assignedTo);
       }
+
+      // Roteamento Gestão Parts: conversa nova e sem responsável -> consulta o ERP em background.
+      // A função sai imediatamente se a integração Gestão Parts não estiver ativa.
+      if (conversation && !isFromMe && !conversation.assigned_to) {
+        routeGestaoPartsLead(conversation.id, phone);
+      }
+
+
       
       // Auto-create deal: check if there's a campaign with target funnel first
       let funnelIdForDeal = defaultFunnelId;

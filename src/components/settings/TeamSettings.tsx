@@ -35,8 +35,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { 
   MoreHorizontal, UserPlus, Shield, User, Trash2, Settings2, Crown, Building2, 
-  RefreshCw, Pencil, Key, Smartphone, Bell, Loader2, UserX, UserCheck 
+  RefreshCw, Pencil, Key, Smartphone, Bell, Loader2, UserX, UserCheck, Briefcase 
 } from 'lucide-react';
+
 import { InviteMemberDialog } from './InviteMemberDialog';
 import { MemberPermissionsDialog } from './MemberPermissionsDialog';
 import { CreateOrganizationDialog } from './CreateOrganizationDialog';
@@ -87,10 +88,12 @@ export function TeamSettings() {
     updateMember,
     removeMember, 
     setMemberStatus,
+    setMemberWalletOnly,
     resendInvite,
 
     resetPassword 
   } = useTeamMembers();
+
   const { instances } = useWhatsAppInstances();
   
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -507,7 +510,24 @@ export function TeamSettings() {
                                 Redefinir Senha
                               </DropdownMenuItem>
                             )}
+                            {isOwner && member.role !== 'admin' && member.user_id && (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setMemberWalletOnly.mutate({
+                                    memberId: member.id,
+                                    walletOnly: !member.wallet_only,
+                                  })
+                                }
+                                disabled={setMemberWalletOnly.isPending}
+                              >
+                                <Briefcase className="mr-2 h-4 w-4" />
+                                {member.wallet_only
+                                  ? 'Ver conversas da equipe'
+                                  : 'Ver apenas a própria carteira'}
+                              </DropdownMenuItem>
+                            )}
                             {member.status !== 'invited' && (
+
                               <DropdownMenuItem
                                 onClick={() =>
                                   setMemberStatus.mutate({

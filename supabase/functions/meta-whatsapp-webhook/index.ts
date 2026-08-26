@@ -9,9 +9,29 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+// Roteamento por carteira (exclusivo do cliente com Gestão Parts ativo).
+// Dispara em background: nunca bloqueia nem falha a entrada da mensagem.
+function routeGestaoPartsLead(conversationId: string, phone: string) {
+  try {
+    const task = fetch(`${SUPABASE_URL}/functions/v1/gestao-parts-route-lead`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({ conversation_id: conversationId, phone }),
+    }).catch((e) => console.error('[ROUTE-LEAD] falha ao invocar:', e?.message));
+    // deno-lint-ignore no-explicit-any
+    (globalThis as any).EdgeRuntime?.waitUntil?.(task);
+  } catch (e) {
+    console.error('[ROUTE-LEAD] erro ao agendar:', (e as Error).message);
+  }
+}
+
 function normalizePhoneDigits(phone: string | undefined | null): string {
   return (phone || '').replace(/\D/g, '');
 }
+
 
 function phonesMatch(a: string | undefined | null, b: string | undefined | null): boolean {
   const na = normalizePhoneDigits(a);
@@ -632,6 +652,13 @@ Deno.serve(async (req) => {
                   conversation = newConversation;
                   console.log('[META-WEBHOOK] Created new conversation:', conversation?.id);
                 }
+
+                // Roteamento Gestão Parts: conversa nova sem responsável -> consulta o ERP em background
+                if (conversation && !conversation.assigned_to) {
+                  routeGestaoPartsLead(conversation.id, contactPhone);
+                }
+
+
 
                 // Auto-create lead for new conversations
                 // Priority: 1) Meta number's default funnel, 2) User settings auto-lead funnel
