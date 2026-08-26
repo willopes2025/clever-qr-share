@@ -32,3 +32,32 @@ Controle exclusivamente no nosso banco (o ERP não recebe escrita):
 
 ## Viabilidade dos endpoints
 O feed v3 de pedidos já em uso aceita `tipopedido: ['ORCAMENTO']` com intervalo de datas e paginação por bloco, e o detalhe por requisição já está implementado — cobre busca por ID, por período e os dados do modal. O filtro por vendedor será aplicado sobre os campos de vendedor retornados pelo feed; se algum orçamento vier sem vendedor, ele aparece como "Sem vendedor". Não há endpoint de escrita de flag de "enviado" no ERP, por isso a idempotência fica no nosso banco.
+
+---
+
+# Parte 2: Carteira por vendedor, roteamento e coluna de vendedor
+
+## 5. Carteira de clientes (isolamento no Inbox)
+- Cada conversa/lead passa a ter um vendedor responsável explícito (campo de atribuição já existente `assigned_to` nas conversas, agora obrigatório para leads do fluxo Gestão Parts).
+- Novo modo de visibilidade "Carteira" por membro da equipe: quando ligado para um usuário, ele só vê e interage com conversas atribuídas a ele. Donos e administradores continuam vendo tudo.
+- A restrição é aplicada no banco (regra de acesso), não só na tela — então a lista, a busca, os contadores de não lidas e o envio de mensagens respeitam a carteira.
+- As mensagens de orçamento (manual ou automática) são gravadas na conversa do cliente já atribuída ao vendedor emissor, ficando visíveis apenas na carteira dele.
+
+## 6. Roteamento automático de novos contatos
+- Quando chega mensagem de um número desconhecido, o sistema consulta o ERP por telefone.
+- Se o ERP retornar o cliente e ele tiver pedido/orçamento em andamento (tipos ORCAMENTO/PRE-VENDA/CONDICIONAL em situação aberta), lemos o vendedor daquele processo e atribuímos a conversa ao usuário do sistema correspondente.
+- Sem correspondência no ERP (ou vendedor sem usuário mapeado): a conversa segue para a fila geral/distribuição atual, sem bloquear a chegada da mensagem.
+- Tudo é assíncrono e tolerante a falhas: se o ERP estiver fora do ar, a mensagem entra normalmente e a atribuição é tentada de novo depois.
+
+## 7. Coluna "Vendedor" na aba Pedidos
+- Adicionar a coluna Vendedor na tabela de pedidos e o campo correspondente no detalhe (pop-up), lendo os campos de vendedor retornados pelo ERP, com "—" quando ausente.
+
+## Detalhes técnicos (parte 2)
+- Banco: coluna `wallet_only boolean default false` em `team_members` (modo carteira por usuário); tabela `gestao_parts_vendedores` mapeando `codvendedor`/nome do ERP para `user_id` do sistema; índice em `conversations.assigned_to`.
+- Acesso: estender `can_access_conversation_channel` (ou nova função security definer usada nas policies de `conversations` e `inbox_messages`) para, quando `wallet_only` estiver ativo, exigir `assigned_to = auth.uid()`. Owners/admins isentos.
+- Roteamento: no handler de webhook de mensagens recebidas (Evolution e Meta), ao criar contato/conversa nova, chamar em background uma rotina `gestao-parts-route-lead` que faz a consulta reversa no ERP e grava `assigned_to`.
+- Consulta reversa no ERP: já viável — `GET /erpssplus/pessoas/{telefone}` (com o telefone no formato do ERP, helper `toErpPhone`) devolve a pessoa e o código interno; a partir do código consultamos o feed de pedidos v3 filtrando os tipos em aberto para ler o campo de vendedor (`vendedor`/`desvendedor`, já presente nos registros do ERP).
+- Frontend: coluna e campo de vendedor em `PedidosTable.tsx`; tela de equipe ganha o interruptor "Ver apenas a própria carteira"; tela de configuração do Gestão Parts ganha o mapeamento vendedor ERP → usuário.
+
+## Viabilidade confirmada
+A consulta reversa por telefone existe e já é usada hoje no card do lead. O que o ERP não fornece pronto é o vínculo "vendedor do ERP = usuário do WideZap": esse de-para será cadastrado uma vez na tela de configuração. O vendedor do processo vem do próprio registro de pedido/orçamento retornado pelo feed.
