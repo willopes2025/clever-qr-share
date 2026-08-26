@@ -461,6 +461,23 @@ export const LeadFieldsSection = ({ deal, activeTabId, conversationId, assignedT
         <CustomFieldsManager />
       </div>
 
+      {/* Responsável pelo lead */}
+      {conversationId && (
+        <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
+          <span className="text-xs font-medium text-foreground/70 shrink-0">Responsável</span>
+          <div className="flex justify-end min-w-0">
+            <AssigneeSelector
+              value={assignedTo || null}
+              onChange={(memberId) =>
+                assignConversation.mutate({ conversationId, memberId })
+              }
+              compact
+            />
+          </div>
+        </div>
+      )}
+
+
       {/* Título do Lead - Campo Editável */}
       <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
         <span className="text-xs font-medium text-foreground/70 shrink-0">Título do Lead</span>
