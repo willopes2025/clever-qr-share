@@ -276,6 +276,28 @@ export const ConversationList = ({
 
   const { members } = useTeamMembers();
   const { getLabel: getMetaLabel } = useMetaNumbersMap();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [claimingId, setClaimingId] = useState<string | null>(null);
+
+  // Assumir cliente: atribui a conversa ao usuário atual
+  const handleClaim = async (conversationId: string) => {
+    if (!user?.id) return;
+    setClaimingId(conversationId);
+    const { error } = await supabase
+      .from('conversations')
+      .update({ assigned_to: user.id })
+      .eq('id', conversationId)
+      .is('assigned_to', null);
+    setClaimingId(null);
+    if (error) {
+      toast.error('Não foi possível assumir este cliente');
+      return;
+    }
+    toast.success('Cliente assumido');
+    queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    queryClient.invalidateQueries({ queryKey: ['unread-count'] });
+  };
 
   const mergedConversations = useMemo(() => {
     const conversationMap = new Map<string, ConversationWithTags>();
