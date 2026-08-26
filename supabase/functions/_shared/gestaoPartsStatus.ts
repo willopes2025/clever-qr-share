@@ -191,19 +191,34 @@ export async function ensureDeal(
     if (!contactId) throw new Error(`contato ${info.phone}: ${lastErr}`);
   }
 
-  // Um card por pedido: procura pelo número do pedido nos campos personalizados
-  let dealId: string | undefined;
-  if (info.numero) {
-    const { data: byPedido } = await admin
-      .from('funnel_deals').select('id')
-      .eq('funnel_id', ctx.funnelId)
-      .eq('contact_id', contactId)
-      .contains('custom_fields', { pedido: info.numero })
-      .limit(1).maybeSingle();
-    dealId = byPedido?.id as string | undefined;
-  }
+  // Um único card por cliente no funil: nunca duplica lead para o mesmo contato.
+  // Se já existir, apenas atualiza os dados do pedido mais recente e movimenta a etapa.
+  const { data: existing } = await admin
+    .from('funnel_deals')
+    .select('id, custom_fields, title')
+    .eq('funnel_id', ctx.funnelId)
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
-  if (!dealId) {
+  let dealId = existing?.id as string | undefined;
+
+  if (dealId) {
+    const current = (existing?.custom_fields || {}) as Row;
+    await admin.from('funnel_deals').update({
+      title: `Pedido ${info.numero || current.pedido || '-'} · ${info.nome ? titleCase(info.nome) : info.phone}`,
+      value: Number(info.total.toFixed(2)),
+      custom_fields: {
+        ...current,
+        ...(info.numero ? { pedido: info.numero } : {}),
+        ...(info.chaveProcesso ? { chave_processo: info.chaveProcesso } : {}),
+        ...(info.codigo ? { codigo_erp: info.codigo } : {}),
+        ...(info.documento ? { documento: info.documento } : {}),
+      },
+      updated_at: new Date().toISOString(),
+    }).eq('id', dealId).then(() => {}, () => {});
+  } else {
     const first = ctx.stages.get('Aguardando separação');
     const { data: deal, error } = await admin.from('funnel_deals').insert({
       user_id: ctx.ownerId,
