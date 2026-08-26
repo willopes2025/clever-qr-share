@@ -83,6 +83,8 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
             custom_fields: activeDeal.custom_fields as Record<string, any> | null,
           } : null}
           activeTabId={activeTab}
+          conversationId={conversation.id}
+          assignedTo={conversation.assigned_to || null}
         />
 
         {/* Separator with Contact Name */}
