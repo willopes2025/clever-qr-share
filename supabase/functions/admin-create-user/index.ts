@@ -267,11 +267,13 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
+        linked_existing: !createdNewUser,
         user: { 
-          id: newUser.user.id, 
-          email: newUser.user.email 
+          id: newUser!.user.id, 
+          email: newUser!.user.email 
         } 
       }),
+
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
