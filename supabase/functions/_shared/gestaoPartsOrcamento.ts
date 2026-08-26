@@ -111,7 +111,7 @@ Qualquer dúvida é só responder por aqui. 😊`;
 export function buildMessage(row: Row, template?: string | null): string {
   const itens = Array.isArray(row.itens) ? (row.itens as Row[]) : [];
   const linhas = itens.slice(0, 25).map((item) => {
-    const desc = pick(item, ['descricao', 'desproduto', 'produto', 'despeca', 'nome']) || 'Item';
+    const desc = pick(item, ['descricaoproduto', 'descricao', 'desproduto', 'produto', 'despeca', 'nome']) || 'Item';
     const qtd = toNumber(pick(item, ['quantidade', 'qtde', 'qtd'])) || 1;
     const unit = toNumber(pick(item, ['valorunitario', 'valorunit', 'preco']));
     const tot = toNumber(pick(item, ['valortotal', 'totalitem', 'valor_total'])) || qtd * unit;
