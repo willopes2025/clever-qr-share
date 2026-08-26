@@ -35,8 +35,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { 
   MoreHorizontal, UserPlus, Shield, User, Trash2, Settings2, Crown, Building2, 
-  RefreshCw, Pencil, Key, Smartphone, Bell, Loader2, UserX, UserCheck 
+  RefreshCw, Pencil, Key, Smartphone, Bell, Loader2, UserX, UserCheck, Briefcase 
 } from 'lucide-react';
+
 import { InviteMemberDialog } from './InviteMemberDialog';
 import { MemberPermissionsDialog } from './MemberPermissionsDialog';
 import { CreateOrganizationDialog } from './CreateOrganizationDialog';
