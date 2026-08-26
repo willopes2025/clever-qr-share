@@ -50,8 +50,18 @@ export function extractPhone(row: Row): string {
 }
 
 export function vendedorNome(row: Row): string {
+  for (const key of ['vendedorpedido', 'vendedorfaturamento', 'vendedorcomissionado']) {
+    const arr = row[key];
+    if (Array.isArray(arr)) {
+      for (const entry of arr) {
+        const nome = (entry as Row | null)?.['nome'];
+        if (nome && String(nome).trim()) return String(nome).trim();
+      }
+    }
+  }
   return pick(row, ['desvendedor', 'vendedor', 'nomevendedor', 'vendedornome', 'codvendedor']);
 }
+
 
 export function orcamentoNumero(row: Row): string {
   return pick(row, ['numpedido', 'numero', 'requisicao', 'pedido']);
