@@ -545,6 +545,73 @@ const GestaoParts = () => {
             </Card>
           </TabsContent>
 
+          {/* -------------------- ORÇAMENTOS -------------------- */}
+          <TabsContent value="orcamentos" className="space-y-4">
+            <OrcamentoAutoCard />
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Buscar orçamento por ID</CardTitle>
+                <CardDescription>Cole o número/código do orçamento gerado no ERP</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                  <div className="space-y-1.5 flex-1">
+                    <Label>Número do orçamento</Label>
+                    <Input
+                      value={orcNumero}
+                      onChange={(e) => setOrcNumero(e.target.value)}
+                      placeholder="Ex: 770851"
+                      onKeyDown={(e) => e.key === "Enter" && buscarOrcamentoPorId()}
+                    />
+                  </div>
+                  <Button onClick={buscarOrcamentoPorId} disabled={busy("orcamento-id") || !orcNumero.trim()}>
+                    {busy("orcamento-id") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                    Buscar
+                  </Button>
+                </div>
+                {renderOrcamentos("orcamento-id", "Orçamento não encontrado")}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Orçamentos por vendedor e período</CardTitle>
+                <CardDescription>
+                  Clique em uma linha para ver os detalhes e enviar o orçamento ao cliente
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-4 sm:items-end">
+                  <div className="space-y-1.5">
+                    <Label>Vendedor</Label>
+                    <Input
+                      value={orcVendedor}
+                      onChange={(e) => setOrcVendedor(e.target.value)}
+                      placeholder="Nome ou código"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Início</Label>
+                    <Input type="date" value={orcInicio} onChange={(e) => setOrcInicio(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Fim</Label>
+                    <Input type="date" value={orcFim} onChange={(e) => setOrcFim(e.target.value)} />
+                  </div>
+                  <Button onClick={() => buscarOrcamentos(1)} disabled={busy("orcamentos")}>
+                    {busy("orcamentos") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                    Buscar
+                  </Button>
+                </div>
+
+                {renderOrcamentos("orcamentos", "Nenhum orçamento no período")}
+                {renderPagination("orcamentos", orcBloco, buscarOrcamentos)}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+
           {/* -------------------- CLIENTES -------------------- */}
           <TabsContent value="clientes" className="space-y-4">
             <Card>
