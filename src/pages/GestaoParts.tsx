@@ -170,7 +170,7 @@ const GestaoParts = () => {
       blocos: ORC_BLOCOS,
       dtinicio: orcInicio,
       dtfinal: orcFim,
-      vendedor: orcVendedor,
+      ...(orcVendedor.trim() ? { vendedor: orcVendedor.trim() } : {}),
     });
   };
 
