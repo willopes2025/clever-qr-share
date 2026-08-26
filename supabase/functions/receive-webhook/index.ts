@@ -1433,6 +1433,14 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         conversation = newConversation;
         console.log('Created/updated conversation:', conversation?.id, 'assigned_to:', assignedTo);
       }
+
+      // Roteamento Gestão Parts: conversa nova e sem responsável -> consulta o ERP em background.
+      // A função sai imediatamente se a integração Gestão Parts não estiver ativa.
+      if (conversation && !isFromMe && !conversation.assigned_to) {
+        routeGestaoPartsLead(conversation.id, phone);
+      }
+
+
       
       // Auto-create deal: check if there's a campaign with target funnel first
       let funnelIdForDeal = defaultFunnelId;
