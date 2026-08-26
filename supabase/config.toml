@@ -203,3 +203,5 @@ project_id = "fgbenetdksqnvwkgnips"
     verify_jwt = false
   [functions.gestao-parts-sync-status]
     verify_jwt = false
+  [functions.gestao-parts-status-queue]
+    verify_jwt = false

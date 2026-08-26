@@ -293,19 +293,75 @@ export async function applyStatus(
     return { moved: true, stage: stageName };
   }
 
-  // Dispara as automações da etapa somente após ativação explícita.
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  await fetch(`${supabaseUrl}/functions/v1/process-funnel-automations`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
-    body: JSON.stringify({
-      dealId,
-      fromStageId: deal.stage_id,
-      toStageId: target.id,
-      triggerType: 'on_stage_enter',
-    }),
-  }).catch((e) => console.error('[GP-STATUS] automations error', (e as Error).message));
+  // Envio nunca é imediato: entra na fila com espaçamento aleatório entre
+  // 3 e 6 minutos e chave de idempotência (1 mensagem por lead + etapa).
+  await enqueueStatusMessage(admin, {
+    dealId,
+    contactId,
+    fromStageId: deal.stage_id as string | null,
+    stageId: target.id,
+    statusText,
+  });
 
   return { moved: true, stage: stageName };
+
+}
+
+// ===================== Fila de envio (anti-banimento) =====================
+
+/** Intervalo aleatório entre mensagens: 3 a 6 minutos. */
+export const MIN_SEND_GAP_SECONDS = 180;
+export const MAX_SEND_GAP_SECONDS = 360;
+
+const randomGapMs = (): number =>
+  (MIN_SEND_GAP_SECONDS + Math.random() * (MAX_SEND_GAP_SECONDS - MIN_SEND_GAP_SECONDS)) * 1000;
+
+export interface EnqueueInput {
+  dealId: string;
+  contactId: string | null;
+  fromStageId: string | null;
+  stageId: string;
+  statusText: string;
+}
+
+/**
+ * Enfileira a mensagem de mudança de etapa.
+ * Idempotente: a chave única (deal + etapa) impede duplicidade de envio.
+ * O agendamento é encadeado ao último item da fila, garantindo o espaçamento.
+ */
+export async function enqueueStatusMessage(admin: Admin, input: EnqueueInput): Promise<'queued' | 'duplicate'> {
+  const dedupeKey = `${input.dealId}:${input.stageId}`;
+
+  const { data: last } = await admin
+    .from('gestao_parts_status_queue')
+    .select('scheduled_at')
+    .in('status', ['pending', 'processing'])
+    .order('scheduled_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const base = Math.max(Date.now(), last?.scheduled_at ? new Date(last.scheduled_at).getTime() : 0);
+  const scheduledAt = new Date(base + randomGapMs()).toISOString();
+
+  const { error } = await admin.from('gestao_parts_status_queue').insert({
+    deal_id: input.dealId,
+    contact_id: input.contactId,
+    from_stage_id: input.fromStageId,
+    stage_id: input.stageId,
+    status_text: input.statusText,
+    dedupe_key: dedupeKey,
+    scheduled_at: scheduledAt,
+  });
+
+  if (error) {
+    if (/duplicate key|unique/i.test(error.message)) {
+      console.log('[GP-QUEUE] duplicate ignored', dedupeKey);
+      return 'duplicate';
+    }
+    console.error('[GP-QUEUE] enqueue error', error.message);
+    return 'duplicate';
+  }
+
+  console.log('[GP-QUEUE] queued', JSON.stringify({ dedupeKey, scheduledAt }));
+  return 'queued';
 }
