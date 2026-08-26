@@ -237,6 +237,36 @@ export function useTeamMembers() {
     },
   });
 
+  // Modo carteira: membro só vê conversas atribuídas a ele
+  const setMemberWalletOnly = useMutation({
+    mutationFn: async ({ memberId, walletOnly }: { memberId: string; walletOnly: boolean }) => {
+      if (!isAdmin) throw new Error('Sem permissão para alterar a carteira de membros');
+
+      const { data, error } = await supabase
+        .from('team_members')
+        .update({ wallet_only: walletOnly })
+        .eq('id', memberId)
+        .select('id')
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) throw new Error('Não foi possível alterar a carteira deste membro (permissão negada).');
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      toast.success(
+        variables.walletOnly
+          ? 'Membro passa a ver apenas a própria carteira'
+          : 'Membro voltou a ver as conversas da equipe',
+      );
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+
+
   // Remover membro
   const removeMember = useMutation({
     mutationFn: async (memberId: string) => {
