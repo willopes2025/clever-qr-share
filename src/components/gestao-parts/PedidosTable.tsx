@@ -241,15 +241,17 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
               {filtered.map((row, i) => {
                 const kind = statusKind(row);
                 const cancelado = kind === "cancelado";
+                const destaque = cancelado || kind === "parcial";
                 return (
                 <TableRow
                   key={`${row.numpedido ?? i}-${i}`}
                   className={cn(
                     "cursor-pointer",
-                    cancelado && "bg-destructive/10 hover:bg-destructive/15",
+                    destaque && "bg-destructive/10 hover:bg-destructive/15",
                   )}
                   onClick={() => openDetail(row)}
                 >
+
                   <TableCell
                     className={cn(
                       "text-xs font-medium whitespace-nowrap",
