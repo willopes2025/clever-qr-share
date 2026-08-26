@@ -60,6 +60,16 @@ const pedidoStatus = (row: PedidoRow): string => {
   // Pedido já faturado: a NF-e emitida é o melhor indicativo disponível
   return row.nfe_numero ? "FATURADO" : "";
 };
+/** O nome do vendedor muda de campo conforme a rota do ERP */
+const pedidoVendedor = (row: PedidoRow): string =>
+  String(pick(row as Record<string, unknown>, [
+    "desvendedor",
+    "vendedor",
+    "nomevendedor",
+    "vendedornome",
+    "codvendedor",
+  ]) ?? "").trim();
+
 
 
 export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", raw }: PedidosTableProps) => {
