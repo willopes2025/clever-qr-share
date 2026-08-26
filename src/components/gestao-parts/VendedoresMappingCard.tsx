@@ -54,7 +54,8 @@ export const VendedoresMappingCard = () => {
   const [rows, setRows] = useState<VendedorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [pending, setPending] = useState<Record<string, string | null>>({});
   const [newCodigo, setNewCodigo] = useState("");
   const [newNome, setNewNome] = useState("");
 
