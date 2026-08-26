@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, DownloadCloud, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, DownloadCloud, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
@@ -54,7 +54,8 @@ export const VendedoresMappingCard = () => {
   const [rows, setRows] = useState<VendedorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [pending, setPending] = useState<Record<string, string | null>>({});
   const [newCodigo, setNewCodigo] = useState("");
   const [newNome, setNewNome] = useState("");
 
@@ -77,23 +78,52 @@ export const VendedoresMappingCard = () => {
     load();
   }, []);
 
-  const setUser = async (row: VendedorRow, userId: string) => {
+  const setUser = (row: VendedorRow, userId: string) => {
     const value = userId === NONE ? null : userId;
-    setSavingId(row.id);
-    const { error } = await supabase
-      .from("gestao_parts_vendedores")
-      .update({ user_id: value })
-      .eq("id", row.id);
-    setSavingId(null);
-    if (error) return toast.error(error.message);
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, user_id: value } : r)));
-    toast.success("Vínculo atualizado");
+    setPending((prev) => {
+      const next = { ...prev };
+      if ((row.user_id ?? null) === value) delete next[row.id];
+      else next[row.id] = value;
+      return next;
+    });
+  };
+
+  const dirtyCount = Object.keys(pending).length;
+
+  const saveAll = async () => {
+    if (dirtyCount === 0) return;
+    setSaving(true);
+    try {
+      for (const [id, user_id] of Object.entries(pending)) {
+        const { data, error } = await supabase
+          .from("gestao_parts_vendedores")
+          .update({ user_id })
+          .eq("id", id)
+          .select("id");
+        if (error) throw new Error(error.message);
+        if (!data || data.length === 0) {
+          throw new Error("Sem permissão para alterar os vínculos. Peça a um administrador.");
+        }
+      }
+      setRows((prev) => prev.map((r) => (r.id in pending ? { ...r, user_id: pending[r.id] } : r)));
+      setPending({});
+      toast.success("Vínculos salvos");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao salvar vínculos");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async (row: VendedorRow) => {
     const { error } = await supabase.from("gestao_parts_vendedores").delete().eq("id", row.id);
     if (error) return toast.error(error.message);
     setRows((prev) => prev.filter((r) => r.id !== row.id));
+    setPending((prev) => {
+      const next = { ...prev };
+      delete next[row.id];
+      return next;
+    });
   };
 
   const addManual = async () => {
@@ -175,14 +205,23 @@ export const VendedoresMappingCard = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-2 justify-end">
-          <Button variant="outline" size="sm" onClick={importFromErp} disabled={importing}>
+        <div className="flex flex-wrap gap-2 justify-end items-center">
+          {dirtyCount > 0 && (
+            <span className="text-xs text-muted-foreground mr-auto">
+              {dirtyCount} alteração(ões) não salva(s)
+            </span>
+          )}
+          <Button variant="outline" size="sm" onClick={importFromErp} disabled={importing || saving}>
             {importing ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
               <DownloadCloud className="h-4 w-4 mr-2" />
             )}
             Importar do ERP
+          </Button>
+          <Button size="sm" onClick={saveAll} disabled={dirtyCount === 0 || saving}>
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            Salvar
           </Button>
         </div>
 
@@ -218,9 +257,9 @@ export const VendedoresMappingCard = () => {
                     <TableCell className="text-sm">{row.nome}</TableCell>
                     <TableCell>
                       <Select
-                        value={row.user_id || NONE}
+                        value={(row.id in pending ? pending[row.id] : row.user_id) || NONE}
                         onValueChange={(v) => setUser(row, v)}
-                        disabled={savingId === row.id}
+                        disabled={saving}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Não vinculado" />
