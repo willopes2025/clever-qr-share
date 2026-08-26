@@ -1,48 +1,37 @@
-# Status dos pedidos + configuração restrita a administradores
+# Nota fiscal no pedido: chave, link de consulta e PDF (DANFE)
 
-## Diagnóstico (verificado nos dados reais)
+## O que já temos (verificado nos dados reais)
 
-O campo `status` que o ERP devolve no feed de pedidos **não é o status comercial** — é o status de separação. Contagem real dos pedidos já sincronizados:
+Cada pedido faturado traz, no próprio retorno do ERP, os dados fiscais completos:
 
-```text
-CONFERIDO             659
-AGUARDANDO SEPARAÇÃO  242
-(vazio)                15
-SEPARADO                2
-```
+- `nfe_numero` (ex.: 059876), `nfe_serie` (1)
+- `nfe_chave` — chave de acesso de 44 dígitos (ex.: `32260859336127000129550010000598761009550684`)
+- `dtemisdocfiscal` / `hremisdocfiscal`
 
-Ou seja: não existe "faturado", "cancelado" ou "entregue" nesse campo — por isso a coluna parece quebrada. A informação real está em outros lugares do mesmo registro:
+Hoje a integração **não** possui nenhuma rota de DANFE/XML: nada em `gestao-parts-api` busca nota fiscal. Ou seja, a chave existe, mas o PDF ainda não.
 
-- **Faturamento**: `nfe_numero` / `nfe_chave` / `dtemisdocfiscal` preenchidos = pedido faturado.
-- **Cancelamento**: só aparece no item, em `statusitempedido`:
-  - `ITA - ITEM TOTALMENTE ATENDIDO` (1.622)
-  - `IAP - ITEM AGUARDANDO PROCESSAMENTO` (751)
-  - `ITCD - ITEM TOTALMENTE CANCELADO DEVOLVIDO` (39)
+## Como fica
 
-Sobre a configuração: hoje o botão "Configurações" da aba Orçamentos aparece para qualquer usuário, e as regras do banco (`gestao_parts_orcamento_config`, `gestao_parts_vendedores`) liberam gravação para qualquer usuário autenticado.
+### 1. Bloco "Nota fiscal" no detalhe do pedido (entrega garantida)
+No pop-up do pedido, quando houver NF-e:
+- Número / série / data de emissão.
+- Chave de acesso formatada em grupos de 4, com botão "Copiar chave".
+- Botão "Consultar na SEFAZ" abrindo o Portal Nacional da NF-e em nova aba (a consulta pública por chave exige o captcha do portal, então a chave já vai copiada para colar).
+- A mesma chave/ações aparecem na listagem via um ícone discreto na linha dos pedidos faturados.
 
-## Correções
+Isso funciona só com o que o ERP já devolve, sem depender de rota nova.
 
-### 1. Duas informações distintas em vez de uma coluna confusa
-- Coluna **Situação** (comercial), calculada nesta ordem:
-  1. `CANCELADO` — todos os itens com `ITCD`, ou flag/data de cancelamento no cabeçalho.
-  2. `PARCIALMENTE CANCELADO` — parte dos itens com `ITCD`.
-  3. `FATURADO` — tem NF-e emitida.
-  4. `EM ANDAMENTO` — itens ainda em `IAP`.
-  5. `ATENDIDO` — todos os itens em `ITA` sem NF-e.
-- Coluna **Separação**: mostra o valor cru do ERP (`AGUARDANDO SEPARAÇÃO`, `SEPARADO`, `CONFERIDO`, ou "—" quando vazio), como etiqueta neutra.
-- Cores: vermelho para cancelado, âmbar para parcial, verde para faturado/atendido, cinza para em andamento.
-- Mesmo cálculo aplicado no detalhe do pedido e no resumo do card do lead, para não haver divergência entre telas.
+### 2. PDF da DANFE — depende de rota do ERP (a confirmar)
+Primeiro passo da implementação: sondar o ERP nas rotas candidatas de documento fiscal (`/erpssplus/nfe/danfe`, `/erpssplus/v2/nfe/{chave}`, `/erpssplus/pedido/danfe`, variantes de XML) usando um pedido faturado real, e registrar exatamente o que responde.
 
-### 2. Filtro de status utilizável
-O filtro rápido atual ("Somente cancelados / Ocultar cancelados") passa a ser um seletor de situação: Todos · Cancelados · Parcialmente cancelados · Faturados · Em andamento, mais um seletor separado de separação.
+Resultados possíveis e o que faremos em cada um:
 
-### 3. Configuração só para administradores
-- O botão "Configurações" (Envio + Vendedores) só é renderizado quando `useAdmin().isAdmin` for verdadeiro; usuário sem permissão nem vê o acesso.
-- Dentro dos cards de Envio e Vendedores, campos e botões de gravar ficam desabilitados para não-admin (defesa em profundidade).
-- No banco: substituir as regras permissivas por regras que exigem papel de administrador para alterar a configuração de envio e o mapeamento de vendedores; a leitura continua liberada para os usuários autenticados da organização (o vendedor precisa ler o próprio vínculo).
+- **O ERP devolve PDF (ou URL do PDF)**: nova ação `nfe_danfe` na função `gestao-parts-api` que recebe a chave/pedido e retorna o arquivo; no pop-up aparece o botão "Baixar DANFE (PDF)", abrindo em nova aba.
+- **O ERP devolve apenas o XML**: a função guarda o XML e geramos o DANFE em PDF a partir dele (layout padrão: emitente, destinatário, itens, totais, chave e código de barras), entregue pelo mesmo botão.
+- **O ERP não expõe nada**: mantemos apenas a etapa 1 (chave + consulta na SEFAZ) e informo isso claramente, sem inventar link que não funciona. Nesse caso, o caminho seria pedir ao suporte da Gestão Parts a liberação do endpoint de documento fiscal.
 
 ## Detalhes técnicos
-- Arquivos: `src/components/gestao-parts/PedidosTable.tsx` (cálculo de situação/separação, colunas e filtros), `src/components/gestao-parts/utils.ts` (helper compartilhado `situacaoPedido`), `src/pages/GestaoParts.tsx` (gate de admin), `src/components/gestao-parts/OrcamentoAutoCard.tsx` e `VendedoresMappingCard.tsx` (campos somente leitura para não-admin).
-- Uma migração ajusta as políticas de `gestao_parts_orcamento_config` e `gestao_parts_vendedores` para escrita apenas por administrador (`has_role(auth.uid(),'admin')`).
-- Nenhuma alteração no fluxo de sincronização/disparo; as automações do funil permanecem desativadas.
+- `supabase/functions/gestao-parts-api/index.ts`: nova ação `nfe_danfe` (autenticada, mesma resolução de credenciais por organização), retornando `{ pdf_base64 }` ou `{ url }`.
+- `src/components/gestao-parts/PedidosTable.tsx`: bloco "Nota fiscal" no `Sheet`, formatação da chave, copiar, link SEFAZ e botão de download condicionado à disponibilidade da rota.
+- `src/hooks/useGestaoParts.ts`: nova ação no tipo `GestaoPartsAction`.
+- Sem migração de banco; nada é armazenado — o PDF é buscado sob demanda.
