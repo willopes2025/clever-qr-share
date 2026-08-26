@@ -214,6 +214,8 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                     <Field label="Série" value={text(selected.serie)} />
                     <Field label="Cliente" value={text(selected.despessoa)} />
                     <Field label="Cód. cliente" value={text(selected.codpessoa)} />
+                    <Field label="Vendedor" value={pedidoVendedor(selected) || "—"} />
+
                     {(selected.nfe_numero || selected.nfe_chave) && (
                       <>
                         <Field label="NF-e" value={`${text(selected.nfe_numero)} / ${text(selected.nfe_serie)}`} />
