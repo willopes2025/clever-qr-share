@@ -171,7 +171,9 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
 
   const itens = toRecords(selected?.itens, ["itens"]);
   const totalItens = itens.reduce((s, i) => s + (itemTotal(i) ?? 0), 0);
-  const selectedCancelado = selected ? statusKind(selected) === "cancelado" : false;
+  const selectedKind = selected ? statusKind(selected) : "outro";
+  const selectedCancelado = selectedKind === "cancelado" || selectedKind === "parcial";
+
 
 
   return (
