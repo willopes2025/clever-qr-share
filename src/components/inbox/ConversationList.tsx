@@ -1,7 +1,10 @@
 import { format, isToday, isYesterday, subDays, differenceInMinutes, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Search, MessageCircle, Inbox, Archive, Bot, UserCheck, Target, User, Clock, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Search, MessageCircle, Inbox, Archive, Bot, UserCheck, Target, User, UserPlus, Clock, Loader2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -91,7 +94,7 @@ const buildSnippet = (
   return { before, match, after };
 };
 
-type FilterTab = "all" | "unread" | "archived";
+type FilterTab = "all" | "unread" | "unassigned" | "archived";
 
 export const ConversationList = ({ 
   conversations, 
@@ -276,6 +279,28 @@ export const ConversationList = ({
 
   const { members } = useTeamMembers();
   const { getLabel: getMetaLabel } = useMetaNumbersMap();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [claimingId, setClaimingId] = useState<string | null>(null);
+
+  // Assumir cliente: atribui a conversa ao usuário atual
+  const handleClaim = async (conversationId: string) => {
+    if (!user?.id) return;
+    setClaimingId(conversationId);
+    const { error } = await supabase
+      .from('conversations')
+      .update({ assigned_to: user.id })
+      .eq('id', conversationId)
+      .is('assigned_to', null);
+    setClaimingId(null);
+    if (error) {
+      toast.error('Não foi possível assumir este cliente');
+      return;
+    }
+    toast.success('Cliente assumido');
+    queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    queryClient.invalidateQueries({ queryKey: ['unread-count'] });
+  };
 
   const mergedConversations = useMemo(() => {
     const conversationMap = new Map<string, ConversationWithTags>();
@@ -352,6 +377,10 @@ export const ConversationList = ({
     }
     if (activeTab === "archived") {
       if (conv.status !== "archived") return false;
+    }
+    if (activeTab === "unassigned") {
+      if (conv.assigned_to) return false;
+      if (conv.status === "archived") return false;
     }
     if (activeTab === "all") {
       if (conv.status === "archived") return false;
@@ -469,6 +498,7 @@ export const ConversationList = ({
   });
 
   const unreadCount = conversations.filter(c => c.unread_count > 0 && c.status !== "archived").length;
+  const unassignedCount = conversations.filter(c => !c.assigned_to && c.status !== "archived").length;
 
   return (
     <div className="w-full border-r border-border flex flex-col h-full bg-card">
@@ -494,7 +524,7 @@ export const ConversationList = ({
         {/* Filters */}
         <ConversationFiltersComponent filters={filters} onFiltersChange={setFilters} />
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FilterTab)}>
-          <TabsList className="grid w-full grid-cols-3 h-9">
+          <TabsList className="grid w-full grid-cols-4 h-9">
             <TabsTrigger value="all" className="text-xs gap-1.5">
               <Inbox className="h-3.5 w-3.5" />
               Todas
@@ -508,6 +538,18 @@ export const ConversationList = ({
                   className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px] bg-primary"
                 >
                   {unreadCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="unassigned" className="text-xs gap-1.5 relative">
+              <UserPlus className="h-3.5 w-3.5" />
+              Sem dono
+              {unassignedCount > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px]"
+                >
+                  {unassignedCount}
                 </Badge>
               )}
             </TabsTrigger>
@@ -656,7 +698,7 @@ export const ConversationList = ({
                     {/* Assigned + SLA Badges */}
                     <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                       {/* Assigned To Badge */}
-                      {conversation.assigned_to && (
+                      {conversation.assigned_to ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Badge variant="secondary" className="h-4 px-1.5 text-[9px] gap-0.5">
@@ -666,6 +708,32 @@ export const ConversationList = ({
                           </TooltipTrigger>
                           <TooltipContent>Responsável: {getMemberName(conversation.assigned_to)}</TooltipContent>
                         </Tooltip>
+                      ) : (
+                        <>
+                          <Badge variant="outline" className="h-4 px-1.5 text-[9px] gap-0.5 text-muted-foreground border-dashed">
+                            <User className="h-2.5 w-2.5" />
+                            Sem responsável
+                          </Badge>
+                          {activeTab === "unassigned" && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-5 px-2 text-[10px] gap-1"
+                              disabled={claimingId === conversation.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleClaim(conversation.id);
+                              }}
+                            >
+                              {claimingId === conversation.id ? (
+                                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                              ) : (
+                                <UserPlus className="h-2.5 w-2.5" />
+                              )}
+                              Assumir
+                            </Button>
+                          )}
+                        </>
                       )}
                       {/* SLA Warning Badge */}
                       {(() => {
