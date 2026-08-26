@@ -88,7 +88,7 @@ const pedidoVendedor = (row: PedidoRow): string => {
 };
 
 /** Classifica o status do pedido para destaque visual */
-type StatusKind = "cancelado" | "faturado" | "outro";
+type StatusKind = "cancelado" | "parcial" | "faturado" | "outro";
 
 const normalize = (v: unknown) =>
   String(v ?? "")
@@ -96,6 +96,14 @@ const normalize = (v: unknown) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
     .trim();
+
+/** O ERP marca o cancelamento no item (ex.: "ITCD - ITEM TOTALMENTE CANCELADO DEVOLVIDO") */
+export const itemCancelado = (item: Record<string, unknown>): boolean => {
+  const s = normalize(
+    pick(item, ["statusitempedido", "status", "situacao", "dessituacao", "descstatus"]),
+  );
+  return s.includes("CANCEL");
+};
 
 const statusKind = (row: PedidoRow): StatusKind => {
   const record = row as Record<string, unknown>;
@@ -105,9 +113,27 @@ const statusKind = (row: PedidoRow): StatusKind => {
 
   const s = normalize(pedidoStatus(row));
   if (s.includes("CANCEL")) return "cancelado";
+
+  // Sem status no cabeçalho: deduzimos pelos itens
+  const itens = toRecords(record.itens, ["itens"]);
+  if (itens.length) {
+    const cancelados = itens.filter(itemCancelado).length;
+    if (cancelados === itens.length) return "cancelado";
+    if (cancelados > 0) return "parcial";
+  }
+
   if (s.includes("FATURAD") || s.includes("CONCLU") || s.includes("ENTREGUE")) return "faturado";
   return "outro";
 };
+
+/** Texto exibido na etiqueta de status */
+const statusLabel = (row: PedidoRow): string => {
+  const kind = statusKind(row);
+  if (kind === "cancelado") return "CANCELADO";
+  if (kind === "parcial") return "PARCIALMENTE CANCELADO";
+  return pedidoStatus(row);
+};
+
 
 type CancelFilter = "todos" | "somente" | "ocultar";
 
@@ -121,15 +147,15 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
   const filtered = useMemo(() => {
     const base = filterRecords(rows, query) as PedidoRow[];
     if (cancelFilter === "todos") return base;
-    return base.filter((r) =>
-      cancelFilter === "somente" ? statusKind(r) === "cancelado" : statusKind(r) !== "cancelado",
-    );
+    const temCancelamento = (r: PedidoRow) => ["cancelado", "parcial"].includes(statusKind(r));
+    return base.filter((r) => (cancelFilter === "somente" ? temCancelamento(r) : !temCancelamento(r)));
   }, [rows, query, cancelFilter]);
 
   const canceladosCount = useMemo(
-    () => rows.filter((r) => statusKind(r) === "cancelado").length,
+    () => rows.filter((r) => ["cancelado", "parcial"].includes(statusKind(r))).length,
     [rows],
   );
+
 
   const openDetail = (row: PedidoRow) => {
     setSelected(row);
@@ -145,7 +171,9 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
 
   const itens = toRecords(selected?.itens, ["itens"]);
   const totalItens = itens.reduce((s, i) => s + (itemTotal(i) ?? 0), 0);
-  const selectedCancelado = selected ? statusKind(selected) === "cancelado" : false;
+  const selectedKind = selected ? statusKind(selected) : "outro";
+  const selectedCancelado = selectedKind === "cancelado" || selectedKind === "parcial";
+
 
 
   return (
@@ -215,15 +243,17 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
               {filtered.map((row, i) => {
                 const kind = statusKind(row);
                 const cancelado = kind === "cancelado";
+                const destaque = cancelado || kind === "parcial";
                 return (
                 <TableRow
                   key={`${row.numpedido ?? i}-${i}`}
                   className={cn(
                     "cursor-pointer",
-                    cancelado && "bg-destructive/10 hover:bg-destructive/15",
+                    destaque && "bg-destructive/10 hover:bg-destructive/15",
                   )}
                   onClick={() => openDetail(row)}
                 >
+
                   <TableCell
                     className={cn(
                       "text-xs font-medium whitespace-nowrap",
@@ -242,21 +272,23 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                     {pedidoVendedor(row) || <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
-                    {pedidoStatus(row) ? (
+                    {statusLabel(row) ? (
                       <Badge
-                        variant={cancelado ? "destructive" : "secondary"}
+                        variant={cancelado || kind === "parcial" ? "destructive" : "secondary"}
                         className={cn(
                           "font-normal gap-1",
+                          kind === "parcial" && "bg-destructive/20 text-destructive hover:bg-destructive/25",
                           kind === "faturado" && "bg-primary/15 text-primary hover:bg-primary/20",
                         )}
                       >
-                        {cancelado && <AlertTriangle className="h-3 w-3" />}
-                        {pedidoStatus(row)}
+                        {(cancelado || kind === "parcial") && <AlertTriangle className="h-3 w-3" />}
+                        {statusLabel(row)}
                       </Badge>
                     ) : (
                       <span className="text-muted-foreground">Sem status</span>
                     )}
                   </TableCell>
+
 
                   <TableCell
                     className={cn(
@@ -290,7 +322,10 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                 <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
                   <span className="text-xs font-medium">
-                    Pedido cancelado — não considerar como venda válida.
+                    {selectedKind === "parcial"
+                      ? "Pedido com itens cancelados — confira os itens abaixo."
+                      : "Pedido cancelado — não considerar como venda válida."}
+
                   </span>
                 </div>
               )}
@@ -320,7 +355,7 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
 
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Data / hora" value={`${brDate(selected.dtemis)} ${text(selected.hremis)}`} />
-                    <Field label="Status" value={text(pedidoStatus(selected))} />
+                    <Field label="Status" value={statusLabel(selected) || "—"} />
                     <Field label="Empresa" value={text(selected.empresa)} />
                     <Field label="Série" value={text(selected.serie)} />
                     <Field label="Cliente" value={text(selected.despessoa)} />
@@ -392,13 +427,20 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                       <p className="text-xs text-muted-foreground">Nenhum item retornado pelo ERP.</p>
                     ) : (
                       <div className="rounded-lg border divide-y">
-                        {itens.map((item, i) => (
-                          <div key={i} className="p-2.5 space-y-1">
+                        {itens.map((item, i) => {
+                          const cancel = itemCancelado(item);
+                          return (
+                          <div key={i} className={cn("p-2.5 space-y-1", cancel && "bg-destructive/10")}>
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-xs font-medium">
+                              <p className={cn("text-xs font-medium", cancel && "line-through text-muted-foreground")}>
                                 {text(pick(item, ["descricaoproduto", "descricao"]))}
                               </p>
-                              <span className="text-xs font-semibold whitespace-nowrap">
+                              <span
+                                className={cn(
+                                  "text-xs font-semibold whitespace-nowrap",
+                                  cancel && "line-through text-muted-foreground font-normal",
+                                )}
+                              >
                                 {money(itemTotal(item))}
                               </span>
                             </div>
@@ -413,12 +455,20 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                                 .join(" · ")}
                             </p>
                             {pick(item, ["statusitempedido"]) ? (
-                              <p className="text-[11px] text-muted-foreground">
+                              <p
+                                className={cn(
+                                  "text-[11px] flex items-center gap-1",
+                                  cancel ? "text-destructive font-medium" : "text-muted-foreground",
+                                )}
+                              >
+                                {cancel && <AlertTriangle className="h-3 w-3 shrink-0" />}
                                 {String(pick(item, ["statusitempedido"]))}
                               </p>
                             ) : null}
                           </div>
-                        ))}
+                          );
+                        })}
+
                         <div className="flex items-center justify-between p-2.5 bg-muted/40">
                           <span className="text-xs font-medium">Total dos itens</span>
                           <span className="text-xs font-semibold">{money(totalItens)}</span>
