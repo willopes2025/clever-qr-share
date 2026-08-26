@@ -232,7 +232,7 @@ Deno.serve(async (req) => {
       .from("team_members")
       .insert({
         organization_id: organizationId,
-        user_id: newUser.user.id,
+        user_id: newUser!.user.id,
         email,
         role,
         permissions: defaultPermissions,
@@ -242,9 +242,12 @@ Deno.serve(async (req) => {
 
     if (memberError) {
       console.error("Member insert error:", memberError);
-      
-      // Tentar deletar o usuário criado se falhar ao criar membro
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
+
+      // Tentar deletar o usuário apenas se ele foi criado agora
+      if (createdNewUser) {
+        await supabaseAdmin.auth.admin.deleteUser(newUser!.user.id);
+      }
+
       
       if (memberError.code === "23505") {
         return new Response(
