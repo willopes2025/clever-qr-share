@@ -159,6 +159,25 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
             label="pedido(s)"
           />
         </div>
+        {canceladosCount > 0 && (
+          <div className="flex items-center gap-1">
+            {([
+              ["todos", "Todos"],
+              ["somente", `Cancelados (${canceladosCount})`],
+              ["ocultar", "Ocultar cancelados"],
+            ] as [CancelFilter, string][]).map(([value, label]) => (
+              <Button
+                key={value}
+                variant={cancelFilter === value ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setCancelFilter(value)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        )}
         {raw !== undefined && (
           <Button variant="ghost" size="sm" onClick={() => setShowRaw((v) => !v)}>
             <Code2 className="h-3.5 w-3.5 mr-1.5" />
@@ -173,7 +192,7 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
         </ScrollArea>
       ) : filtered.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground text-sm">
-          Nenhum registro corresponde a "{query}"
+          Nenhum registro corresponde ao filtro atual
         </div>
       ) : (
         <ScrollArea className="h-[420px] rounded-md border">
@@ -191,13 +210,26 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((row, i) => (
+              {filtered.map((row, i) => {
+                const kind = statusKind(row);
+                const cancelado = kind === "cancelado";
+                return (
                 <TableRow
                   key={`${row.numpedido ?? i}-${i}`}
-                  className="cursor-pointer"
+                  className={cn(
+                    "cursor-pointer",
+                    cancelado && "bg-destructive/10 hover:bg-destructive/15",
+                  )}
                   onClick={() => openDetail(row)}
                 >
-                  <TableCell className="text-xs font-medium whitespace-nowrap">{text(row.numpedido)}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-xs font-medium whitespace-nowrap",
+                      cancelado && "line-through text-muted-foreground",
+                    )}
+                  >
+                    {text(row.numpedido)}
+                  </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
                     {brDate(row.dtemis)}
                     {row.hremis ? <span className="text-muted-foreground"> {String(row.hremis).slice(0, 5)}</span> : null}
@@ -208,18 +240,35 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                     {pedidoVendedor(row) || <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
-
                     {pedidoStatus(row) ? (
-                      <Badge variant="secondary" className="font-normal">{pedidoStatus(row)}</Badge>
+                      <Badge
+                        variant={cancelado ? "destructive" : "secondary"}
+                        className={cn(
+                          "font-normal gap-1",
+                          kind === "faturado" && "bg-primary/15 text-primary hover:bg-primary/20",
+                        )}
+                      >
+                        {cancelado && <AlertTriangle className="h-3 w-3" />}
+                        {pedidoStatus(row)}
+                      </Badge>
                     ) : (
                       <span className="text-muted-foreground">Sem status</span>
                     )}
                   </TableCell>
 
-                  <TableCell className="text-xs text-right whitespace-nowrap font-medium">{money(row.total)}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-xs text-right whitespace-nowrap font-medium",
+                      cancelado && "line-through text-muted-foreground font-normal",
+                    )}
+                  >
+                    {money(row.total)}
+                  </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
+
           </Table>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
