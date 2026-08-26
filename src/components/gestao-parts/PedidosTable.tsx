@@ -167,21 +167,25 @@ type SituacaoFilter = "todos" | StatusKind;
 export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", raw }: PedidosTableProps) => {
   const [showRaw, setShowRaw] = useState(false);
   const [query, setQuery] = useState("");
-  const [cancelFilter, setCancelFilter] = useState<CancelFilter>("todos");
+  const [situacaoFilter, setSituacaoFilter] = useState<SituacaoFilter>("todos");
   const [selected, setSelected] = useState<PedidoRow | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   const filtered = useMemo(() => {
     const base = filterRecords(rows, query) as PedidoRow[];
-    if (cancelFilter === "todos") return base;
-    const temCancelamento = (r: PedidoRow) => ["cancelado", "parcial"].includes(statusKind(r));
-    return base.filter((r) => (cancelFilter === "somente" ? temCancelamento(r) : !temCancelamento(r)));
-  }, [rows, query, cancelFilter]);
+    if (situacaoFilter === "todos") return base;
+    return base.filter((r) => statusKind(r) === situacaoFilter);
+  }, [rows, query, situacaoFilter]);
 
-  const canceladosCount = useMemo(
-    () => rows.filter((r) => ["cancelado", "parcial"].includes(statusKind(r))).length,
-    [rows],
-  );
+  /** Contagem por situação, para montar apenas os filtros que existem na lista */
+  const situacaoCounts = useMemo(() => {
+    const counts = {} as Record<StatusKind, number>;
+    rows.forEach((r) => {
+      const k = statusKind(r);
+      counts[k] = (counts[k] ?? 0) + 1;
+    });
+    return counts;
+  }, [rows]);
 
 
   const openDetail = (row: PedidoRow) => {
