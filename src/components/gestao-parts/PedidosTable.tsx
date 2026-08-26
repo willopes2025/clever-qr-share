@@ -220,25 +220,29 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
             label="pedido(s)"
           />
         </div>
-        {canceladosCount > 0 && (
-          <div className="flex items-center gap-1">
-            {([
-              ["todos", "Todos"],
-              ["somente", `Cancelados (${canceladosCount})`],
-              ["ocultar", "Ocultar cancelados"],
-            ] as [CancelFilter, string][]).map(([value, label]) => (
+        <div className="flex items-center gap-1 flex-wrap">
+          <Button
+            variant={situacaoFilter === "todos" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setSituacaoFilter("todos")}
+          >
+            Todos ({rows.length})
+          </Button>
+          {(["cancelado", "parcial", "faturado", "atendido", "andamento"] as StatusKind[])
+            .filter((k) => (situacaoCounts[k] ?? 0) > 0)
+            .map((k) => (
               <Button
-                key={value}
-                variant={cancelFilter === value ? "secondary" : "ghost"}
+                key={k}
+                variant={situacaoFilter === k ? "secondary" : "ghost"}
                 size="sm"
                 className="h-7 text-xs"
-                onClick={() => setCancelFilter(value)}
+                onClick={() => setSituacaoFilter(k)}
               >
-                {label}
+                {SITUACAO_LABEL[k]} ({situacaoCounts[k]})
               </Button>
             ))}
-          </div>
-        )}
+        </div>
         {raw !== undefined && (
           <Button variant="ghost" size="sm" onClick={() => setShowRaw((v) => !v)}>
             <Code2 className="h-3.5 w-3.5 mr-1.5" />
