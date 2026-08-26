@@ -47,12 +47,8 @@ const isPaged = (v: unknown): v is GestaoPartsPaged =>
 
 const GestaoParts = () => {
   const { isAdmin: hasAdminRole } = useAdmin();
-  const { organization, currentMember } = useOrganization();
-  const isOwnerOrAdmin =
-    hasAdminRole ||
-    currentMember?.role === "admin" ||
-    (!!organization?.owner_id && organization.owner_id === currentMember?.user_id);
-  const isAdmin = isOwnerOrAdmin;
+  const { isAdmin: isOrgAdmin, isOwner } = useOrganization();
+  const isAdmin = hasAdminRole || isOrgAdmin || isOwner;
   const { hasGestaoParts, isLoading: isLoadingStatus, call } = useGestaoParts();
   const [activeTab, setActiveTab] = useState("pedidos");
 
