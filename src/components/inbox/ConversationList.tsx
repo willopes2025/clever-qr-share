@@ -378,6 +378,10 @@ export const ConversationList = ({
     if (activeTab === "archived") {
       if (conv.status !== "archived") return false;
     }
+    if (activeTab === "unassigned") {
+      if (conv.assigned_to) return false;
+      if (conv.status === "archived") return false;
+    }
     if (activeTab === "all") {
       if (conv.status === "archived") return false;
     }
