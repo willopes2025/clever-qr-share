@@ -80,17 +80,19 @@ export function useLeadDistribution() {
 
   // Assign conversation to member
   const assignConversation = useMutation({
-    mutationFn: async ({ conversationId, memberId }: { conversationId: string; memberId: string }) => {
+    mutationFn: async ({ conversationId, memberId }: { conversationId: string; memberId: string | null }) => {
       const { error } = await supabase
         .from('conversations')
-        .update({ assigned_to: memberId })
+        .update({ assigned_to: memberId || null })
         .eq('id', conversationId);
 
       if (error) throw error;
+      return memberId;
     },
-    onSuccess: () => {
+    onSuccess: (memberId) => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      toast.success('Conversa atribuída');
+      queryClient.invalidateQueries({ queryKey: ['unread-count'] });
+      toast.success(memberId ? 'Responsável atualizado' : 'Responsável removido');
     },
     onError: () => {
       toast.error('Erro ao atribuir conversa');

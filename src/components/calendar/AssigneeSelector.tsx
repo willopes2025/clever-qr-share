@@ -23,21 +23,22 @@ export function AssigneeSelector({ value, onChange, compact = false }: AssigneeS
   const [open, setOpen] = useState(false);
 
   // Combinar usuário atual com membros da equipe
+  const currentMember = members.find(m => m.user_id === user?.id);
   const allMembers = [
     {
       id: user?.id || '',
-      name: 'Eu',
+      name: currentMember?.profile?.full_name || user?.email?.split('@')[0] || 'Eu',
       email: user?.email || '',
-      avatar_url: null,
+      avatar_url: currentMember?.profile?.avatar_url || null,
       isCurrentUser: true,
     },
     ...members
       .filter(m => m.user_id && m.user_id !== user?.id && m.status === 'active')
       .map(m => ({
         id: m.user_id!,
-        name: m.email.split('@')[0],
+        name: m.profile?.full_name || m.email.split('@')[0],
         email: m.email,
-        avatar_url: null,
+        avatar_url: m.profile?.avatar_url || null,
         isCurrentUser: false,
       })),
   ];
