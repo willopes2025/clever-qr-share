@@ -315,6 +315,16 @@ function toBloco(v: unknown): number {
 
 const PEDIDO_TIPOS = ['ORCAMENTO', 'CONDICIONAL', 'PRE-VENDA', 'E-COMMERCE'];
 
+/** O ERP usa nomes diferentes para o vendedor conforme a rota */
+function vendedorNome(row: Record<string, unknown>): string {
+  for (const key of ['desvendedor', 'vendedor', 'nomevendedor', 'vendedornome', 'codvendedor']) {
+    const v = row[key];
+    if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
+  }
+  return '';
+}
+
+
 function normalizeTipos(v: unknown): string[] {
   const list = Array.isArray(v) ? v : String(v ?? '').split(',');
   const normalized = list
