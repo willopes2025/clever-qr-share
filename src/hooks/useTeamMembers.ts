@@ -345,7 +345,15 @@ export function useTeamMembers() {
         body: { targetUserId: userId, newPassword },
       });
 
-      if (error) throw error;
+      if (error) {
+        // FunctionsHttpError esconde o corpo da resposta; extrair a mensagem real
+        const res = (error as unknown as { context?: Response }).context;
+        if (res && typeof res.json === 'function') {
+          const body = await res.json().catch(() => null);
+          if (body?.error) throw new Error(body.error);
+        }
+        throw error;
+      }
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
