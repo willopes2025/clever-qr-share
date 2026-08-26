@@ -549,7 +549,21 @@ const GestaoParts = () => {
 
           {/* -------------------- ORÇAMENTOS -------------------- */}
           <TabsContent value="orcamentos" className="space-y-4">
-            <OrcamentoAutoCard />
+            <div className="flex justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setOrcConfigOpen(true)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Configurações de envio
+              </Button>
+            </div>
+
+            <Dialog open={orcConfigOpen} onOpenChange={setOrcConfigOpen}>
+              <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-base">Configurações de envio de orçamentos</DialogTitle>
+                </DialogHeader>
+                <OrcamentoAutoCard />
+              </DialogContent>
+            </Dialog>
 
             <Card>
               <CardHeader>
