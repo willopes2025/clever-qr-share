@@ -27,6 +27,7 @@ import { OrcamentosTable, OrcamentoRow } from "@/components/gestao-parts/Orcamen
 import { OrcamentoAutoCard } from "@/components/gestao-parts/OrcamentoAutoCard";
 import { VendedoresMappingCard } from "@/components/gestao-parts/VendedoresMappingCard";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useOrganization } from "@/hooks/useOrganization";
 
 
 
@@ -45,7 +46,13 @@ const isPaged = (v: unknown): v is GestaoPartsPaged =>
   !!v && typeof v === "object" && Array.isArray((v as GestaoPartsPaged).items);
 
 const GestaoParts = () => {
-  const { isAdmin } = useAdmin();
+  const { isAdmin: hasAdminRole } = useAdmin();
+  const { organization, currentMember } = useOrganization();
+  const isOwnerOrAdmin =
+    hasAdminRole ||
+    currentMember?.role === "admin" ||
+    (!!organization?.owner_id && organization.owner_id === currentMember?.user_id);
+  const isAdmin = isOwnerOrAdmin;
   const { hasGestaoParts, isLoading: isLoadingStatus, call } = useGestaoParts();
   const [activeTab, setActiveTab] = useState("pedidos");
 
