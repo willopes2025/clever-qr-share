@@ -527,7 +527,7 @@ export const ConversationList = ({
         {/* Filters */}
         <ConversationFiltersComponent filters={filters} onFiltersChange={setFilters} />
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FilterTab)}>
-          <TabsList className="grid w-full grid-cols-4 h-9">
+          <TabsList className={cn("grid w-full h-9", hasGestaoParts ? "grid-cols-4" : "grid-cols-3")}>
             <TabsTrigger value="all" className="text-xs gap-1.5">
               <Inbox className="h-3.5 w-3.5" />
               Todas
