@@ -97,20 +97,33 @@ async function rawRequestOnce(
     const buf = new Uint8Array(65536);
     let received = 0;
     const decoder = new TextDecoder();
-    const isComplete = () => {
-      if (received === 0) return false;
-      const merged = new Uint8Array(received);
+    // Parsing incremental: o cabeçalho é lido uma única vez (evita custo O(n²) em respostas grandes)
+    let headerText = '';
+    let headerBytes = -1;
+    let contentLength = -1;
+    let chunkedEnc = false;
+    let pending = '';
+
+    const parseHeaderOnce = (chunk: Uint8Array) => {
+      if (headerBytes >= 0) return;
+      pending += decoder.decode(chunk, { stream: true });
+      const idx = pending.indexOf('\r\n\r\n');
+      if (idx < 0) return;
+      headerText = pending.slice(0, idx);
+      headerBytes = new TextEncoder().encode(pending.slice(0, idx + 4)).byteLength;
+      chunkedEnc = /transfer-encoding:\s*chunked/i.test(headerText);
+      const m = headerText.match(/content-length:\s*(\d+)/i);
+      contentLength = m ? Number(m[1]) : -1;
+      pending = '';
+    };
+
+    const tailIsChunkEnd = () => {
+      const tail = chunks.slice(-2);
+      const size = tail.reduce((s, c) => s + c.length, 0);
+      const merged = new Uint8Array(size);
       let o = 0;
-      for (const c of chunks) { merged.set(c, o); o += c.length; }
-      const text = decoder.decode(merged);
-      const sepIdx = text.indexOf('\r\n\r\n');
-      if (sepIdx < 0) return false;
-      const h = text.slice(0, sepIdx);
-      const b = text.slice(sepIdx + 4);
-      if (/transfer-encoding:\s*chunked/i.test(h)) return /0\r\n\r\n$/.test(b) || /\r\n0\r\n/.test(b);
-      const m = h.match(/content-length:\s*(\d+)/i);
-      if (m) return new TextEncoder().encode(b).byteLength >= Number(m[1]);
-      return false;
+      for (const c of tail) { merged.set(c, o); o += c.length; }
+      return /0\r\n\r\n$/.test(new TextDecoder().decode(merged));
     };
 
     while (true) {
@@ -119,34 +132,37 @@ async function rawRequestOnce(
         n = await conn.read(buf);
       } catch (err) {
         // Some servers close the TLS connection without sending close_notify.
-        // Treat it as a normal EOF when we already have a full response.
         const msg = String((err as Error)?.message || err);
         if (received > 0 && /close_notify|UnexpectedEof|unexpected eof|connection closed/i.test(msg)) break;
         throw err;
       }
       if (n === null) break;
-      chunks.push(buf.slice(0, n));
+      const slice = buf.slice(0, n);
+      chunks.push(slice);
       received += n;
-      if (isComplete()) break;
+      parseHeaderOnce(slice);
+      if (headerBytes >= 0) {
+        if (chunkedEnc) {
+          if (tailIsChunkEnd()) break;
+        } else if (contentLength >= 0 && received - headerBytes >= contentLength) {
+          break;
+        }
+      }
     }
-
 
     const total = chunks.reduce((s, c) => s + c.length, 0);
     const all = new Uint8Array(total);
     let off = 0;
     for (const c of chunks) { all.set(c, off); off += c.length; }
 
-    const raw = new TextDecoder().decode(all);
-    const sep = raw.indexOf('\r\n\r\n');
-    const headPart = sep >= 0 ? raw.slice(0, sep) : raw;
-    let bodyPart = sep >= 0 ? raw.slice(sep + 4) : '';
-
+    const sepBytes = headerBytes >= 0 ? headerBytes : total;
+    const headPart = headerText || new TextDecoder().decode(all.subarray(0, sepBytes));
     const statusLine = headPart.split('\r\n')[0] || '';
     const status = parseInt(statusLine.split(' ')[1] || '0', 10);
-
-    if (/transfer-encoding:\s*chunked/i.test(headPart)) {
-      bodyPart = decodeChunked(bodyPart);
-    }
+    const bodyBytesOut = all.subarray(sepBytes);
+    const bodyPart = chunkedEnc
+      ? new TextDecoder().decode(decodeChunkedBytes(bodyBytesOut))
+      : new TextDecoder().decode(bodyBytesOut);
 
     return { status, body: bodyPart };
   } finally {
@@ -154,17 +170,27 @@ async function rawRequestOnce(
   }
 }
 
-function decodeChunked(input: string): string {
-  let out = '';
+function decodeChunkedBytes(input: Uint8Array): Uint8Array {
+  const parts: Uint8Array[] = [];
   let i = 0;
+  const findCRLF = (from: number) => {
+    for (let j = from; j + 1 < input.length; j++) {
+      if (input[j] === 13 && input[j + 1] === 10) return j;
+    }
+    return -1;
+  };
   while (i < input.length) {
-    const lineEnd = input.indexOf('\r\n', i);
+    const lineEnd = findCRLF(i);
     if (lineEnd < 0) break;
-    const size = parseInt(input.slice(i, lineEnd).trim(), 16);
+    const size = parseInt(new TextDecoder().decode(input.subarray(i, lineEnd)).trim(), 16);
     if (!Number.isFinite(size) || size === 0) break;
-    out += input.slice(lineEnd + 2, lineEnd + 2 + size);
+    parts.push(input.subarray(lineEnd + 2, lineEnd + 2 + size));
     i = lineEnd + 2 + size + 2;
   }
+  const totalLen = parts.reduce((s, p) => s + p.length, 0);
+  const out = new Uint8Array(totalLen);
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
   return out;
 }
 
