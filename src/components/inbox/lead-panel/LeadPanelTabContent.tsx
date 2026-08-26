@@ -282,22 +282,24 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
         <CustomFieldsManager />
       </div>
 
-      {/* Responsável (sempre visível) */}
-      <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
-        <span className="text-xs font-medium text-foreground/70">Responsável</span>
-        <div className="flex-1 flex justify-end">
-          <AssigneeSelector
-            value={conversation.assigned_to || null}
-            onChange={(memberId) => {
-              assignConversation.mutate({
-                conversationId: conversation.id,
-                memberId: memberId,
-              });
-            }}
-            compact
-          />
+      {/* Responsável (exclusivo Martins / Gestão Parts) */}
+      {hasGestaoParts && (
+        <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
+          <span className="text-xs font-medium text-foreground/70">Responsável</span>
+          <div className="flex-1 flex justify-end">
+            <AssigneeSelector
+              value={conversation.assigned_to || null}
+              onChange={(memberId) => {
+                assignConversation.mutate({
+                  conversationId: conversation.id,
+                  memberId: memberId,
+                });
+              }}
+              compact
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Custom Fields */}
       {fieldsToShow.length === 0 ? (
