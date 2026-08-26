@@ -28,6 +28,7 @@ import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { ProviderBadge } from "./ProviderBadge";
 import { useMetaNumbersMap } from "@/hooks/useMetaNumbersMap";
 import { formatMessageTimeBR } from "@/lib/date-utils";
+import { useGestaoParts } from "@/hooks/useGestaoParts";
 
 type ConversationContact = NonNullable<Conversation["contact"]> & {
   contact_display_id?: string | number | null;
@@ -106,6 +107,8 @@ export const ConversationList = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  // Recursos de "responsável / sem dono" são exclusivos do cliente Martins (Gestão Parts)
+  const { hasGestaoParts } = useGestaoParts();
   const [filters, setFilters] = useState<ConversationFilters>({
     instanceIds: [],
     tagIds: [],
