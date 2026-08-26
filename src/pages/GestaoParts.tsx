@@ -170,7 +170,7 @@ const GestaoParts = () => {
       blocos: ORC_BLOCOS,
       dtinicio: orcInicio,
       dtfinal: orcFim,
-      vendedor: orcVendedor,
+      ...(orcVendedor.trim() ? { vendedor: orcVendedor.trim() } : {}),
     });
   };
 
@@ -606,7 +606,7 @@ const GestaoParts = () => {
                     <Input
                       value={orcVendedor}
                       onChange={(e) => setOrcVendedor(e.target.value)}
-                      placeholder="Nome ou código"
+                      placeholder="Vazio = todos os vendedores"
                     />
                   </div>
                   <div className="space-y-1.5">

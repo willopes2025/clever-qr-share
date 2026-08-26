@@ -239,7 +239,7 @@ export const OrcamentosTable = ({ rows, emptyMessage = "Nenhum orçamento encont
                     <div key={i} className="p-3 flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-xs font-medium truncate">
-                          {text(pick(item, ["descricao", "desproduto", "produto", "despeca", "nome"]))}
+                          {text(pick(item, ["descricaoproduto", "descricao", "desproduto", "produto", "despeca", "nome"]))}
                         </p>
                         <p className="text-[11px] text-muted-foreground">
                           {text(pick(item, ["quantidade", "qtde", "qtd"]))} x{" "}

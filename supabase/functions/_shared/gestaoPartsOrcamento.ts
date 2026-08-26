@@ -50,8 +50,18 @@ export function extractPhone(row: Row): string {
 }
 
 export function vendedorNome(row: Row): string {
+  for (const key of ['vendedorpedido', 'vendedorfaturamento', 'vendedorcomissionado']) {
+    const arr = row[key];
+    if (Array.isArray(arr)) {
+      for (const entry of arr) {
+        const nome = (entry as Row | null)?.['nome'];
+        if (nome && String(nome).trim()) return String(nome).trim();
+      }
+    }
+  }
   return pick(row, ['desvendedor', 'vendedor', 'nomevendedor', 'vendedornome', 'codvendedor']);
 }
+
 
 export function orcamentoNumero(row: Row): string {
   return pick(row, ['numpedido', 'numero', 'requisicao', 'pedido']);
@@ -101,7 +111,7 @@ Qualquer dúvida é só responder por aqui. 😊`;
 export function buildMessage(row: Row, template?: string | null): string {
   const itens = Array.isArray(row.itens) ? (row.itens as Row[]) : [];
   const linhas = itens.slice(0, 25).map((item) => {
-    const desc = pick(item, ['descricao', 'desproduto', 'produto', 'despeca', 'nome']) || 'Item';
+    const desc = pick(item, ['descricaoproduto', 'descricao', 'desproduto', 'produto', 'despeca', 'nome']) || 'Item';
     const qtd = toNumber(pick(item, ['quantidade', 'qtde', 'qtd'])) || 1;
     const unit = toNumber(pick(item, ['valorunitario', 'valorunit', 'preco']));
     const tot = toNumber(pick(item, ['valortotal', 'totalitem', 'valor_total'])) || qtd * unit;
