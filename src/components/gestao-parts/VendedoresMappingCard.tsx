@@ -205,14 +205,23 @@ export const VendedoresMappingCard = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-2 justify-end">
-          <Button variant="outline" size="sm" onClick={importFromErp} disabled={importing}>
+        <div className="flex flex-wrap gap-2 justify-end items-center">
+          {dirtyCount > 0 && (
+            <span className="text-xs text-muted-foreground mr-auto">
+              {dirtyCount} alteração(ões) não salva(s)
+            </span>
+          )}
+          <Button variant="outline" size="sm" onClick={importFromErp} disabled={importing || saving}>
             {importing ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
               <DownloadCloud className="h-4 w-4 mr-2" />
             )}
             Importar do ERP
+          </Button>
+          <Button size="sm" onClick={saveAll} disabled={dirtyCount === 0 || saving}>
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            Salvar
           </Button>
         </div>
 
