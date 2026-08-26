@@ -18,6 +18,9 @@ export type GestaoPartsAction =
   | 'peca_veiculo_placa'
   | 'list_pedidos'
   | 'get_pedido'
+  | 'list_orcamentos'
+  | 'get_orcamento'
+
   | 'get_pedido_status'
   | 'pedidos_cpf'
   | 'contas_receber'
