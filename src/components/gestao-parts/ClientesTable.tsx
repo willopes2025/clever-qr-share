@@ -330,6 +330,19 @@ export const ClientesTable = ({ rows, emptyMessage = "Nenhum cliente retornado",
           </SheetHeader>
 
           {selected && (
+            <div className="mt-3">
+              <AbrirChatButton
+                phone={telefone(selected)}
+                name={nomeCliente(selected)}
+                email={emailCliente(selected)}
+                extraFields={{
+                  erp_codigo: text(pick(selected, ["codigo", "codpessoa", "codcliente"])),
+                }}
+              />
+            </div>
+          )}
+
+          {selected && (
             <div className="space-y-4 mt-4 text-sm">
               {loadingDetail ? (
                 <div className="space-y-2">
