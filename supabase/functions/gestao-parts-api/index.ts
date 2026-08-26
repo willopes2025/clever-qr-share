@@ -1010,6 +1010,54 @@ Deno.serve(async (req: Request) => {
         break;
       }
 
+      // ------- Nota fiscal (DANFE / XML) -------
+      // O ERP não documenta a rota do DANFE; testamos os caminhos conhecidos e
+      // devolvemos o primeiro que responder com conteúdo utilizável.
+      case 'nfe_documento': {
+        const chave = onlyDigits(params.chave);
+        if (chave.length !== 44) throw new GpError(400, 'Chave da NF-e inválida (44 dígitos).');
+        const formato = String(params.formato || 'pdf').toLowerCase() === 'xml' ? 'xml' : 'pdf';
+
+        const candidates = formato === 'pdf'
+          ? [
+            `/erpssplus/nfe/danfe/${chave}`,
+            `/erpssplus/nfe/${chave}/danfe`,
+            `/erpssplus/danfe/${chave}`,
+            `/erpssplus/notafiscal/danfe/${chave}`,
+          ]
+          : [
+            `/erpssplus/nfe/xml/${chave}`,
+            `/erpssplus/nfe/${chave}/xml`,
+            `/erpssplus/notafiscal/xml/${chave}`,
+          ];
+
+        const token = await getToken(endpoint, username, password);
+        const attempts: Array<{ path: string; status: number }> = [];
+        let found: { path: string; content: string; kind: string } | null = null;
+
+        for (const path of candidates) {
+          const res = await rawRequest(endpoint, 'GET', path, {
+            headers: { Authorization: `Bearer ${token}`, Accept: '*/*' },
+          }).catch(() => ({ status: 0, body: '' }));
+          attempts.push({ path, status: res.status });
+          if (res.status >= 200 && res.status < 300 && res.body && res.body.length > 100) {
+            const body = res.body.trim();
+            if (formato === 'pdf' && body.startsWith('%PDF')) {
+              found = { path, content: btoa(String.fromCharCode(...new TextEncoder().encode(res.body))), kind: 'pdf_base64' };
+              break;
+            }
+            const b64 = body.match(/"([A-Za-z0-9+/=]{500,})"/)?.[1];
+            if (b64) { found = { path, content: b64, kind: `${formato}_base64` }; break; }
+            if (formato === 'xml' && body.includes('<')) { found = { path, content: body, kind: 'xml' }; break; }
+          }
+        }
+
+        result = found
+          ? { available: true, ...found }
+          : { available: false, attempts, message: 'O ERP não expôs uma rota de DANFE/XML para esta chave. Use a consulta no portal da SEFAZ.' };
+        break;
+      }
+
 
       default:
         return new Response(JSON.stringify({ error: `Ação desconhecida: ${action}` }), {

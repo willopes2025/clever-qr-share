@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, Code2, Loader2 } from "lucide-react";
 import { ResultSearch } from "./ResultSearch";
 import { AbrirChatButton, bestPhone } from "./AbrirChatButton";
+import { NotaFiscalBlock } from "./NotaFiscalBlock";
 import { cn } from "@/lib/utils";
 import { brDate, filterRecords, money, num, pick, text, toRecords } from "./utils";
 
@@ -88,8 +89,12 @@ const pedidoVendedor = (row: PedidoRow): string => {
   ]) ?? "").trim();
 };
 
-/** Classifica o status do pedido para destaque visual */
-type StatusKind = "cancelado" | "parcial" | "faturado" | "outro";
+/**
+ * O campo "status" do feed do ERP é o status de SEPARAÇÃO
+ * (AGUARDANDO SEPARAÇÃO / SEPARADO / CONFERIDO), não o status comercial.
+ * A situação comercial é deduzida da NF-e e do status de cada item.
+ */
+type StatusKind = "cancelado" | "parcial" | "faturado" | "atendido" | "andamento" | "outro";
 
 const normalize = (v: unknown) =>
   String(v ?? "")
@@ -106,56 +111,76 @@ export const itemCancelado = (item: Record<string, unknown>): boolean => {
   return s.includes("CANCEL");
 };
 
+/** Item totalmente atendido (ITA) */
+const itemAtendido = (item: Record<string, unknown>): boolean =>
+  normalize(pick(item, ["statusitempedido", "status"])).includes("ATENDIDO");
+
+/** Status de separação, exatamente como o ERP devolve */
+const pedidoSeparacao = (row: PedidoRow): string =>
+  String(pick(row as Record<string, unknown>, ["status", "statusseparacao"]) ?? "").trim();
+
+const temNfe = (row: PedidoRow): boolean =>
+  Boolean(String(row.nfe_numero ?? "").trim() || String(row.nfe_chave ?? "").trim());
+
+/** Situação comercial do pedido */
 const statusKind = (row: PedidoRow): StatusKind => {
   const record = row as Record<string, unknown>;
   const flag = record.cancelado;
   if (flag === true || normalize(flag) === "S" || normalize(flag) === "SIM") return "cancelado";
   if (String(record.dtcancelamento ?? record.datacancelamento ?? "").trim()) return "cancelado";
+  if (normalize(pedidoStatus(row)).includes("CANCEL")) return "cancelado";
 
-  const s = normalize(pedidoStatus(row));
-  if (s.includes("CANCEL")) return "cancelado";
-
-  // Sem status no cabeçalho: deduzimos pelos itens
   const itens = toRecords(record.itens, ["itens"]);
   if (itens.length) {
     const cancelados = itens.filter(itemCancelado).length;
     if (cancelados === itens.length) return "cancelado";
     if (cancelados > 0) return "parcial";
+    if (temNfe(row)) return "faturado";
+    if (itens.every(itemAtendido)) return "atendido";
+    return "andamento";
   }
 
-  if (s.includes("FATURAD") || s.includes("CONCLU") || s.includes("ENTREGUE")) return "faturado";
+  if (temNfe(row)) return "faturado";
   return "outro";
 };
 
-/** Texto exibido na etiqueta de status */
-const statusLabel = (row: PedidoRow): string => {
-  const kind = statusKind(row);
-  if (kind === "cancelado") return "CANCELADO";
-  if (kind === "parcial") return "PARCIALMENTE CANCELADO";
-  return pedidoStatus(row);
+const SITUACAO_LABEL: Record<StatusKind, string> = {
+  cancelado: "CANCELADO",
+  parcial: "PARCIALMENTE CANCELADO",
+  faturado: "FATURADO",
+  atendido: "ATENDIDO",
+  andamento: "EM ANDAMENTO",
+  outro: "—",
 };
 
+/** Texto exibido na etiqueta de situação */
+const statusLabel = (row: PedidoRow): string => SITUACAO_LABEL[statusKind(row)];
 
-type CancelFilter = "todos" | "somente" | "ocultar";
+
+type SituacaoFilter = "todos" | StatusKind;
 
 export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", raw }: PedidosTableProps) => {
   const [showRaw, setShowRaw] = useState(false);
   const [query, setQuery] = useState("");
-  const [cancelFilter, setCancelFilter] = useState<CancelFilter>("todos");
+  const [situacaoFilter, setSituacaoFilter] = useState<SituacaoFilter>("todos");
   const [selected, setSelected] = useState<PedidoRow | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   const filtered = useMemo(() => {
     const base = filterRecords(rows, query) as PedidoRow[];
-    if (cancelFilter === "todos") return base;
-    const temCancelamento = (r: PedidoRow) => ["cancelado", "parcial"].includes(statusKind(r));
-    return base.filter((r) => (cancelFilter === "somente" ? temCancelamento(r) : !temCancelamento(r)));
-  }, [rows, query, cancelFilter]);
+    if (situacaoFilter === "todos") return base;
+    return base.filter((r) => statusKind(r) === situacaoFilter);
+  }, [rows, query, situacaoFilter]);
 
-  const canceladosCount = useMemo(
-    () => rows.filter((r) => ["cancelado", "parcial"].includes(statusKind(r))).length,
-    [rows],
-  );
+  /** Contagem por situação, para montar apenas os filtros que existem na lista */
+  const situacaoCounts = useMemo(() => {
+    const counts = {} as Record<StatusKind, number>;
+    rows.forEach((r) => {
+      const k = statusKind(r);
+      counts[k] = (counts[k] ?? 0) + 1;
+    });
+    return counts;
+  }, [rows]);
 
 
   const openDetail = (row: PedidoRow) => {
@@ -190,25 +215,29 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
             label="pedido(s)"
           />
         </div>
-        {canceladosCount > 0 && (
-          <div className="flex items-center gap-1">
-            {([
-              ["todos", "Todos"],
-              ["somente", `Cancelados (${canceladosCount})`],
-              ["ocultar", "Ocultar cancelados"],
-            ] as [CancelFilter, string][]).map(([value, label]) => (
+        <div className="flex items-center gap-1 flex-wrap">
+          <Button
+            variant={situacaoFilter === "todos" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setSituacaoFilter("todos")}
+          >
+            Todos ({rows.length})
+          </Button>
+          {(["cancelado", "parcial", "faturado", "atendido", "andamento"] as StatusKind[])
+            .filter((k) => (situacaoCounts[k] ?? 0) > 0)
+            .map((k) => (
               <Button
-                key={value}
-                variant={cancelFilter === value ? "secondary" : "ghost"}
+                key={k}
+                variant={situacaoFilter === k ? "secondary" : "ghost"}
                 size="sm"
                 className="h-7 text-xs"
-                onClick={() => setCancelFilter(value)}
+                onClick={() => setSituacaoFilter(k)}
               >
-                {label}
+                {SITUACAO_LABEL[k]} ({situacaoCounts[k]})
               </Button>
             ))}
-          </div>
-        )}
+        </div>
         {raw !== undefined && (
           <Button variant="ghost" size="sm" onClick={() => setShowRaw((v) => !v)}>
             <Code2 className="h-3.5 w-3.5 mr-1.5" />
@@ -236,7 +265,9 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                 <TableHead>Cliente</TableHead>
                 <TableHead className="whitespace-nowrap">Vendedor</TableHead>
 
-                <TableHead className="whitespace-nowrap">Status</TableHead>
+                <TableHead className="whitespace-nowrap">Situação</TableHead>
+                <TableHead className="whitespace-nowrap">Separação</TableHead>
+                <TableHead className="whitespace-nowrap">NF-e</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Total</TableHead>
               </TableRow>
             </TableHeader>
@@ -273,22 +304,35 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                     {pedidoVendedor(row) || <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
-                    {statusLabel(row) ? (
+                    {kind === "outro" ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
                       <Badge
-                        variant={cancelado || kind === "parcial" ? "destructive" : "secondary"}
+                        variant={destaque ? "destructive" : "secondary"}
                         className={cn(
                           "font-normal gap-1",
                           kind === "parcial" && "bg-destructive/20 text-destructive hover:bg-destructive/25",
                           kind === "faturado" && "bg-primary/15 text-primary hover:bg-primary/20",
                         )}
                       >
-                        {(cancelado || kind === "parcial") && <AlertTriangle className="h-3 w-3" />}
+                        {destaque && <AlertTriangle className="h-3 w-3" />}
                         {statusLabel(row)}
                       </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">Sem status</span>
                     )}
                   </TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">
+                    {pedidoSeparacao(row) ? (
+                      <Badge variant="outline" className="font-normal">
+                        {pedidoSeparacao(row)}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">
+                    {text(row.nfe_numero) || (String(row.nfe_chave ?? "").trim() ? "Sim" : <span className="text-muted-foreground">—</span>)}
+                  </TableCell>
+
 
 
                   <TableCell
@@ -366,20 +410,20 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
 
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Data / hora" value={`${brDate(selected.dtemis)} ${text(selected.hremis)}`} />
-                    <Field label="Status" value={statusLabel(selected) || "—"} />
+                    <Field label="Situação" value={statusLabel(selected)} />
+                    <Field label="Separação" value={pedidoSeparacao(selected) || "—"} />
                     <Field label="Empresa" value={text(selected.empresa)} />
                     <Field label="Série" value={text(selected.serie)} />
                     <Field label="Cliente" value={text(selected.despessoa)} />
                     <Field label="Cód. cliente" value={text(selected.codpessoa)} />
                     <Field label="Vendedor" value={pedidoVendedor(selected) || "—"} />
-
-                    {(selected.nfe_numero || selected.nfe_chave) && (
-                      <>
-                        <Field label="NF-e" value={`${text(selected.nfe_numero)} / ${text(selected.nfe_serie)}`} />
-                        <Field label="Chave NF-e" value={text(selected.nfe_chave)} />
-                      </>
-                    )}
                   </div>
+
+                  {/* Nota fiscal */}
+                  {(selected.nfe_numero || selected.nfe_chave) && (
+                    <NotaFiscalBlock pedido={selected} />
+                  )}
+
 
                   {/* Contato */}
                   {selected.fones && Object.values(selected.fones).some((v) => String(v ?? "").trim()) && (
