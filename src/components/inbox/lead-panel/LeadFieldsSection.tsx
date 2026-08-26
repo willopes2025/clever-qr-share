@@ -46,6 +46,7 @@ export const LeadFieldsSection = ({ deal, activeTabId, conversationId, assignedT
   const { leadFieldDefinitions, updateDealCustomFields } = useCustomFields();
   const { tabs } = useLeadPanelTabs();
   const { assignConversation } = useLeadDistribution();
+  const { hasGestaoParts } = useGestaoParts();
   const queryClient = useQueryClient();
 
   // Filter fields based on active tab's field_keys

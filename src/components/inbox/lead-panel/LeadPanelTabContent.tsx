@@ -34,6 +34,7 @@ interface LeadPanelTabContentProps {
 }
 
 export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabContentProps) => {
+  const { hasGestaoParts } = useGestaoParts();
   const { fieldDefinitions, updateContactCustomFields } = useCustomFields();
   const { tabs } = useLeadPanelTabs();
   const { assignConversation } = useLeadDistribution();
