@@ -315,6 +315,16 @@ function toBloco(v: unknown): number {
 
 const PEDIDO_TIPOS = ['ORCAMENTO', 'CONDICIONAL', 'PRE-VENDA', 'E-COMMERCE'];
 
+/** O ERP usa nomes diferentes para o vendedor conforme a rota */
+function vendedorNome(row: Record<string, unknown>): string {
+  for (const key of ['desvendedor', 'vendedor', 'nomevendedor', 'vendedornome', 'codvendedor']) {
+    const v = row[key];
+    if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
+  }
+  return '';
+}
+
+
 function normalizeTipos(v: unknown): string[] {
   const list = Array.isArray(v) ? v : String(v ?? '').split(',');
   const normalized = list
@@ -717,6 +727,91 @@ Deno.serve(async (req: Request) => {
         result = normalizePaged(raw, ['pedidos']);
         break;
       }
+
+      // ------- Orçamentos -------
+      // Lista orçamentos por período (agrega blocos) e anexa o status de envio salvo no banco
+      case 'list_orcamentos': {
+        const maxBlocos = Math.min(Math.max(Number(params.blocos ?? 10) || 10, 1), 30);
+        const startBloco = toBloco(params.bloco);
+        const items: Record<string, unknown>[] = [];
+        let totalblocos = 0;
+
+        for (let i = 0; i < maxBlocos; i++) {
+          const bloco = (startBloco - 1) * maxBlocos + i + 1;
+          const page = normalizePaged(
+            await gpCall(creds, 'GET', '/erpssplus/v3/pedido/feed', {
+              bloco,
+              tipopedido: ['ORCAMENTO'],
+              dtinicio: toIsoDate(params.dtinicio),
+              dtfinal: toIsoDate(params.dtfinal),
+              ...(params.empresa ? { empresa: Array.isArray(params.empresa) ? params.empresa : [String(params.empresa)] } : {}),
+            }),
+            ['pedidos'],
+          ) as { items: Record<string, unknown>[]; totalblocos: number };
+          totalblocos = page.totalblocos || totalblocos;
+          if (!page.items.length) break;
+          items.push(...page.items);
+          if (totalblocos && bloco >= totalblocos) break;
+        }
+
+        const vendedorFiltro = String(params.vendedor || '').trim().toLowerCase();
+        const filtered = vendedorFiltro
+          ? items.filter((row) => vendedorNome(row).toLowerCase().includes(vendedorFiltro))
+          : items;
+
+        const numeros = filtered.map((r) => String(r.numpedido ?? r.numero ?? '')).filter(Boolean);
+        const enviosMap = new Map<string, Record<string, unknown>>();
+        if (numeros.length) {
+          const { data: envios } = await supabaseAdmin
+            .from('gestao_parts_orcamento_envios')
+            .select('numero, empresa, status, sent_at, error_message, assigned_to, vendedor')
+            .in('numero', numeros.slice(0, 500));
+          for (const e of (envios || []) as Record<string, unknown>[]) {
+            enviosMap.set(`${String(e.empresa ?? '')}|${String(e.numero)}`, e);
+          }
+        }
+
+        result = {
+          items: filtered.map((row) => {
+            const numero = String(row.numpedido ?? row.numero ?? '');
+            const empresa = String(row.empresa ?? '');
+            const envio = enviosMap.get(`${empresa}|${numero}`) || enviosMap.get(`|${numero}`) || null;
+            return { ...row, vendedor: vendedorNome(row), envio };
+          }),
+          totalblocos: totalblocos ? Math.ceil(totalblocos / maxBlocos) : (filtered.length ? 1 : 0),
+          blocoatual: startBloco,
+          vendedores: Array.from(new Set(items.map((r) => vendedorNome(r)).filter(Boolean))).sort(),
+        };
+        break;
+      }
+
+      // Busca de um orçamento específico pelo número/requisição
+      case 'get_orcamento': {
+        const numero = String(params.numero || params.requisicao || '').trim();
+        if (!numero) throw new GpError(400, 'Informe o número do orçamento');
+        const raw = await gpCall(creds, 'GET', '/erpssplus/pedido/requisicao', { requisicao: numero });
+        const list = normalizePaged(raw, ['pedidos']) as { items: Record<string, unknown>[] };
+        const rows = list.items.length ? list.items : [];
+        const numeros = rows.map((r) => String(r.numpedido ?? r.numero ?? '')).filter(Boolean);
+        const { data: envios } = numeros.length
+          ? await supabaseAdmin
+            .from('gestao_parts_orcamento_envios')
+            .select('numero, empresa, status, sent_at, error_message')
+            .in('numero', numeros)
+          : { data: [] as Record<string, unknown>[] };
+        const enviosMap = new Map((envios || []).map((e: Record<string, unknown>) => [String(e.numero), e]));
+        result = {
+          items: rows.map((row) => ({
+            ...row,
+            vendedor: vendedorNome(row),
+            envio: enviosMap.get(String(row.numpedido ?? row.numero ?? '')) || null,
+          })),
+          totalblocos: 1,
+          blocoatual: 1,
+        };
+        break;
+      }
+
 
       // Consulta de status de um pedido específico (nº do pedido ou token)
       case 'get_pedido_status': {

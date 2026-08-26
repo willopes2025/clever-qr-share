@@ -5247,6 +5247,168 @@ export type Database = {
           },
         ]
       }
+      gestao_parts_orcamento_config: {
+        Row: {
+          activated_at: string | null
+          auto_send_enabled: boolean
+          batch_size: number
+          consecutive_failures: number
+          created_at: string
+          dry_run: boolean
+          id: number
+          last_run_at: string | null
+          last_run_summary: Json | null
+          lease_until: string | null
+          message_template: string | null
+          updated_at: string
+        }
+        Insert: {
+          activated_at?: string | null
+          auto_send_enabled?: boolean
+          batch_size?: number
+          consecutive_failures?: number
+          created_at?: string
+          dry_run?: boolean
+          id?: number
+          last_run_at?: string | null
+          last_run_summary?: Json | null
+          lease_until?: string | null
+          message_template?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activated_at?: string | null
+          auto_send_enabled?: boolean
+          batch_size?: number
+          consecutive_failures?: number
+          created_at?: string
+          dry_run?: boolean
+          id?: number
+          last_run_at?: string | null
+          last_run_summary?: Json | null
+          lease_until?: string | null
+          message_template?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      gestao_parts_orcamento_envios: {
+        Row: {
+          assigned_to: string | null
+          attempts: number
+          cliente_codigo: string | null
+          cliente_nome: string | null
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string
+          empresa: string
+          error_message: string | null
+          id: string
+          message_content: string | null
+          numero: string
+          orcamento_emitido_em: string | null
+          origin: string
+          sent_at: string | null
+          serie: string | null
+          status: string
+          telefone: string | null
+          total: number | null
+          updated_at: string
+          vendedor: string | null
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          attempts?: number
+          cliente_codigo?: string | null
+          cliente_nome?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          empresa?: string
+          error_message?: string | null
+          id?: string
+          message_content?: string | null
+          numero: string
+          orcamento_emitido_em?: string | null
+          origin?: string
+          sent_at?: string | null
+          serie?: string | null
+          status?: string
+          telefone?: string | null
+          total?: number | null
+          updated_at?: string
+          vendedor?: string | null
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          attempts?: number
+          cliente_codigo?: string | null
+          cliente_nome?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          empresa?: string
+          error_message?: string | null
+          id?: string
+          message_content?: string | null
+          numero?: string
+          orcamento_emitido_em?: string | null
+          origin?: string
+          sent_at?: string | null
+          serie?: string | null
+          status?: string
+          telefone?: string | null
+          total?: number | null
+          updated_at?: string
+          vendedor?: string | null
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gestao_parts_orcamento_envios_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gestao_parts_orcamento_envios_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gestao_parts_vendedores: {
+        Row: {
+          codvendedor: string | null
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          codvendedor?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          codvendedor?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       google_calendar_integrations: {
         Row: {
           access_token: string
@@ -7642,6 +7804,7 @@ export type Database = {
           status: string
           team_group_id: string | null
           user_id: string | null
+          wallet_only: boolean
         }
         Insert: {
           auto_correct_enabled?: boolean | null
@@ -7657,6 +7820,7 @@ export type Database = {
           status?: string
           team_group_id?: string | null
           user_id?: string | null
+          wallet_only?: boolean
         }
         Update: {
           auto_correct_enabled?: boolean | null
@@ -7672,6 +7836,7 @@ export type Database = {
           status?: string
           team_group_id?: string | null
           user_id?: string | null
+          wallet_only?: boolean
         }
         Relationships: [
           {
@@ -8892,15 +9057,26 @@ export type Database = {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
       }
-      can_access_conversation_channel: {
-        Args: {
-          _conversation_user_id: string
-          _instance_id: string
-          _meta_phone_number_id: string
-          _user_id: string
-        }
-        Returns: boolean
-      }
+      can_access_conversation_channel:
+        | {
+            Args: {
+              _conversation_user_id: string
+              _instance_id: string
+              _meta_phone_number_id: string
+              _user_id: string
+            }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              _assigned_to?: string
+              _conversation_user_id: string
+              _instance_id: string
+              _meta_phone_number_id: string
+              _user_id: string
+            }
+            Returns: boolean
+          }
       close_abandoned_sessions: { Args: never; Returns: number }
       delete_email: {
         Args: { message_id: number; queue_name: string }
@@ -9056,6 +9232,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: boolean
       }
+      member_is_wallet_only: { Args: { _user_id: string }; Returns: boolean }
       move_to_dlq: {
         Args: {
           dlq_name: string

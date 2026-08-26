@@ -22,6 +22,10 @@ import { PecasTable, PecaRow } from "@/components/gestao-parts/PecasTable";
 import { PedidosTable, PedidoRow } from "@/components/gestao-parts/PedidosTable";
 import { TitulosTable, TituloRow } from "@/components/gestao-parts/TitulosTable";
 import { ClientesTable, ClienteRow } from "@/components/gestao-parts/ClientesTable";
+import { OrcamentosTable, OrcamentoRow } from "@/components/gestao-parts/OrcamentosTable";
+import { OrcamentoAutoCard } from "@/components/gestao-parts/OrcamentoAutoCard";
+
+
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const daysAgoISO = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
@@ -105,6 +109,14 @@ const GestaoParts = () => {
   const [pedidoNumero, setPedidoNumero] = useState("");
   const [pedidoCpf, setPedidoCpf] = useState("");
 
+  // Orçamentos
+  const [orcInicio, setOrcInicio] = useState(daysAgoISO(7));
+  const [orcFim, setOrcFim] = useState(todayISO());
+  const [orcVendedor, setOrcVendedor] = useState("");
+  const [orcBloco, setOrcBloco] = useState(1);
+  const [orcNumero, setOrcNumero] = useState("");
+
+
   // Financeiro
   const [finCliente, setFinCliente] = useState("");
   const [finVencInicio, setFinVencInicio] = useState(daysAgoISO(30));
@@ -147,7 +159,26 @@ const GestaoParts = () => {
     });
   };
 
+  const ORC_BLOCOS = 10; // blocos do ERP agregados por página
+
+  const buscarOrcamentos = (bloco: number) => {
+    setOrcBloco(bloco);
+    run("orcamentos", "list_orcamentos", {
+      bloco,
+      blocos: ORC_BLOCOS,
+      dtinicio: orcInicio,
+      dtfinal: orcFim,
+      vendedor: orcVendedor,
+    });
+  };
+
+  const buscarOrcamentoPorId = () => {
+    if (!orcNumero.trim()) return;
+    run("orcamento-id", "get_orcamento", { numero: orcNumero.trim() });
+  };
+
   const buscarClientes = (bloco: number) => {
+
     setClientesBloco(bloco);
     run("clientes", "list_clientes", { bloco, situacao: "T" });
   };
@@ -273,6 +304,35 @@ const GestaoParts = () => {
     );
   };
 
+  /** Orçamentos: colunas próprias, status de envio e disparo manual */
+  const renderOrcamentos = (key: string, empty: string) => {
+    const data = results[key];
+    const rows = (isPaged(data) ? (data as GestaoPartsPaged).items : []) as OrcamentoRow[];
+    return (
+      <>
+        {errors[key] && (
+          <Alert variant="destructive" className="mb-3">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-xs break-all">{errors[key]}</AlertDescription>
+          </Alert>
+        )}
+        {data === undefined ? (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            Faça uma consulta para ver os resultados
+          </div>
+        ) : (
+          <OrcamentosTable
+            rows={rows}
+            emptyMessage={empty}
+            onSent={() => (key === "orcamento-id" ? buscarOrcamentoPorId() : buscarOrcamentos(orcBloco))}
+          />
+        )}
+      </>
+    );
+  };
+
+
+
 
 
 
@@ -393,7 +453,9 @@ const GestaoParts = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
+            <TabsTrigger value="orcamentos">Orçamentos</TabsTrigger>
             <TabsTrigger value="clientes">Clientes</TabsTrigger>
+
             <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
             <TabsTrigger value="pecas">Peças</TabsTrigger>
           </TabsList>
@@ -484,6 +546,73 @@ const GestaoParts = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* -------------------- ORÇAMENTOS -------------------- */}
+          <TabsContent value="orcamentos" className="space-y-4">
+            <OrcamentoAutoCard />
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Buscar orçamento por ID</CardTitle>
+                <CardDescription>Cole o número/código do orçamento gerado no ERP</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                  <div className="space-y-1.5 flex-1">
+                    <Label>Número do orçamento</Label>
+                    <Input
+                      value={orcNumero}
+                      onChange={(e) => setOrcNumero(e.target.value)}
+                      placeholder="Ex: 770851"
+                      onKeyDown={(e) => e.key === "Enter" && buscarOrcamentoPorId()}
+                    />
+                  </div>
+                  <Button onClick={buscarOrcamentoPorId} disabled={busy("orcamento-id") || !orcNumero.trim()}>
+                    {busy("orcamento-id") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                    Buscar
+                  </Button>
+                </div>
+                {renderOrcamentos("orcamento-id", "Orçamento não encontrado")}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Orçamentos por vendedor e período</CardTitle>
+                <CardDescription>
+                  Clique em uma linha para ver os detalhes e enviar o orçamento ao cliente
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-4 sm:items-end">
+                  <div className="space-y-1.5">
+                    <Label>Vendedor</Label>
+                    <Input
+                      value={orcVendedor}
+                      onChange={(e) => setOrcVendedor(e.target.value)}
+                      placeholder="Nome ou código"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Início</Label>
+                    <Input type="date" value={orcInicio} onChange={(e) => setOrcInicio(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Fim</Label>
+                    <Input type="date" value={orcFim} onChange={(e) => setOrcFim(e.target.value)} />
+                  </div>
+                  <Button onClick={() => buscarOrcamentos(1)} disabled={busy("orcamentos")}>
+                    {busy("orcamentos") ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                    Buscar
+                  </Button>
+                </div>
+
+                {renderOrcamentos("orcamentos", "Nenhum orçamento no período")}
+                {renderPagination("orcamentos", orcBloco, buscarOrcamentos)}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
 
           {/* -------------------- CLIENTES -------------------- */}
           <TabsContent value="clientes" className="space-y-4">

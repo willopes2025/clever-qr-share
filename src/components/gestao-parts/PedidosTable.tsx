@@ -60,6 +60,16 @@ const pedidoStatus = (row: PedidoRow): string => {
   // Pedido já faturado: a NF-e emitida é o melhor indicativo disponível
   return row.nfe_numero ? "FATURADO" : "";
 };
+/** O nome do vendedor muda de campo conforme a rota do ERP */
+const pedidoVendedor = (row: PedidoRow): string =>
+  String(pick(row as Record<string, unknown>, [
+    "desvendedor",
+    "vendedor",
+    "nomevendedor",
+    "vendedornome",
+    "codvendedor",
+  ]) ?? "").trim();
+
 
 
 export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", raw }: PedidosTableProps) => {
@@ -123,6 +133,8 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                 <TableHead className="whitespace-nowrap">Data</TableHead>
                 <TableHead className="whitespace-nowrap">Tipo</TableHead>
                 <TableHead>Cliente</TableHead>
+                <TableHead className="whitespace-nowrap">Vendedor</TableHead>
+
                 <TableHead className="whitespace-nowrap">Status</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Total</TableHead>
               </TableRow>
@@ -142,6 +154,10 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                   <TableCell className="text-xs whitespace-nowrap">{text(row.tipo)}</TableCell>
                   <TableCell className="text-xs min-w-[220px]">{text(row.despessoa)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
+                    {pedidoVendedor(row) || <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">
+
                     {pedidoStatus(row) ? (
                       <Badge variant="secondary" className="font-normal">{pedidoStatus(row)}</Badge>
                     ) : (
@@ -198,6 +214,8 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                     <Field label="Série" value={text(selected.serie)} />
                     <Field label="Cliente" value={text(selected.despessoa)} />
                     <Field label="Cód. cliente" value={text(selected.codpessoa)} />
+                    <Field label="Vendedor" value={pedidoVendedor(selected) || "—"} />
+
                     {(selected.nfe_numero || selected.nfe_chave) && (
                       <>
                         <Field label="NF-e" value={`${text(selected.nfe_numero)} / ${text(selected.nfe_serie)}`} />
