@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useFunnels } from "@/hooks/useFunnels";
 import { ResultSearch } from "./ResultSearch";
+import { AbrirChatButton } from "./AbrirChatButton";
 import { brDate, filterRecords, money, num, pick, text } from "./utils";
 import { toTitleCase } from "@/lib/utils";
 
