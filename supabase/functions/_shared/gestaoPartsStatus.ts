@@ -293,19 +293,16 @@ export async function applyStatus(
     return { moved: true, stage: stageName };
   }
 
-  // Dispara as automações da etapa somente após ativação explícita.
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  await fetch(`${supabaseUrl}/functions/v1/process-funnel-automations`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
-    body: JSON.stringify({
-      dealId,
-      fromStageId: deal.stage_id,
-      toStageId: target.id,
-      triggerType: 'on_stage_enter',
-    }),
-  }).catch((e) => console.error('[GP-STATUS] automations error', (e as Error).message));
+  // Envio nunca é imediato: entra na fila com espaçamento aleatório entre
+  // 3 e 6 minutos e chave de idempotência (1 mensagem por lead + etapa).
+  await enqueueStatusMessage(admin, {
+    dealId,
+    contactId,
+    fromStageId: deal.stage_id as string | null,
+    stageId: target.id,
+    statusText,
+  });
 
   return { moved: true, stage: stageName };
+
 }
