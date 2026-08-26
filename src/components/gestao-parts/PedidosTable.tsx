@@ -60,15 +60,31 @@ const pedidoStatus = (row: PedidoRow): string => {
   // Pedido já faturado: a NF-e emitida é o melhor indicativo disponível
   return row.nfe_numero ? "FATURADO" : "";
 };
-/** O nome do vendedor muda de campo conforme a rota do ERP */
-const pedidoVendedor = (row: PedidoRow): string =>
-  String(pick(row as Record<string, unknown>, [
+/** O nome do vendedor muda de campo/estrutura conforme a rota do ERP */
+const pedidoVendedor = (row: PedidoRow): string => {
+  const record = row as Record<string, unknown>;
+
+  // Rotas novas devolvem arrays/objetos aninhados (vendedorpedido, etc.)
+  for (const key of ["vendedorpedido", "vendedorfaturamento", "vendedorcomissionado"]) {
+    const value = record[key];
+    const list = Array.isArray(value) ? value : value && typeof value === "object" ? [value] : [];
+    for (const entry of list) {
+      const o = entry as Record<string, unknown>;
+      const nome = o?.nome ?? o?.descricao ?? o?.desvendedor ?? o?.nomevendedor;
+      if (typeof nome === "string" && nome.trim()) return nome.trim();
+    }
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+
+  return String(pick(record, [
     "desvendedor",
     "vendedor",
     "nomevendedor",
     "vendedornome",
     "codvendedor",
   ]) ?? "").trim();
+};
+
 
 
 
