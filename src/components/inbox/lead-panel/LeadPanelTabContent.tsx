@@ -289,7 +289,7 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
             onChange={(memberId) => {
               assignConversation.mutate({
                 conversationId: conversation.id,
-                memberId: memberId || '',
+                memberId: memberId,
               });
             }}
             compact
