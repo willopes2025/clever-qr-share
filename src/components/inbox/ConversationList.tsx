@@ -544,18 +544,20 @@ export const ConversationList = ({
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="unassigned" className="text-xs gap-1.5 relative">
-              <UserPlus className="h-3.5 w-3.5" />
-              Sem dono
-              {unassignedCount > 0 && (
-                <Badge
-                  variant="secondary"
-                  className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px]"
-                >
-                  {unassignedCount}
-                </Badge>
-              )}
-            </TabsTrigger>
+            {hasGestaoParts && (
+              <TabsTrigger value="unassigned" className="text-xs gap-1.5 relative">
+                <UserPlus className="h-3.5 w-3.5" />
+                Sem dono
+                {unassignedCount > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px]"
+                  >
+                    {unassignedCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="archived" className="text-xs gap-1.5">
               <Archive className="h-3.5 w-3.5" />
               Arquivadas
