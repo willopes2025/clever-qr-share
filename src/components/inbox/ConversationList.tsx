@@ -28,6 +28,7 @@ import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { ProviderBadge } from "./ProviderBadge";
 import { useMetaNumbersMap } from "@/hooks/useMetaNumbersMap";
 import { formatMessageTimeBR } from "@/lib/date-utils";
+import { useGestaoParts } from "@/hooks/useGestaoParts";
 
 type ConversationContact = NonNullable<Conversation["contact"]> & {
   contact_display_id?: string | number | null;
@@ -106,6 +107,8 @@ export const ConversationList = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  // Recursos de "responsável / sem dono" são exclusivos do cliente Martins (Gestão Parts)
+  const { hasGestaoParts } = useGestaoParts();
   const [filters, setFilters] = useState<ConversationFilters>({
     instanceIds: [],
     tagIds: [],
@@ -524,7 +527,7 @@ export const ConversationList = ({
         {/* Filters */}
         <ConversationFiltersComponent filters={filters} onFiltersChange={setFilters} />
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FilterTab)}>
-          <TabsList className="grid w-full grid-cols-4 h-9">
+          <TabsList className={cn("grid w-full h-9", hasGestaoParts ? "grid-cols-4" : "grid-cols-3")}>
             <TabsTrigger value="all" className="text-xs gap-1.5">
               <Inbox className="h-3.5 w-3.5" />
               Todas
@@ -541,18 +544,20 @@ export const ConversationList = ({
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="unassigned" className="text-xs gap-1.5 relative">
-              <UserPlus className="h-3.5 w-3.5" />
-              Sem dono
-              {unassignedCount > 0 && (
-                <Badge
-                  variant="secondary"
-                  className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px]"
-                >
-                  {unassignedCount}
-                </Badge>
-              )}
-            </TabsTrigger>
+            {hasGestaoParts && (
+              <TabsTrigger value="unassigned" className="text-xs gap-1.5 relative">
+                <UserPlus className="h-3.5 w-3.5" />
+                Sem dono
+                {unassignedCount > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px]"
+                  >
+                    {unassignedCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="archived" className="text-xs gap-1.5">
               <Archive className="h-3.5 w-3.5" />
               Arquivadas
@@ -697,8 +702,8 @@ export const ConversationList = ({
                     </div>
                     {/* Assigned + SLA Badges */}
                     <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                      {/* Assigned To Badge */}
-                      {conversation.assigned_to ? (
+                      {/* Assigned To Badge (exclusivo Martins / Gestão Parts) */}
+                      {hasGestaoParts && (conversation.assigned_to ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Badge variant="secondary" className="h-4 px-1.5 text-[9px] gap-0.5">
@@ -734,7 +739,7 @@ export const ConversationList = ({
                             </Button>
                           )}
                         </>
-                      )}
+                      ))}
                       {/* SLA Warning Badge */}
                       {(() => {
                         const slaStatus = getSLAStatus(conversation);

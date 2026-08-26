@@ -24,6 +24,7 @@ import { useCustomFields, CustomFieldDefinition, FieldType, EntityType } from "@
 import { useLeadPanelTabs } from "@/hooks/useLeadPanelTabs";
 import { CustomFieldsManager } from "../CustomFieldsManager";
 import { AssigneeSelector } from "@/components/calendar/AssigneeSelector";
+import { useGestaoParts } from "@/hooks/useGestaoParts";
 import { useLeadDistribution } from "@/hooks/useLeadDistribution";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -45,6 +46,7 @@ export const LeadFieldsSection = ({ deal, activeTabId, conversationId, assignedT
   const { leadFieldDefinitions, updateDealCustomFields } = useCustomFields();
   const { tabs } = useLeadPanelTabs();
   const { assignConversation } = useLeadDistribution();
+  const { hasGestaoParts } = useGestaoParts();
   const queryClient = useQueryClient();
 
   // Filter fields based on active tab's field_keys
@@ -461,8 +463,8 @@ export const LeadFieldsSection = ({ deal, activeTabId, conversationId, assignedT
         <CustomFieldsManager />
       </div>
 
-      {/* Responsável pelo lead */}
-      {conversationId && (
+      {/* Responsável pelo lead (exclusivo Martins / Gestão Parts) */}
+      {hasGestaoParts && conversationId && (
         <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
           <span className="text-xs font-medium text-foreground/70 shrink-0">Responsável</span>
           <div className="flex justify-end min-w-0">
