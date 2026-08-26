@@ -5,9 +5,11 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Code2, Loader2 } from "lucide-react";
+import { AlertTriangle, Code2, Loader2 } from "lucide-react";
 import { ResultSearch } from "./ResultSearch";
+import { cn } from "@/lib/utils";
 import { brDate, filterRecords, money, num, pick, text, toRecords } from "./utils";
+
 
 export interface PedidoRow {
   numpedido?: string;
