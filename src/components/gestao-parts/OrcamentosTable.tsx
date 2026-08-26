@@ -5,6 +5,8 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Check, Clock, Loader2, Send, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -76,23 +78,47 @@ export const OrcamentosTable = ({ rows, emptyMessage = "Nenhum orçamento encont
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<OrcamentoRow | null>(null);
   const [sending, setSending] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [draftPhone, setDraftPhone] = useState("");
 
   const filtered = useMemo(() => filterRecords(rows, query), [rows, query]);
   const itens = toRecords(selected?.itens, ["itens"]);
   const totalItens = itens.reduce((s, i) => s + (itemTotal(i) ?? 0), 0);
   const jaEnviado = selected?.envio?.status === "sent";
 
-  const enviar = async () => {
+  const revisar = async () => {
     if (!selected?.numpedido) return;
+    setPreparing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("gestao-parts-orcamentos-send", {
+        body: { numero: String(selected.numpedido), row: selected, preview: true },
+      });
+      if (error) throw error;
+      if (!data?.text) throw new Error(data?.error || "Não foi possível montar a mensagem");
+      setDraft(data.text);
+      setDraftPhone(data.telefone || "");
+      setReviewOpen(true);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setPreparing(false);
+    }
+  };
+
+  const enviar = async () => {
+    if (!selected?.numpedido || !draft.trim()) return;
     setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("gestao-parts-orcamentos-send", {
-        body: { numero: String(selected.numpedido), row: selected, force: jaEnviado },
+        body: { numero: String(selected.numpedido), row: selected, force: jaEnviado, text: draft },
       });
       if (error) throw error;
       if (data?.status === "sent") {
         toast.success(`Orçamento ${selected.numpedido} enviado ao cliente`);
         setSelected({ ...selected, envio: { status: "sent", sent_at: new Date().toISOString() } });
+        setReviewOpen(false);
         onSent?.();
       } else if (data?.status === "skipped") {
         toast.info(data.reason || "Envio ignorado");
@@ -226,9 +252,9 @@ export const OrcamentosTable = ({ rows, emptyMessage = "Nenhum orçamento encont
                 </div>
               </div>
 
-              <Button className="w-full" onClick={enviar} disabled={sending}>
-                {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-                {jaEnviado ? "Reenviar orçamento" : "Enviar orçamento"}
+              <Button className="w-full" onClick={revisar} disabled={preparing}>
+                {preparing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                {jaEnviado ? "Revisar e reenviar" : "Revisar e enviar"}
               </Button>
               {jaEnviado && (
                 <p className="text-[11px] text-muted-foreground text-center">
@@ -239,6 +265,33 @@ export const OrcamentosTable = ({ rows, emptyMessage = "Nenhum orçamento encont
           )}
         </SheetContent>
       </Sheet>
+
+      <Dialog open={reviewOpen} onOpenChange={(o) => !o && setReviewOpen(false)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base">Revisar mensagem</DialogTitle>
+            <DialogDescription>
+              Leia e ajuste o texto antes de aprovar o envio
+              {draftPhone ? ` para ${draftPhone}` : ""}.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            rows={14}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="text-xs font-mono"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewOpen(false)} disabled={sending}>
+              Cancelar
+            </Button>
+            <Button onClick={enviar} disabled={sending || !draft.trim()}>
+              {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+              Aprovar e enviar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

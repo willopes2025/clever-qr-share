@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Cog, Search, Loader2, AlertCircle, ChevronLeft, ChevronRight, PlugZap, RefreshCw } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Cog, Settings, Search, Loader2, AlertCircle, ChevronLeft, ChevronRight, PlugZap, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -44,6 +45,7 @@ const GestaoParts = () => {
   const { hasGestaoParts, isLoading: isLoadingStatus, call } = useGestaoParts();
   const [activeTab, setActiveTab] = useState("pedidos");
 
+  const [orcConfigOpen, setOrcConfigOpen] = useState(false);
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string | null>>({});
@@ -549,7 +551,21 @@ const GestaoParts = () => {
 
           {/* -------------------- ORÇAMENTOS -------------------- */}
           <TabsContent value="orcamentos" className="space-y-4">
-            <OrcamentoAutoCard />
+            <div className="flex justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setOrcConfigOpen(true)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Configurações de envio
+              </Button>
+            </div>
+
+            <Dialog open={orcConfigOpen} onOpenChange={setOrcConfigOpen}>
+              <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-base">Configurações de envio de orçamentos</DialogTitle>
+                </DialogHeader>
+                <OrcamentoAutoCard />
+              </DialogContent>
+            </Dialog>
 
             <Card>
               <CardHeader>

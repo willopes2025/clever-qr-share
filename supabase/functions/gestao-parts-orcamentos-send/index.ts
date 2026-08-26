@@ -2,7 +2,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { gpCall, normalizePaged } from "../_shared/gestaoPartsErp.ts";
 import { resolveCreds } from "../_shared/gestaoPartsStatus.ts";
-import { orcamentoNumero, resolveOwner, sendOrcamento, type Row } from "../_shared/gestaoPartsOrcamento.ts";
+import { buildMessage, extractPhone, orcamentoNumero, resolveOwner, sendOrcamento, type Row } from "../_shared/gestaoPartsOrcamento.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,11 +45,22 @@ Deno.serve(async (req: Request) => {
     const { data: config } = await admin
       .from('gestao_parts_orcamento_config').select('message_template').eq('id', 1).maybeSingle();
 
+    // Prévia: devolve o texto que seria enviado, para o vendedor revisar/editar
+    if (body.preview === true) {
+      return new Response(JSON.stringify({
+        status: 'preview',
+        numero,
+        telefone: extractPhone(row),
+        text: buildMessage(row, config?.message_template ?? null),
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     const ctx = await resolveOwner(admin);
     const result = await sendOrcamento(admin, row, {
       origin: 'manual',
       force: body.force === true,
       template: config?.message_template ?? null,
+      overrideText: typeof body.text === 'string' ? body.text : null,
       ctx,
     });
 
