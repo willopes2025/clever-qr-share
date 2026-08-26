@@ -22,6 +22,7 @@ import { formatDate as formatDateActive } from "@/lib/timezone";
 import { useCustomFields, CustomFieldDefinition } from "@/hooks/useCustomFields";
 import { useLeadPanelTabs } from "@/hooks/useLeadPanelTabs";
 import { AssigneeSelector } from "@/components/calendar/AssigneeSelector";
+import { useGestaoParts } from "@/hooks/useGestaoParts";
 import { useLeadDistribution } from "@/hooks/useLeadDistribution";
 import { Conversation } from "@/hooks/useConversations";
 import { CustomFieldsManager } from "../CustomFieldsManager";
