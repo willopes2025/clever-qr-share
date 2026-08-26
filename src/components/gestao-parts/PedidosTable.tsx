@@ -5,9 +5,11 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Code2, Loader2 } from "lucide-react";
+import { AlertTriangle, Code2, Loader2 } from "lucide-react";
 import { ResultSearch } from "./ResultSearch";
+import { cn } from "@/lib/utils";
 import { brDate, filterRecords, money, num, pick, text, toRecords } from "./utils";
+
 
 export interface PedidoRow {
   numpedido?: string;
@@ -85,16 +87,49 @@ const pedidoVendedor = (row: PedidoRow): string => {
   ]) ?? "").trim();
 };
 
+/** Classifica o status do pedido para destaque visual */
+type StatusKind = "cancelado" | "faturado" | "outro";
 
+const normalize = (v: unknown) =>
+  String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .trim();
 
+const statusKind = (row: PedidoRow): StatusKind => {
+  const record = row as Record<string, unknown>;
+  const flag = record.cancelado;
+  if (flag === true || normalize(flag) === "S" || normalize(flag) === "SIM") return "cancelado";
+  if (String(record.dtcancelamento ?? record.datacancelamento ?? "").trim()) return "cancelado";
+
+  const s = normalize(pedidoStatus(row));
+  if (s.includes("CANCEL")) return "cancelado";
+  if (s.includes("FATURAD") || s.includes("CONCLU") || s.includes("ENTREGUE")) return "faturado";
+  return "outro";
+};
+
+type CancelFilter = "todos" | "somente" | "ocultar";
 
 export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", raw }: PedidosTableProps) => {
   const [showRaw, setShowRaw] = useState(false);
   const [query, setQuery] = useState("");
+  const [cancelFilter, setCancelFilter] = useState<CancelFilter>("todos");
   const [selected, setSelected] = useState<PedidoRow | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const filtered = useMemo(() => filterRecords(rows, query), [rows, query]);
+  const filtered = useMemo(() => {
+    const base = filterRecords(rows, query) as PedidoRow[];
+    if (cancelFilter === "todos") return base;
+    return base.filter((r) =>
+      cancelFilter === "somente" ? statusKind(r) === "cancelado" : statusKind(r) !== "cancelado",
+    );
+  }, [rows, query, cancelFilter]);
+
+  const canceladosCount = useMemo(
+    () => rows.filter((r) => statusKind(r) === "cancelado").length,
+    [rows],
+  );
 
   const openDetail = (row: PedidoRow) => {
     setSelected(row);
@@ -110,6 +145,8 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
 
   const itens = toRecords(selected?.itens, ["itens"]);
   const totalItens = itens.reduce((s, i) => s + (itemTotal(i) ?? 0), 0);
+  const selectedCancelado = selected ? statusKind(selected) === "cancelado" : false;
+
 
   return (
     <div className="space-y-2">
@@ -124,6 +161,25 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
             label="pedido(s)"
           />
         </div>
+        {canceladosCount > 0 && (
+          <div className="flex items-center gap-1">
+            {([
+              ["todos", "Todos"],
+              ["somente", `Cancelados (${canceladosCount})`],
+              ["ocultar", "Ocultar cancelados"],
+            ] as [CancelFilter, string][]).map(([value, label]) => (
+              <Button
+                key={value}
+                variant={cancelFilter === value ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setCancelFilter(value)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        )}
         {raw !== undefined && (
           <Button variant="ghost" size="sm" onClick={() => setShowRaw((v) => !v)}>
             <Code2 className="h-3.5 w-3.5 mr-1.5" />
@@ -138,7 +194,7 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
         </ScrollArea>
       ) : filtered.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground text-sm">
-          Nenhum registro corresponde a "{query}"
+          Nenhum registro corresponde ao filtro atual
         </div>
       ) : (
         <ScrollArea className="h-[420px] rounded-md border">
@@ -156,13 +212,26 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((row, i) => (
+              {filtered.map((row, i) => {
+                const kind = statusKind(row);
+                const cancelado = kind === "cancelado";
+                return (
                 <TableRow
                   key={`${row.numpedido ?? i}-${i}`}
-                  className="cursor-pointer"
+                  className={cn(
+                    "cursor-pointer",
+                    cancelado && "bg-destructive/10 hover:bg-destructive/15",
+                  )}
                   onClick={() => openDetail(row)}
                 >
-                  <TableCell className="text-xs font-medium whitespace-nowrap">{text(row.numpedido)}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-xs font-medium whitespace-nowrap",
+                      cancelado && "line-through text-muted-foreground",
+                    )}
+                  >
+                    {text(row.numpedido)}
+                  </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
                     {brDate(row.dtemis)}
                     {row.hremis ? <span className="text-muted-foreground"> {String(row.hremis).slice(0, 5)}</span> : null}
@@ -173,18 +242,35 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
                     {pedidoVendedor(row) || <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">
-
                     {pedidoStatus(row) ? (
-                      <Badge variant="secondary" className="font-normal">{pedidoStatus(row)}</Badge>
+                      <Badge
+                        variant={cancelado ? "destructive" : "secondary"}
+                        className={cn(
+                          "font-normal gap-1",
+                          kind === "faturado" && "bg-primary/15 text-primary hover:bg-primary/20",
+                        )}
+                      >
+                        {cancelado && <AlertTriangle className="h-3 w-3" />}
+                        {pedidoStatus(row)}
+                      </Badge>
                     ) : (
                       <span className="text-muted-foreground">Sem status</span>
                     )}
                   </TableCell>
 
-                  <TableCell className="text-xs text-right whitespace-nowrap font-medium">{money(row.total)}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-xs text-right whitespace-nowrap font-medium",
+                      cancelado && "line-through text-muted-foreground font-normal",
+                    )}
+                  >
+                    {money(row.total)}
+                  </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
+
           </Table>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
@@ -200,6 +286,15 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
 
           {selected && (
             <div className="space-y-4 mt-4 text-sm">
+              {selectedCancelado && (
+                <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span className="text-xs font-medium">
+                    Pedido cancelado — não considerar como venda válida.
+                  </span>
+                </div>
+              )}
+
               {loadingDetail ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
