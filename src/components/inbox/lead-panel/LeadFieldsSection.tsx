@@ -23,6 +23,8 @@ import { parseAnyDateValue, isDateLikeFieldName, formatDateValue } from "@/lib/d
 import { useCustomFields, CustomFieldDefinition, FieldType, EntityType } from "@/hooks/useCustomFields";
 import { useLeadPanelTabs } from "@/hooks/useLeadPanelTabs";
 import { CustomFieldsManager } from "../CustomFieldsManager";
+import { AssigneeSelector } from "@/components/calendar/AssigneeSelector";
+import { useLeadDistribution } from "@/hooks/useLeadDistribution";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
