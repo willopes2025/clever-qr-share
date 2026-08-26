@@ -317,12 +317,23 @@ const PEDIDO_TIPOS = ['ORCAMENTO', 'CONDICIONAL', 'PRE-VENDA', 'E-COMMERCE'];
 
 /** O ERP usa nomes diferentes para o vendedor conforme a rota */
 function vendedorNome(row: Record<string, unknown>): string {
+  // Feed v3: arrays [{ codigo, nome }]
+  for (const key of ['vendedorpedido', 'vendedorfaturamento', 'vendedorcomissionado']) {
+    const arr = row[key];
+    if (Array.isArray(arr)) {
+      for (const entry of arr) {
+        const nome = (entry as Record<string, unknown> | null)?.['nome'];
+        if (nome && String(nome).trim()) return String(nome).trim();
+      }
+    }
+  }
   for (const key of ['desvendedor', 'vendedor', 'nomevendedor', 'vendedornome', 'codvendedor']) {
     const v = row[key];
     if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
   }
   return '';
 }
+
 
 
 function normalizeTipos(v: unknown): string[] {
