@@ -134,9 +134,15 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error('Error updating password:', updateError);
+      const msg = updateError.message || '';
+      const isWeak = /weak|easy to guess|pwned/i.test(msg);
       return new Response(
-        JSON.stringify({ error: 'Erro ao atualizar senha: ' + updateError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          error: isWeak
+            ? 'Senha muito fraca ou vazada em bases públicas. Escolha uma senha mais forte (evite sequências e palavras comuns; use letras, números e símbolos).'
+            : 'Erro ao atualizar senha: ' + msg,
+        }),
+        { status: isWeak ? 400 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
