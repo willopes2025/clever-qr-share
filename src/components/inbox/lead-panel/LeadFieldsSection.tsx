@@ -35,11 +35,14 @@ interface LeadFieldsSectionProps {
     custom_fields?: Record<string, any> | null;
   } | null;
   activeTabId?: string | null;
+  conversationId?: string;
+  assignedTo?: string | null;
 }
 
-export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps) => {
+export const LeadFieldsSection = ({ deal, activeTabId, conversationId, assignedTo }: LeadFieldsSectionProps) => {
   const { leadFieldDefinitions, updateDealCustomFields } = useCustomFields();
   const { tabs } = useLeadPanelTabs();
+  const { assignConversation } = useLeadDistribution();
   const queryClient = useQueryClient();
 
   // Filter fields based on active tab's field_keys
