@@ -395,6 +395,8 @@ export function useTeamMembers() {
     updateMember,
     removeMember,
     setMemberStatus,
+    setMemberWalletOnly,
+
     activateMember,
     resendInvite,
     resetPassword,
