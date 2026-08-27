@@ -285,6 +285,10 @@ export const ConversationList = ({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [claimingId, setClaimingId] = useState<string | null>(null);
+  // Exclusivo da conta contato@martinspecas.com.br (por enquanto)
+  const unassignedOnlyUnread =
+    (user?.email ?? "").toLowerCase() === "contato@martinspecas.com.br";
+
 
   // Assumir cliente: atribui a conversa ao usuário atual
   const handleClaim = async (conversationId: string) => {
@@ -384,7 +388,10 @@ export const ConversationList = ({
     if (activeTab === "unassigned") {
       if (conv.assigned_to) return false;
       if (conv.status === "archived") return false;
+      // Exclusivo da conta Martins: "Sem dono" mostra apenas não respondidas (não lidas)
+      if (unassignedOnlyUnread && conv.unread_count <= 0) return false;
     }
+
     if (activeTab === "all") {
       if (conv.status === "archived") return false;
     }
@@ -501,7 +508,9 @@ export const ConversationList = ({
   });
 
   const unreadCount = conversations.filter(c => c.unread_count > 0 && c.status !== "archived").length;
-  const unassignedCount = conversations.filter(c => !c.assigned_to && c.status !== "archived").length;
+  const unassignedCount = conversations.filter(
+    c => !c.assigned_to && c.status !== "archived" && (!unassignedOnlyUnread || c.unread_count > 0)
+  ).length;
 
   return (
     <div className="w-full border-r border-border flex flex-col h-full bg-card">
