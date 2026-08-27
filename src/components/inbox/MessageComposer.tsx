@@ -27,6 +27,7 @@ interface MessageComposerProps {
   onSlashNavigate: (direction: 1 | -1) => void;
   onSlashConfirm: () => void;
   onSlashEscape: () => void;
+  onPasteFiles?: (files: File[]) => void;
 }
 
 export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposerProps>(({
@@ -43,6 +44,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   onSlashNavigate,
   onSlashConfirm,
   onSlashEscape,
+  onPasteFiles,
 }, ref) => {
   const [value, setValue] = useState("");
   const valueRef = useRef("");
@@ -149,9 +151,17 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onPaste={(e) => {
+            if (!onPasteFiles) return;
+            const files = Array.from(e.clipboardData?.files ?? []);
+            if (files.length === 0) return;
+            e.preventDefault();
+            onPasteFiles(files);
+          }}
           className="w-full bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[36px] max-h-[100px] resize-none py-2 text-sm md:text-[15px] placeholder:text-muted-foreground"
           rows={1}
         />
+
       </div>
 
       <Tooltip>

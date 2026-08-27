@@ -36,6 +36,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { ScrollToBottomButton } from "./ScrollToBottomButton";
 import { VoiceRecorder } from "./VoiceRecorder";
 import { MediaUploadButton } from "./MediaUploadButton";
+import { uploadInboxMedia } from "@/lib/inbox-media-upload";
 import { AIAssistantButton } from "./AIAssistantButton";
 import { TransferConversationDialog } from "./TransferConversationDialog";
 import { NotesTab } from "./NotesTab";
@@ -406,6 +407,36 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
   // Pending attachment awaiting caption / confirmation before sending
   const [pendingMedia, setPendingMedia] = useState<{ url: string; type: 'image' | 'document' | 'video'; name?: string } | null>(null);
+  const [pastingMedia, setPastingMedia] = useState(false);
+
+  // Paste an image/file from the clipboard: uploads and stages it for review
+  const handlePasteFiles = async (files: File[]) => {
+    const file = files[0];
+    if (!file) return;
+    const type: 'image' | 'document' | 'video' =
+      file.type.startsWith('image/') ? 'image'
+      : file.type.startsWith('video/') ? 'video'
+      : 'document';
+    if (file.size > (type === 'video' ? 200 * 1024 * 1024 : 10 * 1024 * 1024)) {
+      toast.error(`Arquivo muito grande. Máximo ${type === 'video' ? '200MB' : '10MB'}.`);
+      return;
+    }
+    setPastingMedia(true);
+    try {
+      const url = await uploadInboxMedia(file);
+      const name = file.name && file.name !== 'image.png'
+        ? file.name
+        : `colado-${Date.now()}.${(file.type.split('/')[1] || 'png').split(';')[0]}`;
+      setPendingMedia({ url, type, name });
+      toast.success('Anexo pronto — escreva uma legenda ou envie');
+    } catch (error: any) {
+      const detail = error?.message || 'erro desconhecido';
+      console.error('Paste upload error:', detail, error);
+      toast.error(`Erro ao enviar arquivo: ${detail}`);
+    } finally {
+      setPastingMedia(false);
+    }
+  };
 
   // Helper: determine effective sender (Meta or Evolution) for any conversation
   const useMetaSender = usingMetaSender;
@@ -1712,6 +1743,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           </div>
         )}
 
+        {pastingMedia && !pendingMedia && (
+          <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Enviando imagem colada...
+          </div>
+        )}
+
         {pendingMedia && (
           <div className="flex items-center gap-3 mb-2 p-2 rounded-lg bg-muted/50 border border-border max-w-3xl mx-auto">
             {pendingMedia.type === 'image' ? (
@@ -1811,6 +1849,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
             onSlashNavigate={handleSlashNavigate}
             onSlashConfirm={handleSlashConfirm}
             onSlashEscape={handleSlashEscape}
+            onPasteFiles={handlePasteFiles}
           />
 
           {!isMobile && (
