@@ -27,6 +27,7 @@ interface MessageComposerProps {
   onSlashNavigate: (direction: 1 | -1) => void;
   onSlashConfirm: () => void;
   onSlashEscape: () => void;
+  onPasteFiles?: (files: File[]) => void;
 }
 
 export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposerProps>(({
@@ -43,6 +44,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   onSlashNavigate,
   onSlashConfirm,
   onSlashEscape,
+  onPasteFiles,
 }, ref) => {
   const [value, setValue] = useState("");
   const valueRef = useRef("");
