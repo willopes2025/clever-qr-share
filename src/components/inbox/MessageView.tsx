@@ -1743,6 +1743,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           </div>
         )}
 
+        {pastingMedia && !pendingMedia && (
+          <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Enviando imagem colada...
+          </div>
+        )}
+
         {pendingMedia && (
           <div className="flex items-center gap-3 mb-2 p-2 rounded-lg bg-muted/50 border border-border max-w-3xl mx-auto">
             {pendingMedia.type === 'image' ? (
