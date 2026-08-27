@@ -826,9 +826,54 @@ Deno.serve(async (req: Request) => {
       case 'get_orcamento': {
         const numero = String(params.numero || params.requisicao || '').trim();
         if (!numero) throw new GpError(400, 'Informe o número do orçamento');
-        const raw = await gpCall(creds, 'GET', '/erpssplus/pedido/requisicao', { requisicao: numero });
-        const list = normalizePaged(raw, ['pedidos']) as { items: Record<string, unknown>[] };
-        const rows = list.items.length ? list.items : [];
+
+        let rows: Record<string, unknown>[] = [];
+
+        // 1) Tenta como "requisição" (token longo do ERP). Números curtos costumam dar 404.
+        if (numero.length >= 12) {
+          try {
+            const raw = await gpCall(creds, 'GET', '/erpssplus/pedido/requisicao', { requisicao: numero });
+            const list = normalizePaged(raw, ['pedidos']) as { items: Record<string, unknown>[] };
+            rows = list.items || [];
+          } catch (_e) {
+            rows = [];
+          }
+        }
+
+        // 2) Fallback: varre o feed de orçamentos procurando pelo nº do pedido
+        if (!rows.length) {
+          const alvo = numero.replace(/^0+/, '');
+          const hoje = new Date();
+          const inicio = toIsoDate(params.dtinicio) ||
+            new Date(hoje.getTime() - 365 * 86400000).toISOString().slice(0, 10);
+          const fim = toIsoDate(params.dtfinal) || hoje.toISOString().slice(0, 10);
+          const deadline = Date.now() + 30_000;
+          let totalblocos = 0;
+
+          for (let bloco = 1; bloco <= 60; bloco++) {
+            if (Date.now() > deadline) break;
+            const page = normalizePaged(
+              await gpCall(creds, 'GET', '/erpssplus/v3/pedido/feed', {
+                bloco,
+                tipopedido: ['ORCAMENTO'],
+                dtinicio: inicio,
+                dtfinal: fim,
+                ...(params.empresa ? { empresa: Array.isArray(params.empresa) ? params.empresa : [String(params.empresa)] } : {}),
+              }),
+              ['pedidos'],
+            ) as { items: Record<string, unknown>[]; totalblocos: number };
+            totalblocos = page.totalblocos || totalblocos;
+            const hit = (page.items || []).filter((r) =>
+              String(r.numpedido ?? r.numero ?? '').replace(/^0+/, '') === alvo);
+            if (hit.length) { rows = hit; break; }
+            if (!page.items?.length || (totalblocos && bloco >= totalblocos)) break;
+          }
+
+          if (!rows.length) {
+            throw new GpError(404, `Orçamento ${numero} não encontrado no período consultado`, 'not_found');
+          }
+        }
+
         const numeros = rows.map((r) => String(r.numpedido ?? r.numero ?? '')).filter(Boolean);
         const { data: envios } = numeros.length
           ? await supabaseAdmin
