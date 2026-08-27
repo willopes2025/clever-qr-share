@@ -166,11 +166,22 @@ export const PedidosTable = ({ rows, emptyMessage = "Nenhum pedido encontrado", 
   const [selected, setSelected] = useState<PedidoRow | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  /** Ordena do pedido mais novo para o mais antigo (data + hora de emissão) */
+  const sortedRows = useMemo(() => {
+    const key = (r: PedidoRow) => {
+      const d = String((r as Record<string, unknown>).dtemis ?? "").trim();
+      const h = String((r as Record<string, unknown>).hremis ?? "").trim();
+      return `${d} ${h}`;
+    };
+    return [...rows].sort((a, b) => key(b).localeCompare(key(a)));
+  }, [rows]);
+
   const filtered = useMemo(() => {
-    const base = filterRecords(rows, query) as PedidoRow[];
+    const base = filterRecords(sortedRows, query) as PedidoRow[];
     if (situacaoFilter === "todos") return base;
     return base.filter((r) => statusKind(r) === situacaoFilter);
-  }, [rows, query, situacaoFilter]);
+  }, [sortedRows, query, situacaoFilter]);
+
 
   /** Contagem por situação, para montar apenas os filtros que existem na lista */
   const situacaoCounts = useMemo(() => {
