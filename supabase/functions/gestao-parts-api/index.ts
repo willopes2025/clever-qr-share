@@ -971,33 +971,46 @@ Deno.serve(async (req: Request) => {
             const encontrados: Array<Record<string, unknown>> = [];
             const vistos = new Set<string>();
             const MAX_BLOCOS = 60;
-            let totalblocos = 0;
+            const CONCURRENCY = 6;
+            const DEADLINE = Date.now() + 35_000; // evita 504 no gateway
 
-            for (let bloco = 1; bloco <= MAX_BLOCOS; bloco++) {
-              const page = normalizePaged(
-                await gpCall(creds, 'GET', '/erpssplus/v3/pedido/feed', {
-                  bloco,
-                  tipopedido: PEDIDO_TIPOS,
-                  dtinicio,
-                  dtfinal,
-                }),
-                ['pedidos'],
-              ) as { items: Array<Record<string, unknown>>; totalblocos: number };
+            const fetchBloco = async (bloco: number) => normalizePaged(
+              await gpCall(creds, 'GET', '/erpssplus/v3/pedido/feed', {
+                bloco,
+                tipopedido: PEDIDO_TIPOS,
+                dtinicio,
+                dtfinal,
+              }),
+              ['pedidos'],
+            ) as { items: Array<Record<string, unknown>>; totalblocos: number };
 
-              totalblocos = page.totalblocos || totalblocos;
-              if (!page.items.length) break;
-
-              for (const p of page.items) {
+            const absorve = (items: Array<Record<string, unknown>>) => {
+              for (const p of items) {
                 if (!matches(p)) continue;
                 const key = String(p.numpedido ?? p.numero ?? p.id ?? JSON.stringify(p).slice(0, 120));
                 if (vistos.has(key)) continue;
                 vistos.add(key);
                 encontrados.push(p);
               }
+            };
 
-              if (totalblocos && bloco >= totalblocos) break;
+            const first = await fetchBloco(1);
+            absorve(first.items);
+            const totalblocos = Math.min(first.totalblocos || 1, MAX_BLOCOS);
+
+            // Blocos restantes em paralelo, respeitando o orçamento de tempo
+            let parcial = false;
+            for (let start = 2; start <= totalblocos; start += CONCURRENCY) {
+              if (Date.now() > DEADLINE) { parcial = true; break; }
+              const lote: number[] = [];
+              for (let b = start; b < start + CONCURRENCY && b <= totalblocos; b++) lote.push(b);
+              const pages = await Promise.all(
+                lote.map((b) => fetchBloco(b).catch(() => ({ items: [], totalblocos: 0 }))),
+              );
+              for (const page of pages) absorve(page.items);
             }
 
+            if (parcial) console.warn('[GestaoParts] lead_sync: varredura parcial por limite de tempo');
             summary.pedidos = encontrados;
           } catch (e) {
             console.error('[GestaoParts] lead_summary pedidos:', (e as Error).message);
