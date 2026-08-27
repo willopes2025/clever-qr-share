@@ -931,39 +931,79 @@ Deno.serve(async (req: Request) => {
         const pessoa = summary.pessoa as { codigo?: string; nome?: string; codstatus?: number } | null;
         const clienteCodigo = pessoa?.codigo ? String(pessoa.codigo) : '';
 
-        // Pedidos do cliente: feed v3 (últimos 12 meses) filtrado por código, documento ou telefone
+        // Pedidos do cliente: feed v3 (últimos 12 meses). O feed é paginado por
+        // bloco — buscar só o bloco 1 devolvia uma fração dos pedidos, então
+        // percorremos os blocos até o fim (com teto de segurança).
         if (clienteCodigo || documento || telTail) {
           try {
             const hoje = new Date();
             const inicio = new Date(hoje.getTime() - 365 * 86400000);
-            const feed = normalizePaged(
-              await gpCall(creds, 'GET', '/erpssplus/v3/pedido/feed', {
-                bloco: 1,
-                tipopedido: PEDIDO_TIPOS,
-                dtinicio: inicio.toISOString().slice(0, 10),
-                dtfinal: hoje.toISOString().slice(0, 10),
-              }),
-              ['pedidos'],
-            ) as { items: Array<Record<string, unknown>> };
+            const dtinicio = inicio.toISOString().slice(0, 10);
+            const dtfinal = hoje.toISOString().slice(0, 10);
 
-            const doDocumento = feed.items.filter((p) => {
-              const cod = onlyDigits(p.codpessoa);
-              const cpfCnpj = onlyDigits(p.cpfcnpj ?? p.cnpj ?? p.cpf);
-              if (clienteCodigo && cod === onlyDigits(clienteCodigo)) return true;
-              if (documento && cpfCnpj === documento) return true;
-              if (telTail && p.fones && typeof p.fones === 'object') {
-                const fones = Object.values(p.fones as Record<string, unknown>)
-                  .map((v) => onlyDigits(v))
-                  .filter((v) => v.length >= 8);
-                if (fones.some((f) => f.slice(-8) === telTail)) return true;
+            const codigoDigits = onlyDigits(clienteCodigo);
+            const matches = (p: Record<string, unknown>) => {
+              const cod = onlyDigits(p.codpessoa ?? p.codcliente ?? p.cliente);
+              const cpfCnpj = onlyDigits(p.cpfcnpj ?? p.cnpj ?? p.cpf ?? p.documento);
+              if (codigoDigits && cod && cod === codigoDigits) return true;
+              if (documento && cpfCnpj && cpfCnpj === documento) return true;
+              if (telTail) {
+                const fones: string[] = [];
+                const collect = (value: unknown, depth = 0) => {
+                  if (depth > 3 || value == null) return;
+                  if (typeof value === 'string' || typeof value === 'number') {
+                    const d = onlyDigits(value);
+                    if (d.length >= 8) fones.push(d.slice(-8));
+                    return;
+                  }
+                  if (typeof value === 'object') {
+                    for (const v of Object.values(value as Record<string, unknown>)) collect(v, depth + 1);
+                  }
+                };
+                collect(p.fones);
+                collect(p.telefone);
+                collect(p.celular);
+                if (fones.includes(telTail)) return true;
               }
               return false;
-            });
-            summary.pedidos = doDocumento;
+            };
+
+            const encontrados: Array<Record<string, unknown>> = [];
+            const vistos = new Set<string>();
+            const MAX_BLOCOS = 60;
+            let totalblocos = 0;
+
+            for (let bloco = 1; bloco <= MAX_BLOCOS; bloco++) {
+              const page = normalizePaged(
+                await gpCall(creds, 'GET', '/erpssplus/v3/pedido/feed', {
+                  bloco,
+                  tipopedido: PEDIDO_TIPOS,
+                  dtinicio,
+                  dtfinal,
+                }),
+                ['pedidos'],
+              ) as { items: Array<Record<string, unknown>>; totalblocos: number };
+
+              totalblocos = page.totalblocos || totalblocos;
+              if (!page.items.length) break;
+
+              for (const p of page.items) {
+                if (!matches(p)) continue;
+                const key = String(p.numpedido ?? p.numero ?? p.id ?? JSON.stringify(p).slice(0, 120));
+                if (vistos.has(key)) continue;
+                vistos.add(key);
+                encontrados.push(p);
+              }
+
+              if (totalblocos && bloco >= totalblocos) break;
+            }
+
+            summary.pedidos = encontrados;
           } catch (e) {
             console.error('[GestaoParts] lead_summary pedidos:', (e as Error).message);
           }
         }
+
 
         if (clienteCodigo) {
           try {
