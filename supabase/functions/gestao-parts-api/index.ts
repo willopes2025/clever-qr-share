@@ -1043,12 +1043,16 @@ Deno.serve(async (req: Request) => {
             absorve(first.items);
             const totalblocos = Math.min(first.totalblocos || 1, MAX_BLOCOS);
 
-            // Blocos restantes em paralelo, respeitando o orçamento de tempo
+            // Varre os blocos restantes do último para o primeiro: o feed vem em
+            // ordem cronológica crescente, então os pedidos mais novos ficam nos
+            // últimos blocos — varrer ao contrário garante que uma varredura
+            // parcial (limite de tempo) ainda traga as novidades.
             let parcial = false;
-            for (let start = 2; start <= totalblocos; start += CONCURRENCY) {
+            const restantes: number[] = [];
+            for (let b = totalblocos; b >= 2; b--) restantes.push(b);
+            for (let i = 0; i < restantes.length; i += CONCURRENCY) {
               if (Date.now() > DEADLINE) { parcial = true; break; }
-              const lote: number[] = [];
-              for (let b = start; b < start + CONCURRENCY && b <= totalblocos; b++) lote.push(b);
+              const lote = restantes.slice(i, i + CONCURRENCY);
               const pages = await Promise.all(
                 lote.map((b) => fetchBloco(b).catch(() => ({ items: [], totalblocos: 0 }))),
               );
@@ -1056,7 +1060,13 @@ Deno.serve(async (req: Request) => {
             }
 
             if (parcial) console.warn('[GestaoParts] lead_sync: varredura parcial por limite de tempo');
+
+            // Mais novo -> mais antigo
+            const dateKey = (p: Record<string, unknown>) =>
+              `${String(p.dtemis ?? '').trim()} ${String(p.hremis ?? '').trim()}`;
+            encontrados.sort((a, b) => dateKey(b).localeCompare(dateKey(a)));
             summary.pedidos = encontrados;
+
           } catch (e) {
             console.error('[GestaoParts] lead_summary pedidos:', (e as Error).message);
           }
