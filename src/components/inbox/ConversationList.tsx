@@ -285,6 +285,10 @@ export const ConversationList = ({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [claimingId, setClaimingId] = useState<string | null>(null);
+  // Exclusivo da conta contato@martinspecas.com.br (por enquanto)
+  const unassignedOnlyUnread =
+    (user?.email ?? "").toLowerCase() === "contato@martinspecas.com.br";
+
 
   // Assumir cliente: atribui a conversa ao usuário atual
   const handleClaim = async (conversationId: string) => {
