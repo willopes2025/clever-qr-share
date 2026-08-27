@@ -94,12 +94,22 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      // Storage keys only accept a safe subset of characters — derive a clean
+      // extension from the filename and fall back to the MIME type.
+      const rawExt = file.name.includes('.') ? file.name.split('.').pop() ?? '' : '';
+      const mimeExt = (file.type.split('/')[1] || '').split(';')[0];
+      const safeExt = (rawExt || mimeExt)
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .slice(0, 8) || 'bin';
+      const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('inbox-media')
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          contentType: file.type || 'application/octet-stream',
+          upsert: false,
+        });
 
       if (uploadError) throw uploadError;
 
@@ -111,9 +121,10 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
       setOpen(false);
       setPreview(null);
       toast.success("Anexo pronto — escreva uma legenda ou envie");
-    } catch (error) {
-      console.error("Upload error:", error);
-      toast.error("Erro ao enviar arquivo");
+    } catch (error: any) {
+      const detail = error?.message || error?.error || 'erro desconhecido';
+      console.error("Upload error:", detail, error);
+      toast.error(`Erro ao enviar arquivo: ${detail}`);
     } finally {
       setUploading(false);
       setStatusLabel('Enviando...');
