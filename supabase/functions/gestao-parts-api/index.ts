@@ -768,33 +768,60 @@ Deno.serve(async (req: Request) => {
       // ------- Orçamentos -------
       // Lista orçamentos por período (agrega blocos) e anexa o status de envio salvo no banco
       case 'list_orcamentos': {
-        const maxBlocos = Math.min(Math.max(Number(params.blocos ?? 10) || 10, 1), 30);
+        const maxBlocos = Math.min(Math.max(Number(params.blocos ?? 10) || 10, 1), 60);
         const startBloco = toBloco(params.bloco);
-        const items: Record<string, unknown>[] = [];
-        let totalblocos = 0;
+        const empresaParam = params.empresa
+          ? { empresa: Array.isArray(params.empresa) ? params.empresa : [String(params.empresa)] }
+          : {};
 
-        for (let i = 0; i < maxBlocos; i++) {
-          const bloco = (startBloco - 1) * maxBlocos + i + 1;
-          const page = normalizePaged(
+        const loadBloco = async (bloco: number) =>
+          normalizePaged(
             await gpCall(creds, 'GET', '/erpssplus/v3/pedido/feed', {
               bloco,
               tipopedido: ['ORCAMENTO'],
               dtinicio: toIsoDate(params.dtinicio),
               dtfinal: toIsoDate(params.dtfinal),
-              ...(params.empresa ? { empresa: Array.isArray(params.empresa) ? params.empresa : [String(params.empresa)] } : {}),
+              ...empresaParam,
             }),
             ['pedidos'],
           ) as { items: Record<string, unknown>[]; totalblocos: number };
-          totalblocos = page.totalblocos || totalblocos;
-          if (!page.items.length) break;
-          items.push(...page.items);
-          if (totalblocos && bloco >= totalblocos) break;
+
+        const primeiroBloco = (startBloco - 1) * maxBlocos + 1;
+        const first = await loadBloco(primeiroBloco);
+        const totalblocos = first.totalblocos || 0;
+        const ultimoDaPagina = totalblocos
+          ? Math.min(primeiroBloco + maxBlocos - 1, totalblocos)
+          : primeiroBloco + maxBlocos - 1;
+
+        const items: Record<string, unknown>[] = [...first.items];
+        const CONCURRENCY = 5;
+        const deadline = Date.now() + 45_000;
+        let truncated = false;
+
+        for (let s = primeiroBloco + 1; s <= ultimoDaPagina; s += CONCURRENCY) {
+          if (Date.now() > deadline) { truncated = true; break; }
+          const blocos: number[] = [];
+          for (let b = s; b < s + CONCURRENCY && b <= ultimoDaPagina; b++) blocos.push(b);
+          const pages = await Promise.all(
+            blocos.map((b) => loadBloco(b).catch(() => ({ items: [], totalblocos: 0 }))),
+          );
+          // Blocos vazios no meio não interrompem a varredura
+          for (const p of pages) items.push(...p.items);
         }
+
+        // Dedupe por empresa + número
+        const seen = new Set<string>();
+        const unicos = items.filter((row) => {
+          const key = `${String(row.empresa ?? '')}|${String(row.numpedido ?? row.numero ?? '')}`;
+          if (!key.trim() || seen.has(key)) return key.trim() ? false : true;
+          seen.add(key);
+          return true;
+        });
 
         const vendedorFiltro = String(params.vendedor || '').trim().toLowerCase();
         const filtered = vendedorFiltro
-          ? items.filter((row) => vendedorNome(row).toLowerCase().includes(vendedorFiltro))
-          : items;
+          ? unicos.filter((row) => vendedorNome(row).toLowerCase().includes(vendedorFiltro))
+          : unicos;
 
         const numeros = filtered.map((r) => String(r.numpedido ?? r.numero ?? '')).filter(Boolean);
         const enviosMap = new Map<string, Record<string, unknown>>();
@@ -802,25 +829,39 @@ Deno.serve(async (req: Request) => {
           const { data: envios } = await supabaseAdmin
             .from('gestao_parts_orcamento_envios')
             .select('numero, empresa, status, sent_at, error_message, assigned_to, vendedor')
-            .in('numero', numeros.slice(0, 500));
+            .in('numero', numeros.slice(0, 1000));
           for (const e of (envios || []) as Record<string, unknown>[]) {
             enviosMap.set(`${String(e.empresa ?? '')}|${String(e.numero)}`, e);
           }
         }
 
+        const emitidoMs = (row: Record<string, unknown>): number => {
+          const d = String(row.dtemis ?? row.dtemissao ?? row.data ?? '').trim();
+          if (!d) return 0;
+          const br = d.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+          const iso = br ? `${br[3]}-${br[2]}-${br[1]}` : d.slice(0, 10);
+          const hora = String(row.hremis ?? row.hora ?? '00:00:00');
+          const t = new Date(`${iso}T${hora.length >= 5 ? hora : '00:00:00'}-03:00`).getTime();
+          return Number.isNaN(t) ? 0 : t;
+        };
+
         result = {
-          items: filtered.map((row) => {
-            const numero = String(row.numpedido ?? row.numero ?? '');
-            const empresa = String(row.empresa ?? '');
-            const envio = enviosMap.get(`${empresa}|${numero}`) || enviosMap.get(`|${numero}`) || null;
-            return { ...row, vendedor: vendedorNome(row), envio };
-          }),
+          items: filtered
+            .map((row) => {
+              const numero = String(row.numpedido ?? row.numero ?? '');
+              const empresa = String(row.empresa ?? '');
+              const envio = enviosMap.get(`${empresa}|${numero}`) || enviosMap.get(`|${numero}`) || null;
+              return { ...row, vendedor: vendedorNome(row), envio, _emitido: emitidoMs(row) };
+            })
+            .sort((a, b) => (b._emitido as number) - (a._emitido as number)),
           totalblocos: totalblocos ? Math.ceil(totalblocos / maxBlocos) : (filtered.length ? 1 : 0),
           blocoatual: startBloco,
-          vendedores: Array.from(new Set(items.map((r) => vendedorNome(r)).filter(Boolean))).sort(),
+          truncated,
+          vendedores: Array.from(new Set(unicos.map((r) => vendedorNome(r)).filter(Boolean))).sort(),
         };
         break;
       }
+
 
       // Busca de um orçamento específico pelo número/requisição
       case 'get_orcamento': {
