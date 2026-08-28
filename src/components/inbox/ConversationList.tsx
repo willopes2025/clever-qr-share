@@ -285,9 +285,10 @@ export const ConversationList = ({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [claimingId, setClaimingId] = useState<string | null>(null);
-  // Exclusivo da conta contato@martinspecas.com.br (por enquanto)
-  const unassignedOnlyUnread =
-    (user?.email ?? "").toLowerCase() === "contato@martinspecas.com.br";
+  // "Sem dono" lista apenas leads sem resposta: não lidos e com última mensagem do cliente
+  const isUnansweredUnassigned = (c: { unread_count: number; last_message_direction?: string | null }) =>
+    c.unread_count > 0 && c.last_message_direction !== "outbound";
+
 
 
   // Assumir cliente: atribui a conversa ao usuário atual
@@ -388,8 +389,9 @@ export const ConversationList = ({
     if (activeTab === "unassigned") {
       if (conv.assigned_to) return false;
       if (conv.status === "archived") return false;
-      // Exclusivo da conta Martins: "Sem dono" mostra apenas não respondidas (não lidas)
-      if (unassignedOnlyUnread && conv.unread_count <= 0) return false;
+      // "Sem dono" mostra apenas leads sem resposta (não lidos, aguardando atendimento)
+      if (!isUnansweredUnassigned(conv)) return false;
+
     }
 
     if (activeTab === "all") {
@@ -509,8 +511,9 @@ export const ConversationList = ({
 
   const unreadCount = conversations.filter(c => c.unread_count > 0 && c.status !== "archived").length;
   const unassignedCount = conversations.filter(
-    c => !c.assigned_to && c.status !== "archived" && (!unassignedOnlyUnread || c.unread_count > 0)
+    c => !c.assigned_to && c.status !== "archived" && isUnansweredUnassigned(c)
   ).length;
+
 
   return (
     <div className="w-full border-r border-border flex flex-col h-full bg-card">
