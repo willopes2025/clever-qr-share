@@ -385,25 +385,41 @@ export async function sendOrcamento(
   }
 }
 
-/** Busca orçamentos no feed v3 do ERP */
+/** Busca orçamentos no feed v3 do ERP (percorre todos os blocos, em lotes paralelos) */
 export async function fetchOrcamentos(
   creds: GpCreds,
   dtinicio: string,
   dtfinal: string,
-  maxBlocos = 20,
+  maxBlocos = 40,
 ): Promise<Row[]> {
-  const out: Row[] = [];
-  let totalBlocos = 1;
-  for (let bloco = 1; bloco <= Math.min(totalBlocos, maxBlocos); bloco++) {
-    const page = normalizePaged(
+  const load = async (bloco: number) =>
+    normalizePaged(
       await gpCall(creds, 'GET', '/erpssplus/v3/pedido/feed', {
         bloco, tipopedido: ['ORCAMENTO'], dtinicio, dtfinal,
       }),
       ['pedidos'],
     );
-    out.push(...page.items);
-    totalBlocos = page.totalblocos || 1;
-    if (!page.items.length) break;
+
+  const first = await load(1);
+  const out: Row[] = [...first.items];
+  const total = Math.min(first.totalblocos || 1, maxBlocos);
+
+  const CONCURRENCY = 5;
+  for (let start = 2; start <= total; start += CONCURRENCY) {
+    const blocos: number[] = [];
+    for (let b = start; b < start + CONCURRENCY && b <= total; b++) blocos.push(b);
+    const pages = await Promise.all(blocos.map((b) => load(b).catch(() => ({ items: [] as Row[], totalblocos: 0 }))));
+    // Blocos vazios no meio não interrompem a varredura (o ERP pode ter lacunas)
+    for (const p of pages) out.push(...p.items);
   }
-  return out;
+
+  // Dedupe por empresa|numero
+  const seen = new Set<string>();
+  return out.filter((row) => {
+    const key = `${orcamentoEmpresa(row)}|${orcamentoNumero(row)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
+
