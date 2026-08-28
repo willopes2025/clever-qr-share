@@ -197,13 +197,16 @@ export const MobileSidebarDrawer = () => {
         <div className="flex flex-col h-[calc(100vh-3.5rem)]">
           <ScrollArea className="flex-1 min-h-0">
             <nav className="py-4 px-3">
-              {dynamicNavGroups.map((group, groupIndex) => (
+              {dynamicNavGroups.map((group, groupIndex) => {
+                const visibleItems = filterItems(group.items);
+                if (visibleItems.length === 0) return null;
+                return (
                 <div key={group.label} className={cn(groupIndex > 0 && "mt-4")}>
                   <span className="px-4 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                     {group.label}
                   </span>
                   <div className="space-y-0.5 mt-1">
-                    {filterItems(group.items).map((item) => {
+                    {visibleItems.map((item) => {
                       const isActive = location.pathname === item.path;
                       return (
                         <button
