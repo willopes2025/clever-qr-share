@@ -1,37 +1,48 @@
-# Nota fiscal no pedido: chave, link de consulta e PDF (DANFE)
+# Manutenções Martins: SLA de 30 min, orçamentos a cada 10 min e listagem completa
 
-## O que já temos (verificado nos dados reais)
+## 1. Devolver lead para "Sem dono" após 30 minutos sem resposta
 
-Cada pedido faturado traz, no próprio retorno do ERP, os dados fiscais completos:
+Regra: quando a última mensagem da conversa é do cliente (sem resposta do vendedor) e passam 30 minutos **de horário comercial** (segunda a sexta, 8h–18h, fuso da organização), a conversa perde o responsável e volta a aparecer na aba "Sem dono".
 
-- `nfe_numero` (ex.: 059876), `nfe_serie` (1)
-- `nfe_chave` — chave de acesso de 44 dígitos (ex.: `32260859336127000129550010000598761009550684`)
-- `dtemisdocfiscal` / `hremisdocfiscal`
+- Fora do horário comercial e nos fins de semana o cronômetro fica parado: o tempo só acumula dentro das janelas 8h–18h de dias úteis.
+- Se o vendedor responder, o contador zera (a conversa deixa de ter mensagem pendente).
+- Vale apenas para a organização com o módulo Gestão Parts ativo (Martins), como as demais features de carteira/responsável.
+- Ao liberar, fica registrado no histórico da conversa que o lead foi devolvido por falta de resposta, para o vendedor entender o motivo.
 
-Hoje a integração **não** possui nenhuma rota de DANFE/XML: nada em `gestao-parts-api` busca nota fiscal. Ou seja, a chave existe, mas o PDF ainda não.
+## 2. Envio automático de orçamentos a cada 10 minutos
 
-## Como fica
+- O agendamento passa de 15 para 10 minutos.
+- Textos da tela de configuração são atualizados para "a cada 10 minutos".
+- A trava de execução única continua valendo, então execuções sobrepostas seguem sendo descartadas.
 
-### 1. Bloco "Nota fiscal" no detalhe do pedido (entrega garantida)
-No pop-up do pedido, quando houver NF-e:
-- Número / série / data de emissão.
-- Chave de acesso formatada em grupos de 4, com botão "Copiar chave".
-- Botão "Consultar na SEFAZ" abrindo o Portal Nacional da NF-e em nova aba (a consulta pública por chave exige o captcha do portal, então a chave já vai copiada para colar).
-- A mesma chave/ações aparecem na listagem via um ícone discreto na linha dos pedidos faturados.
+## 3. Orçamentos que existem no ERP e não aparecem na listagem
 
-Isso funciona só com o que o ERP já devolve, sem depender de rota nova.
+Causas identificadas na busca por período:
+- A varredura de páginas do feed do ERP para no máximo 10 blocos por consulta, então períodos com muitos orçamentos ficam truncados sem aviso.
+- O laço interrompe a busca no primeiro bloco vazio, mesmo quando o ERP ainda tem blocos posteriores com registros.
+- Quando o resultado é truncado, a tela não avisa o usuário nem oferece "carregar mais".
 
-### 2. PDF da DANFE — depende de rota do ERP (a confirmar)
-Primeiro passo da implementação: sondar o ERP nas rotas candidatas de documento fiscal (`/erpssplus/nfe/danfe`, `/erpssplus/v2/nfe/{chave}`, `/erpssplus/pedido/danfe`, variantes de XML) usando um pedido faturado real, e registrar exatamente o que responde.
-
-Resultados possíveis e o que faremos em cada um:
-
-- **O ERP devolve PDF (ou URL do PDF)**: nova ação `nfe_danfe` na função `gestao-parts-api` que recebe a chave/pedido e retorna o arquivo; no pop-up aparece o botão "Baixar DANFE (PDF)", abrindo em nova aba.
-- **O ERP devolve apenas o XML**: a função guarda o XML e geramos o DANFE em PDF a partir dele (layout padrão: emitente, destinatário, itens, totais, chave e código de barras), entregue pelo mesmo botão.
-- **O ERP não expõe nada**: mantemos apenas a etapa 1 (chave + consulta na SEFAZ) e informo isso claramente, sem inventar link que não funciona. Nesse caso, o caminho seria pedir ao suporte da Gestão Parts a liberação do endpoint de documento fiscal.
+Correções:
+- Percorrer os blocos até o total informado pelo ERP, com limite maior e proteção de tempo, sem parar em um bloco vazio intermediário.
+- Buscar os blocos em paralelo (em lotes) para caber no tempo de execução.
+- Deduplicar por empresa + número.
+- Ordenar do mais novo para o mais antigo, como já é feito em Pedidos.
+- Quando ainda assim faltar página, mostrar aviso "resultado parcial" com botão de carregar mais.
 
 ## Detalhes técnicos
-- `supabase/functions/gestao-parts-api/index.ts`: nova ação `nfe_danfe` (autenticada, mesma resolução de credenciais por organização), retornando `{ pdf_base64 }` ou `{ url }`.
-- `src/components/gestao-parts/PedidosTable.tsx`: bloco "Nota fiscal" no `Sheet`, formatação da chave, copiar, link SEFAZ e botão de download condicionado à disponibilidade da rota.
-- `src/hooks/useGestaoParts.ts`: nova ação no tipo `GestaoPartsAction`.
-- Sem migração de banco; nada é armazenado — o PDF é buscado sob demanda.
+
+**SLA (item 1)**
+- Nova edge function `inbox-sla-release`, chamada por `pg_cron` a cada 5 minutos.
+- Seleciona conversas com `assigned_to not null`, `status <> 'archived'`, `last_message_direction = 'inbound'` e `last_message_at` antigo o bastante, limitadas às organizações com Gestão Parts ativo.
+- Helper de minutos comerciais: soma apenas os intervalos dentro de 8h–18h de seg–sex, usando o fuso resolvido por `_shared/timezone.ts` (`resolveOrgTimezone`), nunca offset fixo.
+- Ao atingir 30 minutos comerciais: `update conversations set assigned_to = null` e inserção em `contact_activity_log` (ou `conversation_notes`) registrando a devolução automática.
+- Parâmetros (`30` minutos, `8`–`18`) ficam como constantes no arquivo da função.
+
+**Orçamentos 10 min (item 2)**
+- Migração: `cron.unschedule('gestao-parts-orcamentos-job')` + `cron.schedule(..., '*/10 * * * *', ...)`.
+- Texto em `src/components/gestao-parts/OrcamentoAutoCard.tsx`.
+- Ajustar a janela de varredura do job (`gestao-parts-orcamentos-job`) para continuar cobrindo os últimos dias mesmo com execução mais frequente.
+
+**Listagem (item 3)**
+- `supabase/functions/gestao-parts-api/index.ts`, ação `list_orcamentos`: paginação completa com `totalblocos`, blocos em paralelo (lotes de ~5), dedupe por `empresa|numpedido`, `truncated: boolean` no retorno.
+- `src/components/gestao-parts/OrcamentosTable.tsx`: ordenação por data/hora de emissão desc, aviso de resultado parcial e botão "Carregar mais blocos".
