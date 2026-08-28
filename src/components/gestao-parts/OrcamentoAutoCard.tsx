@@ -110,8 +110,9 @@ export const OrcamentoAutoCard = () => {
           <div>
             <CardTitle className="text-base">Envio automático de orçamentos</CardTitle>
             <CardDescription>
-              Verifica novos orçamentos a cada 15 minutos e envia uma única vez por cliente
+              Verifica novos orçamentos a cada 10 minutos e envia uma única vez por cliente
             </CardDescription>
+
           </div>
           <Badge variant={config?.auto_send_enabled ? "default" : "outline"}>
             {config?.auto_send_enabled ? "Ativo" : "Desligado"}
@@ -121,7 +122,7 @@ export const OrcamentoAutoCard = () => {
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between rounded-lg border p-3">
           <div className="space-y-0.5">
-            <Label>Ativar rotina de 15 minutos</Label>
+            <Label>Ativar rotina de 10 minutos</Label>
             <p className="text-xs text-muted-foreground">
               Só processa orçamentos emitidos após a ativação
               {config?.activated_at ? ` (${new Date(config.activated_at).toLocaleString("pt-BR")})` : ""}

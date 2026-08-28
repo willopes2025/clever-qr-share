@@ -1,4 +1,4 @@
-// Job de 15 minutos: envia automaticamente os orçamentos novos ainda não enviados.
+// Job de 10 minutos: envia automaticamente os orçamentos novos ainda não enviados.
 // Regras: desligado por padrão, sem efeito retroativo (corte em activated_at),
 // lote limitado, trava de execução única e parada em falhas consecutivas.
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -78,7 +78,7 @@ Deno.serve(async (req: Request) => {
     const dtinicio = new Date(Math.max(cutoff.getTime(), now.getTime() - 3 * 86400000))
       .toISOString().slice(0, 10);
 
-    const orcamentos = await fetchOrcamentos(creds, dtinicio, dtfinal, 10);
+    const orcamentos = await fetchOrcamentos(creds, dtinicio, dtfinal, 40);
 
     // Só os emitidos após a ativação
     const elegiveis = orcamentos.filter((row) => {
