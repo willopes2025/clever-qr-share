@@ -104,7 +104,7 @@ Segue o seu orçamento *{{numero}}* emitido em {{data}}:
 {{itens}}
 
 *Total: {{total}}*
-{{pagamento}}
+{{vendedor}}
 Qualquer dúvida é só responder por aqui. 😊`;
 
 /** Monta o texto do orçamento a partir do registro do ERP */
@@ -119,10 +119,8 @@ export function buildMessage(row: Row, template?: string | null): string {
   });
   if (itens.length > 25) linhas.push(`• ... e mais ${itens.length - 25} item(ns)`);
 
-  const pagamentos = Array.isArray(row.formaspagamento) ? (row.formaspagamento as Row[]) : [];
-  const pagamentoTxt = pagamentos.length
-    ? `Pagamento: ${pagamentos.map((p) => pick(p, ['descricao', 'desforma', 'forma', 'tipo'])).filter(Boolean).join(', ')}\n`
-    : '';
+  const vendedor = vendedorNome(row);
+  const vendedorTxt = vendedor ? `Vendedor: ${titleCase(vendedor)}\n` : '';
 
   const nome = pick(row, ['despessoa', 'cliente', 'nome']);
   const emitido = orcamentoEmitidoEm(row);
@@ -133,9 +131,13 @@ export function buildMessage(row: Row, template?: string | null): string {
     .replace(/\{\{data\}\}/gi, emitido ? new Date(emitido).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '-')
     .replace(/\{\{itens\}\}/gi, linhas.length ? linhas.join('\n') : 'Itens disponíveis no atendimento.')
     .replace(/\{\{total\}\}/gi, money(orcamentoTotal(row)))
-    .replace(/\{\{pagamento\}\}/gi, pagamentoTxt)
+    .replace(/\{\{vendedor\}\}/gi, vendedorTxt)
+    // Forma de pagamento removida da mensagem (variável legada vira vazio)
+    .replace(/^.*\{\{pagamento\}\}.*$/gim, '')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
+
 
 /** Vendedor do ERP -> usuário do sistema (de-para cadastrado nas configurações) */
 export async function resolveVendedorUser(admin: Admin, vendedor: string): Promise<string | null> {
@@ -229,9 +231,11 @@ async function ensureConversation(
     }).select('id').single();
     if (error) throw new Error(`conversa ${phone}: ${error.message}`);
     conversationId = created.id as string;
-  } else if (assignedTo && !conv?.assigned_to) {
+  } else if (assignedTo && conv?.assigned_to !== assignedTo) {
+    // O vendedor do orçamento passa a ser o responsável pela conversa
     await admin.from('conversations').update({ assigned_to: assignedTo }).eq('id', conversationId);
   }
+
 
   return { contactId: contactId!, conversationId: conversationId!, instance };
 }

@@ -181,11 +181,12 @@ export const OrcamentoAutoCard = () => {
             rows={6}
             value={template}
             onChange={(e) => setTemplate(e.target.value)}
-            placeholder="Use {{cliente}}, {{numero}}, {{data}}, {{itens}}, {{total}}, {{pagamento}}"
+            placeholder="Use {{cliente}}, {{numero}}, {{data}}, {{itens}}, {{total}}, {{vendedor}}"
             className="text-xs font-mono"
           />
           <p className="text-[11px] text-muted-foreground">
-            Variáveis: {"{{cliente}} {{numero}} {{data}} {{itens}} {{total}} {{pagamento}}"}
+            Variáveis: {"{{cliente}} {{numero}} {{data}} {{itens}} {{total}} {{vendedor}}"}
+
           </p>
         </div>
 
