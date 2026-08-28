@@ -121,12 +121,16 @@ const App = () => (
                     } />
                     <Route path="/email" element={
                       <ProtectedRoute>
-                        <Email />
+                        <PermissionGate permission="view_inbox">
+                          <Email />
+                        </PermissionGate>
                       </ProtectedRoute>
                     } />
                     <Route path="/email/campaigns" element={
                       <ProtectedRoute>
-                        <EmailCampaigns />
+                        <PermissionGate permission="view_inbox">
+                          <EmailCampaigns />
+                        </PermissionGate>
                       </ProtectedRoute>
                     } />
                     <Route path="/admin/corrigir-lente" element={
