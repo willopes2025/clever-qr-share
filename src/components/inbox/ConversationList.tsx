@@ -389,8 +389,9 @@ export const ConversationList = ({
     if (activeTab === "unassigned") {
       if (conv.assigned_to) return false;
       if (conv.status === "archived") return false;
-      // Exclusivo da conta Martins: "Sem dono" mostra apenas não respondidas (não lidas)
-      if (unassignedOnlyUnread && conv.unread_count <= 0) return false;
+      // "Sem dono" mostra apenas leads sem resposta (não lidos, aguardando atendimento)
+      if (!isUnansweredUnassigned(conv)) return false;
+
     }
 
     if (activeTab === "all") {
