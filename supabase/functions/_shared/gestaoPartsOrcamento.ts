@@ -1,5 +1,5 @@
 // Núcleo compartilhado do envio de orçamentos do ERP Gestão Parts.
-// Usado pelo envio manual (botão no modal) e pelo job automático de 15 minutos.
+// Usado pelo envio manual (botão no modal) e pelo job automático de 10 minutos.
 // Idempotência: uma linha em `gestao_parts_orcamento_envios` por (empresa, numero).
 
 import { gpCall, normalizePaged, onlyDigits, type GpCreds } from "./gestaoPartsErp.ts";

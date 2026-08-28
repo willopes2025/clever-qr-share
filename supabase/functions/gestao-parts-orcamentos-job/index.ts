@@ -1,4 +1,4 @@
-// Job de 15 minutos: envia automaticamente os orçamentos novos ainda não enviados.
+// Job de 10 minutos: envia automaticamente os orçamentos novos ainda não enviados.
 // Regras: desligado por padrão, sem efeito retroativo (corte em activated_at),
 // lote limitado, trava de execução única e parada em falhas consecutivas.
 import { createClient } from "npm:@supabase/supabase-js@2";
