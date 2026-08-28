@@ -294,7 +294,10 @@ export const DashboardSidebar = () => {
           "flex-1 py-4 overflow-y-auto",
           isCollapsed ? "px-2" : "px-3"
         )}>
-          {dynamicNavGroups.map((group, groupIndex) => (
+          {dynamicNavGroups.map((group, groupIndex) => {
+            const visibleItems = filterItems(group.items);
+            if (visibleItems.length === 0) return null;
+            return (
             <div 
               key={group.label} 
               className={cn(groupIndex > 0 && "mt-2")}
