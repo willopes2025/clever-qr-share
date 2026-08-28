@@ -325,6 +325,15 @@ const GestaoParts = () => {
             <AlertDescription className="text-xs break-all">{errors[key]}</AlertDescription>
           </Alert>
         )}
+        {(data as { truncated?: boolean } | undefined)?.truncated && (
+          <Alert className="mb-3">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Resultado parcial: o período tem mais orçamentos do que coube nesta consulta. Use os botões
+              de bloco abaixo ou reduza o intervalo de datas para ver os demais.
+            </AlertDescription>
+          </Alert>
+        )}
         {data === undefined ? (
           <div className="text-center py-10 text-muted-foreground text-sm">
             Faça uma consulta para ver os resultados
@@ -337,6 +346,7 @@ const GestaoParts = () => {
           />
         )}
       </>
+
     );
   };
 
