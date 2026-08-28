@@ -21,6 +21,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useActivitySession } from "@/hooks/useActivitySession";
 import { useAsaas } from "@/hooks/useAsaas";
 import { useSsotica } from "@/hooks/useSsotica";
+import { useGestaoParts } from "@/hooks/useGestaoParts";
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
