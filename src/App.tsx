@@ -316,12 +316,16 @@ const App = () => (
                     } />
                     <Route path="/internal-chat" element={
                       <ProtectedRoute>
-                        <InternalChat />
+                        <PermissionGate permission="view_inbox">
+                          <InternalChat />
+                        </PermissionGate>
                       </ProtectedRoute>
                     } />
                     <Route path="/tasks" element={
                       <ProtectedRoute>
-                        <Tasks />
+                        <PermissionGate permission="view_inbox">
+                          <Tasks />
+                        </PermissionGate>
                       </ProtectedRoute>
                     } />
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
