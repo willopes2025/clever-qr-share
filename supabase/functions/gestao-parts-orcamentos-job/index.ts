@@ -78,7 +78,7 @@ Deno.serve(async (req: Request) => {
     const dtinicio = new Date(Math.max(cutoff.getTime(), now.getTime() - 3 * 86400000))
       .toISOString().slice(0, 10);
 
-    const orcamentos = await fetchOrcamentos(creds, dtinicio, dtfinal, 10);
+    const orcamentos = await fetchOrcamentos(creds, dtinicio, dtfinal, 40);
 
     // Só os emitidos após a ativação
     const elegiveis = orcamentos.filter((row) => {
