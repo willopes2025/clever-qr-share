@@ -344,7 +344,7 @@ export const DashboardSidebar = () => {
               {/* Group Items - animated */}
               {isCollapsed ? (
                 <div className="space-y-0.5">
-                  {filterItems(group.items).map(renderNavItem)}
+                  {visibleItems.map(renderNavItem)}
                 </div>
               ) : (
                 <AnimatePresence initial={false}>
@@ -357,14 +357,15 @@ export const DashboardSidebar = () => {
                       className="overflow-hidden"
                     >
                       <div className="space-y-0.5 pt-1">
-                        {filterItems(group.items).map(renderNavItem)}
+                        {visibleItems.map(renderNavItem)}
                       </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
               )}
             </div>
-          ))}
+            );
+          })}
           
           {/* Admin Link */}
           {isSystemAdmin && (
