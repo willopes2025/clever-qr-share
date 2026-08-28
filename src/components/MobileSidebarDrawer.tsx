@@ -237,7 +237,8 @@ export const MobileSidebarDrawer = () => {
                     })}
                   </div>
                 </div>
-              ))}
+                );
+              })}
               
               {isAdmin && (
                 <div className="mt-4">
