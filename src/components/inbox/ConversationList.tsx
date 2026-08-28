@@ -285,9 +285,10 @@ export const ConversationList = ({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [claimingId, setClaimingId] = useState<string | null>(null);
-  // Exclusivo da conta contato@martinspecas.com.br (por enquanto)
-  const unassignedOnlyUnread =
-    (user?.email ?? "").toLowerCase() === "contato@martinspecas.com.br";
+  // "Sem dono" lista apenas leads sem resposta: não lidos e com última mensagem do cliente
+  const isUnansweredUnassigned = (c: { unread_count: number; last_message_direction?: string | null }) =>
+    c.unread_count > 0 && c.last_message_direction !== "outbound";
+
 
 
   // Assumir cliente: atribui a conversa ao usuário atual
