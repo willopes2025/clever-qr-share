@@ -1,7 +1,7 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useInternalChatUnread } from "@/hooks/useInternalChatUnread";
 import { usePendingTasksCount } from "@/hooks/usePendingTasksCount";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, FileBarChart, Target, Building2, CalendarDays, X, Bot, User, Wallet, Glasses, Instagram, MessagesSquare, CheckSquare, FileEdit, Sparkles, Webhook, GraduationCap } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, FileBarChart, Target, Building2, CalendarDays, X, Bot, User, Wallet, Glasses, Instagram, MessagesSquare, CheckSquare, FileEdit, Sparkles, Webhook, GraduationCap, Mail, Cog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -21,6 +21,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useActivitySession } from "@/hooks/useActivitySession";
 import { useAsaas } from "@/hooks/useAsaas";
 import { useSsotica } from "@/hooks/useSsotica";
+import { useGestaoParts } from "@/hooks/useGestaoParts";
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -58,6 +59,7 @@ const navGroups: NavGroup[] = [
     label: "Atendimento e Vendas",
     items: [
       { icon: MessageSquare, label: "Inbox", path: "/inbox", permission: "view_inbox", showBadge: true },
+      { icon: Mail, label: "E-mail", path: "/email", permission: "view_inbox" },
       { icon: Target, label: "Funis", path: "/funnels", permission: "view_funnels" },
       { icon: CalendarDays, label: "Calendário", path: "/calendar", permission: "view_calendar" },
       { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
@@ -108,6 +110,7 @@ export const MobileSidebarDrawer = () => {
   const { profile } = useProfile();
   const { hasAsaas } = useAsaas();
   const { hasSsotica } = useSsotica();
+  const { hasGestaoParts } = useGestaoParts();
   
   const { data: totalUnread = 0 } = useUnreadCount();
   const { data: internalChatUnread = 0 } = useInternalChatUnread();
@@ -120,10 +123,13 @@ export const MobileSidebarDrawer = () => {
       const dynamicItems: typeof group.items = [];
       
       if (hasAsaas) {
-        dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro" });
+        dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro", permission: "view_finances" as const });
       }
       if (hasSsotica) {
         dynamicItems.push({ icon: Glasses, label: "ssOtica", path: "/ssotica", permission: "view_ssotica" as const });
+      }
+      if (hasGestaoParts) {
+        dynamicItems.push({ icon: Cog, label: "Gestão Parts", path: "/gestao-parts", permission: "view_gestao_parts" as const });
       }
       
       return {
@@ -197,13 +203,16 @@ export const MobileSidebarDrawer = () => {
         <div className="flex flex-col h-[calc(100vh-3.5rem)]">
           <ScrollArea className="flex-1 min-h-0">
             <nav className="py-4 px-3">
-              {dynamicNavGroups.map((group, groupIndex) => (
+              {dynamicNavGroups.map((group, groupIndex) => {
+                const visibleItems = filterItems(group.items);
+                if (visibleItems.length === 0) return null;
+                return (
                 <div key={group.label} className={cn(groupIndex > 0 && "mt-4")}>
                   <span className="px-4 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                     {group.label}
                   </span>
                   <div className="space-y-0.5 mt-1">
-                    {filterItems(group.items).map((item) => {
+                    {visibleItems.map((item) => {
                       const isActive = location.pathname === item.path;
                       return (
                         <button
@@ -234,7 +243,8 @@ export const MobileSidebarDrawer = () => {
                     })}
                   </div>
                 </div>
-              ))}
+                );
+              })}
               
               {isAdmin && (
                 <div className="mt-4">

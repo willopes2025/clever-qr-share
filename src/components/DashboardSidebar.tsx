@@ -63,7 +63,7 @@ const navGroups: NavGroup[] = [
     label: "Atendimento e Vendas",
     items: [
       { icon: MessageSquare, label: "Inbox", path: "/inbox", permission: "view_inbox", showBadge: true },
-      { icon: Mail, label: "E-mail", path: "/email" },
+      { icon: Mail, label: "E-mail", path: "/email", permission: "view_inbox" },
       { icon: Target, label: "Funis", path: "/funnels", permission: "view_funnels" },
       { icon: CalendarDays, label: "Calendário", path: "/calendar", permission: "view_calendar" },
       { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
@@ -126,7 +126,7 @@ export const DashboardSidebar = () => {
       const dynamicItems: NavItem[] = [];
       
       if (hasAsaas) {
-        dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro" });
+        dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro", permission: "view_finances" as const });
       }
       if (hasSsotica) {
         dynamicItems.push({ icon: Glasses, label: "ssOtica", path: "/ssotica", permission: "view_ssotica" as const });
@@ -294,7 +294,10 @@ export const DashboardSidebar = () => {
           "flex-1 py-4 overflow-y-auto",
           isCollapsed ? "px-2" : "px-3"
         )}>
-          {dynamicNavGroups.map((group, groupIndex) => (
+          {dynamicNavGroups.map((group, groupIndex) => {
+            const visibleItems = filterItems(group.items);
+            if (visibleItems.length === 0) return null;
+            return (
             <div 
               key={group.label} 
               className={cn(groupIndex > 0 && "mt-2")}
@@ -341,7 +344,7 @@ export const DashboardSidebar = () => {
               {/* Group Items - animated */}
               {isCollapsed ? (
                 <div className="space-y-0.5">
-                  {filterItems(group.items).map(renderNavItem)}
+                  {visibleItems.map(renderNavItem)}
                 </div>
               ) : (
                 <AnimatePresence initial={false}>
@@ -354,14 +357,15 @@ export const DashboardSidebar = () => {
                       className="overflow-hidden"
                     >
                       <div className="space-y-0.5 pt-1">
-                        {filterItems(group.items).map(renderNavItem)}
+                        {visibleItems.map(renderNavItem)}
                       </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
               )}
             </div>
-          ))}
+            );
+          })}
           
           {/* Admin Link */}
           {isSystemAdmin && (

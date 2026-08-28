@@ -121,12 +121,16 @@ const App = () => (
                     } />
                     <Route path="/email" element={
                       <ProtectedRoute>
-                        <Email />
+                        <PermissionGate permission="view_inbox">
+                          <Email />
+                        </PermissionGate>
                       </ProtectedRoute>
                     } />
                     <Route path="/email/campaigns" element={
                       <ProtectedRoute>
-                        <EmailCampaigns />
+                        <PermissionGate permission="view_inbox">
+                          <EmailCampaigns />
+                        </PermissionGate>
                       </ProtectedRoute>
                     } />
                     <Route path="/admin/corrigir-lente" element={
@@ -312,12 +316,16 @@ const App = () => (
                     } />
                     <Route path="/internal-chat" element={
                       <ProtectedRoute>
-                        <InternalChat />
+                        <PermissionGate permission="view_inbox">
+                          <InternalChat />
+                        </PermissionGate>
                       </ProtectedRoute>
                     } />
                     <Route path="/tasks" element={
                       <ProtectedRoute>
-                        <Tasks />
+                        <PermissionGate permission="view_inbox">
+                          <Tasks />
+                        </PermissionGate>
                       </ProtectedRoute>
                     } />
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
