@@ -110,6 +110,7 @@ export const MobileSidebarDrawer = () => {
   const { profile } = useProfile();
   const { hasAsaas } = useAsaas();
   const { hasSsotica } = useSsotica();
+  const { hasGestaoParts } = useGestaoParts();
   
   const { data: totalUnread = 0 } = useUnreadCount();
   const { data: internalChatUnread = 0 } = useInternalChatUnread();
@@ -122,10 +123,13 @@ export const MobileSidebarDrawer = () => {
       const dynamicItems: typeof group.items = [];
       
       if (hasAsaas) {
-        dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro" });
+        dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro", permission: "view_finances" as const });
       }
       if (hasSsotica) {
         dynamicItems.push({ icon: Glasses, label: "ssOtica", path: "/ssotica", permission: "view_ssotica" as const });
+      }
+      if (hasGestaoParts) {
+        dynamicItems.push({ icon: Cog, label: "Gestão Parts", path: "/gestao-parts", permission: "view_gestao_parts" as const });
       }
       
       return {
