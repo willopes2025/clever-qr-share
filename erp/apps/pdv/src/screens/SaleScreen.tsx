@@ -4,6 +4,7 @@ import { usePos } from '../store/pos-store';
 import { cartTotal, findByBarcode, searchCatalog } from '../lib/cart';
 import type { CachedCatalogItem } from '../lib/db';
 import { PaymentDialog } from './PaymentDialog';
+import { CashDialog } from './CashDialog';
 
 /**
  * Tela de venda.
@@ -16,6 +17,7 @@ export function SaleScreen() {
   const { catalog, cart, addItem, setLineQuantity, removeLine, clearCart, finalizeSale, printSale } = usePos();
   const [term, setTerm] = useState('');
   const [paying, setPaying] = useState(false);
+  const [cashOpen, setCashOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -31,6 +33,11 @@ export function SaleScreen() {
       if (event.key === 'F4') {
         event.preventDefault();
         searchRef.current?.focus();
+      }
+      if (event.key === 'F9' && cart.length === 0) {
+        // Só com o carrinho vazio: ninguém abre o caixa no meio de um atendimento.
+        event.preventDefault();
+        setCashOpen(true);
       }
       if (event.key === 'Escape') {
         setTerm('');
@@ -176,6 +183,13 @@ export function SaleScreen() {
           <button className="btn-ghost mt-2 w-full" disabled={cart.length === 0} onClick={clearCart}>
             Cancelar venda
           </button>
+          <button
+            className="mt-3 w-full font-mono text-[11px] uppercase tracking-widest text-slate hover:text-violet disabled:opacity-40"
+            disabled={cart.length > 0}
+            onClick={() => setCashOpen(true)}
+          >
+            Caixa · sangria e fechamento (F9)
+          </button>
         </div>
 
         {message && (
@@ -190,11 +204,13 @@ export function SaleScreen() {
             <li>F2 — receber</li>
             <li>F4 — voltar à busca</li>
             <li>ESC — limpar busca</li>
+            <li>F9 — caixa</li>
           </ul>
         </div>
       </aside>
 
       {paying && <PaymentDialog totalCents={total} onCancel={() => setPaying(false)} onConfirm={onPaid} />}
+      {cashOpen && <CashDialog onClose={() => setCashOpen(false)} />}
     </div>
   );
 }

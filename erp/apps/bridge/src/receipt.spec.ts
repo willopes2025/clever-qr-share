@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { center, groupAccessKey, money, renderReceipt, spread, truncate, type ReceiptData } from './receipt';
+import {
+  center,
+  groupAccessKey,
+  money,
+  renderCashReport,
+  renderReceipt,
+  spread,
+  truncate,
+  type ReceiptData,
+} from './receipt';
 
 const venda: ReceiptData = {
   store: 'Quiosque Shopping Norte',
@@ -91,5 +100,53 @@ describe('chave de acesso', () => {
     const linhas = groupAccessKey('1'.repeat(44), 48);
     expect(linhas.join(' ').replace(/ /g, '')).toHaveLength(44);
     expect(linhas[0]).toMatch(/^(\d{4} )+\d{4}$/);
+  });
+});
+
+describe('relatório de fechamento', () => {
+  const fechamento = {
+    store: 'Quiosque Shopping Norte',
+    terminal: 'PDV1',
+    operator: 'Camila Souza',
+    openedAt: new Date('2026-09-14T10:00:00-03:00'),
+    closedAt: new Date('2026-09-14T22:10:00-03:00'),
+    openingFloatCents: 10000,
+    salesCount: 128,
+    movements: [{ kind: 'withdrawal', amountCents: 20000, reason: 'Deposito no cofre' }],
+    expected: { cash: 36500, debit: 82000, pix: 12000 },
+    counted: { cash: 36000, debit: 82000, pix: 12000 },
+    differenceByMethod: { cash: -500, debit: 0, pix: 0 },
+    differenceCents: -500,
+    notes: 'Faltou troco na gaveta, conferido com o gerente no fim do turno',
+  };
+
+  it('mostra esperado, contado e diferença lado a lado', () => {
+    const linhas = renderCashReport(fechamento);
+    const dinheiro = linhas.find((line) => line.startsWith('Dinheiro'));
+    expect(dinheiro).toContain('365,00');
+    expect(dinheiro).toContain('360,00');
+    expect(dinheiro).toContain('-5,00');
+  });
+
+  it('destaca a diferença total e a justificativa', () => {
+    const texto = renderCashReport(fechamento).join('\n');
+    expect(texto).toContain('FECHAMENTO DE CAIXA');
+    expect(texto).toMatch(/DIFERENCA.*-5,00/);
+    expect(texto).toContain('Justificativa:');
+    expect(texto).toContain('Faltou troco');
+  });
+
+  it('lista as sangrias do turno com sinal', () => {
+    const texto = renderCashReport(fechamento).join('\n');
+    expect(texto).toMatch(/Sangria.*-200,00/);
+  });
+
+  it('deixa espaço para a assinatura do operador', () => {
+    const linhas = renderCashReport(fechamento);
+    expect(linhas.at(-1)).toContain('Assinatura do operador');
+  });
+
+  it('respeita papel de 58mm sem estourar a largura', () => {
+    expect(renderCashReport(fechamento, 32).every((line) => line.length <= 32)).toBe(true);
   });
 });

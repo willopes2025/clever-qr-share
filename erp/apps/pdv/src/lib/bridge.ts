@@ -68,3 +68,27 @@ export function printReceipt(receipt: ReceiptPayload): Promise<unknown> {
 export function openDrawer(): Promise<unknown> {
   return bridge('/drawer/open', { method: 'POST' });
 }
+
+export interface CashClosingPayload {
+  store: string;
+  terminal: string;
+  operator: string;
+  openedAt: string;
+  closedAt: string;
+  openingFloatCents: number;
+  salesCount: number;
+  movements: Array<{ kind: string; amountCents: number; reason: string }>;
+  expected: Record<string, number>;
+  counted: Record<string, number>;
+  differenceByMethod: Record<string, number>;
+  differenceCents: number;
+  notes?: string;
+}
+
+export function printCashClosing(report: CashClosingPayload): Promise<unknown> {
+  return bridge('/print/cash-closing', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(report),
+  });
+}

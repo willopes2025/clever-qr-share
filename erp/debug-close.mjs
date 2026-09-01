@@ -1,0 +1,27 @@
+import { chromium } from 'playwright';
+import { execSync } from 'node:child_process';
+const psql = (s) => execSync(`su postgres -c "/usr/lib/postgresql/16/bin/psql -h 127.0.0.1 -U soul -d soul_erp -t -A -c \\"${s}\\""`).toString().trim();
+const token = psql('select device_token from terminal order by fiscal_series limit 1');
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const p = await b.newPage();
+p.on('response', async (r) => {
+  if (r.url().includes('/close')) console.log('CLOSE →', r.status(), (await r.text()).slice(0, 300));
+});
+await p.goto('http://localhost:5173', { waitUntil: 'networkidle' });
+await p.fill('#deviceToken', token);
+await p.click('button:has-text("Ativar terminal")');
+await p.waitForSelector('text=Quem está no caixa?');
+await p.click('button:has-text("Camila")');
+await p.waitForTimeout(800);
+if (await p.locator('text=Abrir o caixa').count()) await p.click('button:has-text("Abrir caixa")');
+await p.waitForSelector('text=Total da venda');
+await p.keyboard.press('F9');
+await p.waitForTimeout(1500);
+await p.getByRole('button', { name: 'Fechar o caixa', exact: true }).click();
+await p.waitForTimeout(1000);
+await p.fill('input[aria-label="Valor contado em Dinheiro"]', '10,00');
+await p.fill('#notes', 'teste');
+await p.click('button:has-text("Conferir e fechar")');
+await p.waitForTimeout(3000);
+console.log('TELA:', (await p.locator('body').innerText()).split('\n').filter(Boolean).slice(-8).join(' | '));
+await b.close();

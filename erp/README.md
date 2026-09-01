@@ -13,6 +13,7 @@ revenda — multiempresa por CNPJ, com planos comerciais desde o primeiro commit
 | PDV offline-first: venda por pote, caixa e lançamento de pagamentos | ✅ |
 | PWA instalável: o PDV **abre** e vende com a internet caída | ✅ |
 | Impressão do cupom e abertura da gaveta pelo agente local | ✅ |
+| Sangria, suprimento e fechamento de caixa por conferência cega | ✅ |
 | Sincronização idempotente (reenviar não duplica venda) | ✅ |
 | Emissão de NFC-e via gateway, com fila e retentativa | ✅ (provedor `fake` em desenvolvimento) |
 | Venda offline com a nota saindo quando a conexão volta | ✅ |
@@ -71,11 +72,12 @@ npm run dev -w @soul/bridge  # agente local :9123 (ver apps/bridge/README.md)
 ## Verificação
 
 ```bash
-npx vitest run --config vitest.config.ts    # 62 testes de domínio
+npx vitest run --config vitest.config.ts    # 67 testes de domínio
 node scripts/smoke.mjs                      # caminho crítico de ponta a ponta
 node scripts/e2e-pdv.mjs                    # PDV num navegador real
 node scripts/e2e-web.mjs                    # retaguarda num navegador real
 node scripts/e2e-offline.mjs                # corta a rede e prova que o PDV vende assim mesmo
+node scripts/e2e-fechamento.mjs             # sangria, conferência cega e relatório impresso
 ```
 
 O teste de fumaça precisa do `DEVICE_TOKEN` impresso pelo seed:

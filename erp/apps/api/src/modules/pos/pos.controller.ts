@@ -46,6 +46,11 @@ export class PosController {
     return this.cashSessions.current(ctx.tenantId, requireTerminal(ctx));
   }
 
+  @Get('cash-sessions/:id/summary')
+  summary(@Ctx() ctx: RequestContext, @Param('id') sessionId: string) {
+    return this.cashSessions.summary(ctx.tenantId, sessionId);
+  }
+
   @Post('cash-sessions/:id/movements')
   movement(
     @Ctx() ctx: RequestContext,

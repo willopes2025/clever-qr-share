@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { EscPosBuilder } from './escpos';
-import { renderReceipt, type ReceiptData } from './receipt';
+import { renderCashReport, renderReceipt, type CashReportData, type ReceiptData } from './receipt';
 import { probePrinter, sendToPrinter, PrinterError } from './printer';
 import type { BridgeConfig } from './config';
 
@@ -40,6 +40,12 @@ export function createBridgeServer(config: BridgeConfig) {
 
     'POST /print/test': async () => {
       await sendToPrinter(config.printer, buildTestPayload(config));
+      return { printed: true };
+    },
+
+    'POST /print/cash-closing': async ({ body }) => {
+      const report = parseCashReport(body);
+      await sendToPrinter(config.printer, buildLinesPayload(renderCashReport(report, config.columns)));
       return { printed: true };
     },
 
@@ -135,18 +141,58 @@ function readJsonBody(request: IncomingMessage): Promise<unknown> {
 }
 
 export function buildReceiptPayload(receipt: ReceiptData, config: BridgeConfig): Buffer {
-  const lines = renderReceipt(receipt, config.columns);
+  return buildLinesPayload(renderReceipt(receipt, config.columns));
+}
+
+/**
+ * Converte as linhas prontas em bytes. Linhas de destaque — o total do cupom, a
+ * diferença do fechamento — saem em negrito: são o que se confere de relance.
+ */
+function buildLinesPayload(lines: string[]): Buffer {
   const builder = new EscPosBuilder().init().align('left');
+  const highlighted = /^(TOTAL|DIFERENCA)/;
 
   for (const line of lines) {
-    // O total é a única linha em corpo grande: é o que o cliente confere.
-    const isTotal = line.startsWith('TOTAL');
-    if (isTotal) builder.bold(true);
+    const emphasize = highlighted.test(line);
+    if (emphasize) builder.bold(true);
     builder.line(line);
-    if (isTotal) builder.bold(false);
+    if (emphasize) builder.bold(false);
   }
 
   return builder.cut().build();
+}
+
+/** Converte o corpo recebido no relatório de fechamento. */
+export function parseCashReport(body: unknown): CashReportData {
+  const report = body as Record<string, any>;
+  if (!report || typeof report !== 'object') throw new Error('Relatório ausente no corpo da requisição');
+
+  return {
+    store: String(report.store ?? 'Soul Muscle'),
+    terminal: String(report.terminal ?? ''),
+    operator: String(report.operator ?? ''),
+    openedAt: new Date(report.openedAt ?? Date.now()),
+    closedAt: new Date(report.closedAt ?? Date.now()),
+    openingFloatCents: Number(report.openingFloatCents ?? 0),
+    salesCount: Number(report.salesCount ?? 0),
+    movements: (report.movements ?? []).map((movement: Record<string, any>) => ({
+      kind: String(movement.kind ?? ''),
+      amountCents: Number(movement.amountCents ?? 0),
+      reason: String(movement.reason ?? ''),
+    })),
+    expected: normalizeAmounts(report.expected),
+    counted: normalizeAmounts(report.counted),
+    differenceByMethod: normalizeAmounts(report.differenceByMethod),
+    differenceCents: Number(report.differenceCents ?? 0),
+    notes: report.notes ? String(report.notes) : undefined,
+  };
+}
+
+function normalizeAmounts(source: unknown): Record<string, number> {
+  if (!source || typeof source !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(source as Record<string, unknown>).map(([key, value]) => [key, Number(value ?? 0)]),
+  );
 }
 
 function buildTestPayload(config: BridgeConfig): Buffer {

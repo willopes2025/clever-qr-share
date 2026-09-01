@@ -11,7 +11,7 @@ import {
 } from '../lib/db';
 import { Outbox } from '../lib/outbox';
 import { addToCart, cartTotal, changeQuantity, renumber, type CartLine } from '../lib/cart';
-import { bridgeStatus, openDrawer, printReceipt } from '../lib/bridge';
+import { bridgeStatus, openDrawer, printCashClosing, printReceipt } from '../lib/bridge';
 
 interface Bootstrap {
   tenant: { id: string; tradeName: string; cnpj: string };
@@ -21,6 +21,31 @@ interface Bootstrap {
   catalog: CachedCatalogItem[];
   features: string[];
   openSession: { id: string; openedAt: string; openingFloatCents: number } | null;
+}
+
+export interface CashMovement {
+  id: string;
+  kind: 'withdrawal' | 'supply' | 'reinforcement';
+  amountCents: number;
+  reason: string;
+  occurredAt: string;
+}
+
+export interface CashSessionSummary {
+  id: string;
+  status: string;
+  openedAt: string;
+  openedBy: string;
+  openingFloatCents: number;
+  salesCount: number;
+  movements: CashMovement[];
+}
+
+export interface CashClosingResult {
+  expected: Record<string, number>;
+  counted: Record<string, number>;
+  differenceByMethod: Record<string, number>;
+  differenceCents: number;
 }
 
 interface PosState {
@@ -47,6 +72,10 @@ interface PosState {
   clearCart: () => void;
   finalizeSale: (payments: SalePaymentInput[], customerDocument?: string) => Promise<SaleInput>;
   printSale: (sale: SaleInput) => Promise<void>;
+  loadCashSummary: () => Promise<CashSessionSummary>;
+  registerCashMovement: (input: { kind: CashMovement['kind']; amountCents: number; reason: string }) => Promise<void>;
+  closeCashSession: (counted: Record<string, number>, notes?: string) => Promise<CashClosingResult>;
+  finishShift: () => void;
   refreshStatus: () => Promise<void>;
 }
 
@@ -247,6 +276,67 @@ export const usePos = create<PosState>((set, get) => ({
     if (sale.payments.some((payment) => payment.method === 'cash')) {
       await openDrawer();
     }
+  },
+
+  async loadCashSummary() {
+    const { token, sessionId } = get();
+    if (!token || !sessionId) throw new Error('Nenhum caixa aberto neste terminal');
+    return request<CashSessionSummary>(`/pos/cash-sessions/${sessionId}/summary`, { token });
+  },
+
+  async registerCashMovement(input) {
+    const { token, sessionId, operator } = get();
+    if (!token || !sessionId || !operator) throw new Error('Nenhum caixa aberto neste terminal');
+
+    await request(`/pos/cash-sessions/${sessionId}/movements?operatorId=${operator.id}`, {
+      method: 'POST',
+      token,
+      body: input,
+    });
+    // Sangria e suprimento mexem no dinheiro da gaveta: ela abre junto.
+    await openDrawer();
+  },
+
+  /**
+   * Fecha o turno com o que o operador contou.
+   *
+   * O servidor recusa fechar com venda pendente de sincronização — por isso o
+   * número da fila local vai junto: caixa fechado com venda no ar vira uma
+   * diferença que ninguém consegue reconstituir depois.
+   */
+  async closeCashSession(counted, notes) {
+    const { token, sessionId, operator, bootstrap } = get();
+    if (!token || !sessionId || !operator || !bootstrap) throw new Error('Nenhum caixa aberto neste terminal');
+
+    const pending = await countPending();
+    const summary = await get().loadCashSummary();
+
+    const response = await request<{ closing: CashClosingResult }>(
+      `/pos/cash-sessions/${sessionId}/close?operatorId=${operator.id}&pendingSales=${pending}`,
+      { method: 'POST', token, body: { counted, notes } },
+    );
+
+    void printCashClosing({
+      store: bootstrap.store.name,
+      terminal: bootstrap.terminal.code,
+      operator: operator.name,
+      openedAt: summary.openedAt,
+      closedAt: new Date().toISOString(),
+      openingFloatCents: summary.openingFloatCents,
+      salesCount: summary.salesCount,
+      movements: summary.movements,
+      ...response.closing,
+      notes,
+    });
+
+    // A sessão só sai da tela quando o operador confirmar o resultado: limpar
+    // aqui desmontaria o resumo antes de ele ser lido.
+    return response.closing;
+  },
+
+  /** Encerra o turno depois que o operador conferiu o resultado do fechamento. */
+  finishShift() {
+    set({ sessionId: null, cart: [] });
   },
 
   async refreshStatus() {

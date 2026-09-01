@@ -41,6 +41,42 @@ export class CashSessionService {
     });
   }
 
+  /**
+   * Resumo do turno para a tela de fechamento.
+   *
+   * De propósito **não devolve os totais por meio de pagamento**: a conferência
+   * é cega, e o operador digita o que contou sem ver o que o sistema espera.
+   * Devolve só o que ele já sabe — quando abriu, com quanto, quantas vendas
+   * passaram e quais sangrias ele mesmo lançou.
+   */
+  async summary(tenantId: string, sessionId: string) {
+    const session = await this.prisma.cashSession.findFirst({
+      where: { id: sessionId, tenantId },
+      include: {
+        movements: { orderBy: { occurredAt: 'asc' } },
+        openedBy: { select: { name: true } },
+        _count: { select: { sales: true } },
+      },
+    });
+    if (!session) throw new NotFoundError('sessão de caixa', sessionId);
+
+    return {
+      id: session.id,
+      status: session.status,
+      openedAt: session.openedAt,
+      openedBy: session.openedBy.name,
+      openingFloatCents: Number(session.openingFloatCents),
+      salesCount: session._count.sales,
+      movements: session.movements.map((movement) => ({
+        id: movement.id,
+        kind: movement.kind,
+        amountCents: Number(movement.amountCents),
+        reason: movement.reason,
+        occurredAt: movement.occurredAt,
+      })),
+    };
+  }
+
   async current(tenantId: string, terminalId: string) {
     return this.prisma.cashSession.findFirst({
       where: { tenantId, terminalId, status: 'open' },

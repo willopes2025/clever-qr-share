@@ -14,8 +14,8 @@ Detalhamento por módulo: o que faz, telas, fluxos e o que precisa ficar decidid
 | **Venda** | Carrinho (70% da tela), busca/leitura, teclas rápidas de produto, ajuste de quantidade, total gigante |
 | **Pagamento** | Meios múltiplos, calculadora de troco, atalhos (F1 dinheiro, F2 débito, F3 crédito, F4 Pix) |
 | **Vendas em espera** | Lista de vendas pausadas no terminal |
-| **Sangria/Suprimento** | Valor, motivo, comprovante |
-| **Fechamento** | Conferência cega por meio de pagamento, diferença e justificativa |
+| **Caixa (F9)** | Sangria e suprimento com motivo, e a lista dos movimentos do turno |
+| **Fechamento** | Conferência cega: a diferença só aparece depois de enviar, e diferença sem justificativa é recusada |
 | **Status** | Sincronização, fila fiscal, dispositivos — o mesmo que o dono vê no painel |
 
 ### 1.2 Fluxo da venda (o caso mais comum do quiosque)

@@ -36,7 +36,7 @@ export interface ReceiptData {
   fiscal?: { accessKey: string; number: number; series: number; qrCode?: string };
 }
 
-const METHOD_LABELS: Record<string, string> = {
+export const METHOD_LABELS: Record<string, string> = {
   cash: 'Dinheiro',
   debit: 'Cartao debito',
   credit: 'Cartao credito',
@@ -152,4 +152,120 @@ function formatCpf(cpf: string): string {
 function formatDateTime(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** Relatório de fechamento de caixa, impresso para o operador assinar e guardar. */
+export interface CashReportData {
+  store: string;
+  terminal: string;
+  operator: string;
+  openedAt: Date;
+  closedAt: Date;
+  openingFloatCents: number;
+  salesCount: number;
+  movements: Array<{ kind: string; amountCents: number; reason: string }>;
+  expected: Record<string, number>;
+  counted: Record<string, number>;
+  differenceByMethod: Record<string, number>;
+  differenceCents: number;
+  notes?: string;
+}
+
+const MOVEMENT_LABELS: Record<string, string> = {
+  withdrawal: 'Sangria',
+  supply: 'Suprimento',
+  reinforcement: 'Reforco',
+};
+
+export function renderCashReport(data: CashReportData, columns = 48): string[] {
+  const lines: string[] = [];
+  const rule = '-'.repeat(columns);
+
+  lines.push(center(data.store, columns));
+  lines.push(center('FECHAMENTO DE CAIXA', columns));
+  lines.push(rule);
+  lines.push(spread('Terminal', data.terminal, columns));
+  lines.push(spread('Operador', data.operator, columns));
+  lines.push(spread('Abertura', formatMoment(data.openedAt), columns));
+  lines.push(spread('Fechamento', formatMoment(data.closedAt), columns));
+  lines.push(spread('Vendas no turno', String(data.salesCount), columns));
+  lines.push(spread('Fundo de troco', money(data.openingFloatCents), columns));
+
+  if (data.movements.length > 0) {
+    lines.push(rule);
+    for (const movement of data.movements) {
+      const label = MOVEMENT_LABELS[movement.kind] ?? movement.kind;
+      const signal = movement.kind === 'withdrawal' ? '-' : '+';
+      lines.push(spread(`${label}: ${movement.reason}`, `${signal}${money(movement.amountCents)}`, columns));
+    }
+  }
+
+  lines.push(rule);
+  lines.push(padColumns('MEIO', 'ESPERADO', 'CONTADO', 'DIF.', columns));
+
+  for (const method of methodOrder(data.expected, data.counted)) {
+    lines.push(
+      padColumns(
+        METHOD_LABELS[method] ?? method,
+        money(data.expected[method] ?? 0),
+        money(data.counted[method] ?? 0),
+        money(data.differenceByMethod[method] ?? 0),
+        columns,
+      ),
+    );
+  }
+
+  lines.push(rule);
+  lines.push(spread('DIFERENCA', money(data.differenceCents), columns));
+  if (data.notes) {
+    lines.push('');
+    lines.push('Justificativa:');
+    for (const line of wrap(data.notes, columns)) lines.push(line);
+  }
+
+  lines.push('');
+  lines.push('');
+  lines.push(center('_'.repeat(Math.min(30, columns)), columns));
+  lines.push(center('Assinatura do operador', columns));
+  return lines;
+}
+
+/** Quatro colunas: rótulo à esquerda e três valores alinhados à direita. */
+function padColumns(label: string, a: string, b: string, c: string, columns: number): string {
+  const valueWidth = 11;
+  const labelWidth = Math.max(columns - valueWidth * 3, 6);
+  return (
+    truncate(label, labelWidth).padEnd(labelWidth) +
+    a.padStart(valueWidth) +
+    b.padStart(valueWidth) +
+    c.padStart(valueWidth)
+  ).slice(0, columns);
+}
+
+function methodOrder(expected: Record<string, number>, counted: Record<string, number>): string[] {
+  const known = ['cash', 'debit', 'credit', 'pix', 'voucher', 'store_credit'];
+  const present = new Set([...Object.keys(expected), ...Object.keys(counted)]);
+  const ordered = known.filter((method) => present.has(method));
+  const extras = [...present].filter((method) => !known.includes(method));
+  return [...ordered, ...extras];
+}
+
+function wrap(text: string, columns: number): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    if ((current + word).length + 1 > columns) {
+      if (current) lines.push(current.trim());
+      current = '';
+    }
+    current += `${word} `;
+  }
+  if (current.trim()) lines.push(current.trim());
+  return lines;
+}
+
+function formatMoment(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
