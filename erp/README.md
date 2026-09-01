@@ -11,6 +11,7 @@ revenda — multiempresa por CNPJ, com planos comerciais desde o primeiro commit
 | Área | Estado |
 |------|--------|
 | PDV offline-first: venda por pote, caixa e lançamento de pagamentos | ✅ |
+| PWA instalável: o PDV **abre** e vende com a internet caída | ✅ |
 | Sincronização idempotente (reenviar não duplica venda) | ✅ |
 | Emissão de NFC-e via gateway, com fila e retentativa | ✅ (provedor `fake` em desenvolvimento) |
 | Venda offline com a nota saindo quando a conexão volta | ✅ |
@@ -71,6 +72,7 @@ npx vitest run --config vitest.config.ts    # 50 testes de domínio
 node scripts/smoke.mjs                      # caminho crítico de ponta a ponta
 node scripts/e2e-pdv.mjs                    # PDV num navegador real
 node scripts/e2e-web.mjs                    # retaguarda num navegador real
+node scripts/e2e-offline.mjs                # corta a rede e prova que o PDV vende assim mesmo
 ```
 
 O teste de fumaça precisa do `DEVICE_TOKEN` impresso pelo seed:
@@ -90,9 +92,25 @@ DEVICE_TOKEN=soul-pdv-q01-xxxxxxxx node scripts/smoke.mjs
 | **Toda tabela tem `tenant_id`** e política de RLS no banco. | `apps/api/prisma/migrations/*_row_level_security` |
 | **Toda feature de plano nasce atrás de um entitlement.** | `apps/api/src/modules/tenancy` |
 | **Periférico é acessado pelo agente local**, nunca pelo navegador. | `apps/pdv/src/lib/bridge.ts` |
+| **O aplicativo é guardado no terminal** por service worker: a primeira abertura precisa de internet, as seguintes não. | `apps/pdv/vite.config.ts` |
 
 ## Ambiente de desenvolvimento sem gateway fiscal
 
 `FISCAL_PROVIDER=fake` emite notas simuladas e rejeita de propósito itens sem
 NCM — o erro de cadastro mais comum em produção. Nenhum teste depende de rede
 externa ou de contrato assinado com fornecedor.
+
+## Instalação do PDV na loja
+
+O PDV é servido pelo mesmo domínio da retaguarda e se instala como aplicativo do sistema
+(atalho próprio, tela cheia, sem barra de navegação). O procedimento de abertura de uma unidade:
+
+1. Abrir o endereço do PDV **com internet** e instalar o aplicativo pelo navegador.
+2. Ativar o terminal com o código gerado na retaguarda.
+3. Instalar o **SM Bridge** para impressora e gaveta.
+4. Conferir que o aplicativo abre com o cabo de rede desconectado — é o teste que garante que a
+   loja não para numa queda de link.
+
+> **Atenção no procedimento da loja:** limpar os dados do navegador apaga o aplicativo guardado
+> **e a fila de vendas ainda não sincronizadas**. O terminal deve rodar num perfil dedicado, sem
+> limpeza automática de dados.

@@ -237,8 +237,21 @@ graph LR
     API -.->|"catálogo, preços, config"| DX
 ```
 
-**O que fica no PDV:** catálogo completo do tenant/loja, preços vigentes, dados fiscais do produto,
-usuários e PINs autorizados, sessão de caixa atual, vendas do turno e a fila de saída (outbox).
+**O sistema é servido por um domínio** (`soulmuscle.wideic.com`), então, sem service worker, o
+navegador simplesmente não abriria a página com o link caído. É o *service worker* que guarda o
+aplicativo inteiro no computador do quiosque na primeira visita — a partir daí o PDV **abre** offline
+e levanta o caixa normalmente.
+
+**Condições que isso exige, e que precisam entrar no procedimento de instalação da loja:**
+
+1. **A primeira abertura precisa de internet**, uma vez por máquina, para guardar o aplicativo.
+2. **HTTPS obrigatório** — service worker não roda em conexão insegura.
+3. Limpar os dados do navegador apaga o aplicativo guardado **e a fila de vendas**: o procedimento da
+   loja precisa proibir isso, e o terminal deve rodar num perfil dedicado do navegador.
+
+**O que fica no PDV:** o próprio aplicativo (HTML, CSS, JavaScript e fontes), o catálogo completo da
+loja, preços vigentes, dados fiscais do produto, usuários e PINs autorizados, sessão de caixa atual,
+vendas do turno e a fila de saída (outbox).
 
 **Regras de ouro:**
 

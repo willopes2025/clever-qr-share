@@ -19,7 +19,8 @@
 |-------|----------------------|
 | **Isolamento entre tenants** (6 caminhos) | Vazamento acaba com um produto de revenda |
 | **Idempotência da sincronização** | Reenviar 100× tem de criar 1 venda |
-| **Offline → online completo** | Vender offline por 72h, religar e conferir tudo |
+| **Abrir com a rede caída** | O aplicativo precisa subir do cache do service worker, não da rede |
+| **Offline → online completo** | Vender offline, religar e conferir que tudo subiu sem duplicar |
 | **Aritmética de dinheiro** | Rateio de desconto, imposto e troco em centavos |
 | **FEFO com lote vencido** | Sorvete vencido não pode passar no caixa |
 | **Grade de produto** | Sabor × tamanho errado no cadastro vira preço errado na venda |
