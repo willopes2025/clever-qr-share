@@ -13,6 +13,7 @@ revenda — multiempresa por CNPJ, com planos comerciais desde o primeiro commit
 | PDV offline-first: venda por pote, caixa e lançamento de pagamentos | ✅ |
 | Sincronização idempotente (reenviar não duplica venda) | ✅ |
 | Emissão de NFC-e via gateway, com fila e retentativa | ✅ (provedor `fake` em desenvolvimento) |
+| Venda offline com a nota saindo quando a conexão volta | ✅ |
 | Estoque com baixa automática, lote e consumo FEFO | ✅ |
 | Painel de performance: faturamento ao vivo, curva do dia, mix | ✅ |
 | Monitor de saúde dos terminais com alertas | ✅ |

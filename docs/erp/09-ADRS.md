@@ -93,8 +93,9 @@ manutenção altíssimo. *Biblioteca open-source local*: elimina a mensalidade, 
 manutenção fiscal — que é justamente o que se quis evitar.
 
 **Consequências.** (+) Time entrega em semanas, não meses; sem risco de layout desatualizado.
-(−) Custo por documento; dependência de terceiro (mitigada pelo adaptador); **contingência offline
-limitada** — o ponto tratado em [06 §5](./06-FISCAL.md) e no risco R-01.
+(−) Custo por documento; dependência de terceiro (mitigada pelo adaptador); **a emissão passa a
+depender de internet** — a venda continua acontecendo offline e a nota sai quando a conexão volta
+([06 §5](./06-FISCAL.md)).
 
 ---
 

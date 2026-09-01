@@ -50,7 +50,8 @@ Descrever a arquitetura completa com detalhe suficiente para que os programadore
 - **Periféricos**: agente local **SM Bridge** no PC do quiosque (impressora ESC/POS, gaveta,
   leitor) — o navegador não acessa esses dispositivos sozinho.
 - **Fiscal**: **não falamos com a SEFAZ**. Gateway de terceiro atrás de uma camada anticorrupção
-  (`FiscalProvider`) — trocar de provedor não encosta no PDV. A **venda nunca espera a nota**.
+  (`FiscalProvider`) — trocar de provedor não encosta no PDV. A **venda nunca espera a nota**, e a
+  emissão depende de internet: sem conexão a nota fica na fila e sai quando o link volta.
 - **Performance do PDV**: contadores ao vivo em Redis + WebSocket, curva de horário, mix de
   produtos e **monitor de saúde dos terminais** com alertas.
 - **Revenda**: tenant = CNPJ, grupo econômico para visão consolidada, planos por **entitlement**
@@ -61,7 +62,7 @@ Descrever a arquitetura completa com detalhe suficiente para que os programadore
 1. **A escolha de stack e o monólito modular fazem sentido?** ([ADR-001](./09-ADRS.md), [ADR-002](./09-ADRS.md))
 2. **O PDV offline-first está bem desenhado?** Especialmente a idempotência por UUID gerado no cliente ([ADR-003](./09-ADRS.md), [05 §6](./05-API.md))
 3. **O SM Bridge cobre os periféricos reais?** Levantar modelo exato da impressora e da gaveta de cada quiosque ([02 §6](./02-ARQUITETURA.md))
-4. **A contingência fiscal proposta é aceitável?** — **é a pendência mais importante do projeto**, precisa passar pelo contador antes da F1 ([06 §5](./06-FISCAL.md))
+4. **A separação entre vender e emitir está clara?** A venda acontece sem internet; a nota depende de conexão e sai quando o link volta ([06 §5](./06-FISCAL.md))
 5. **O isolamento multi-tenant está suficiente?** ([03 §10](./03-MODELO-DADOS.md), [07 §4](./07-SEGURANCA.md))
 6. **O modelo de dados atende sorvete?** Grade de sabor × tamanho, lote e validade ([03 §4](./03-MODELO-DADOS.md))
 7. **As estimativas do roadmap são realistas para este time?** ([08](./08-ROADMAP.md))

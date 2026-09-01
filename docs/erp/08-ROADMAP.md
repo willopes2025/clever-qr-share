@@ -22,8 +22,8 @@
 
 *(épicos rodam em paralelo entre as trilhas backend/frontend/bridge — daí o total < soma)*
 
-**Critério de conclusão da F1:** um quiosque real opera um dia inteiro, offline por 2h no meio,
-com todas as notas autorizadas e o dono acompanhando pelo celular.
+**Critério de conclusão da F1:** um quiosque real opera um dia inteiro, incluindo 2h sem internet,
+sem perder venda — e, ao fim do dia, todas as notas do período estão autorizadas.
 
 ### F2 · Retaguarda — "controlo estoque e dinheiro" · ~10 semanas
 Estoque completo (lote/validade/FEFO, inventário por celular, transferência, curva ABC) ·
@@ -69,7 +69,7 @@ gantt
 
 | Marco | Quando | Decisão que precisa estar tomada |
 |-------|--------|----------------------------------|
-| M0 | Antes da F1 | **Contador valida a emissão diferida** ([06 §5](./06-FISCAL.md)) — pode mudar o provedor |
+| M0 | Antes da F1 | **Contabilidade informada** de que a nota de uma venda feita durante queda de conexão sai quando o link volta ([06 §5](./06-FISCAL.md)) |
 | M1 | Semana 2 | Provedor fiscal escolhido após a POC de 1 semana |
 | M2 | Semana 4 | Impressora e gaveta reais testadas com o SM Bridge |
 | M3 | Fim da F1 | Piloto aprovado → libera rollout para os demais quiosques |
@@ -103,7 +103,7 @@ atrasa. É a economia que mais custa caro neste tipo de projeto.
 
 | # | Risco | Prob. | Impacto | Mitigação |
 |---|-------|:-----:|:-------:|-----------|
-| R-01 | **Contingência fiscal offline** não aceita pelo contador | Média | **Alto** | Decidir no M0; provedor com componente local (caminho B) como plano; 4G de backup sempre |
+| R-01 | Queda de internet acumula vendas sem nota | Média | Médio | 4G de backup em todo quiosque; alerta de venda sem documento em < 1h; fila fiscal reprocessa sozinha |
 | R-02 | Impressora do quiosque com comando ESC/POS fora do padrão | Média | Médio | Testar equipamento real no M2; driver por modelo; falha de impressão não bloqueia a venda |
 | R-03 | Rejeição fiscal em massa por cadastro errado (NCM/CST) | **Alta** | Alto | Validação de NCM no cadastro, emissão de teste em homologação por cliente, fila de correção |
 | R-04 | Conciliação imprecisa porque o pagamento é digitado | **Alta** | Médio | Capturar bandeira e parcelas na venda; medir a taxa de acerto; avaliar digitar o NSU do comprovante |

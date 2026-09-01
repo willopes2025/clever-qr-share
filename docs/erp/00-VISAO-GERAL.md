@@ -39,7 +39,7 @@ Estas decisões vieram do dono do produto e **não estão em aberto** para o tim
 |---|----------|--------------------|
 | O1 | Vender rápido no quiosque | Venda de dois potes com pagamento concluída em **< 40s**; item no carrinho em **< 200ms** |
 | O2 | Nunca parar de vender | PDV opera **offline por até 72h** e sincroniza sem perder nem duplicar venda |
-| O3 | Nota fiscal sem dor | NFC-e autorizada em **< 5s (p95)**; nenhum funcionário toca em certificado ou site da SEFAZ |
+| O3 | Nota fiscal sem dor | NFC-e autorizada em **< 5s (p95)** com conexão; nenhum funcionário toca em certificado ou site da SEFAZ |
 | O4 | Performance visível | Dono vê faturamento do dia **por quiosque em tempo real** (atraso < 30s) |
 | O5 | Operação monitorada | Terminal offline, venda não sincronizada ou nota presa geram **alerta em < 5min** |
 | O6 | Escalar como produto | Ativar um novo CNPJ cliente em **< 1h**, sem deploy e sem código novo |
@@ -96,8 +96,9 @@ e-commerce próprio (haverá API pública) · WMS de centro de distribuição.
 
 ## 7. Restrições
 
-- R1 — **Legislação fiscal**: venda a consumidor exige NFC-e autorizada (ou contingência válida).
-  Isso torna a venda **imutável** depois de fechada e condiciona o fluxo offline ([06 §5](./06-FISCAL.md)).
+- R1 — **Legislação fiscal**: a venda ao consumidor exige NFC-e autorizada, o que torna a venda
+  **imutável** depois de fechada. Como o sistema é web, **a emissão depende de internet**: sem
+  conexão a venda acontece e a nota entra na fila, saindo quando o link volta ([06 §5](./06-FISCAL.md)).
 - R2 — **PCI-DSS**: nenhum dado de cartão entra no sistema. A maquineta fala direto com a
   adquirente; guardamos apenas bandeira, parcelas, valor e, quando digitado, o NSU.
 - R3 — **LGPD**: CPF na nota, cadastro de cliente e fidelidade são dados pessoais de titulares que
@@ -117,7 +118,7 @@ e-commerce próprio (haverá API pública) · WMS de centro de distribuição.
 | **Gateway fiscal** | API de terceiro que assina e transmite os documentos à SEFAZ por nós |
 | **NFC-e** | Nota Fiscal de Consumidor Eletrônica (mod. 65) — a nota da venda no quiosque |
 | **NF-e** | Nota Fiscal Eletrônica (mod. 55) — compra, transferência entre unidades |
-| **Contingência** | Modo de emissão quando SEFAZ/gateway estão fora do ar |
+| **Fila fiscal** | Documentos aguardando emissão enquanto falta conexão ou o gateway não responde |
 | **Grade** | Matriz de variações do produto (ex.: sabor × tamanho) |
 | **SKU** | Variação vendável, com EAN, preço e saldo próprios |
 | **FEFO** | Consumir primeiro o lote com validade mais próxima |

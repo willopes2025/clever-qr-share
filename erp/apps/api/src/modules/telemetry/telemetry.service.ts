@@ -11,6 +11,7 @@ interface AlertRule {
 
 const OFFLINE_AFTER_MINUTES = 15;
 const UNSYNCED_AFTER_MINUTES = 30;
+const FISCAL_STUCK_AFTER_MINUTES = 60;
 
 /**
  * Saúde do PDV.
@@ -110,6 +111,40 @@ export class TelemetryService {
         kind: 'offline',
         severity: 'critical',
         message: `Terminal ${terminal.code} sem comunicação há mais de ${OFFLINE_AFTER_MINUTES} minutos`,
+      });
+    }
+  }
+
+  /**
+   * Venda registrada sem nota autorizada é a pendência mais séria da operação:
+   * a loja vendeu e o fisco ainda não sabe. Sem conexão isso é esperado por um
+   * tempo — o alerta existe para que ninguém descubra só no fechamento do mês.
+   */
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async sweepStuckFiscalDocuments(): Promise<void> {
+    const threshold = new Date(Date.now() - FISCAL_STUCK_AFTER_MINUTES * 60_000);
+
+    const stuck = await this.prisma.fiscalDocument.groupBy({
+      by: ['tenantId', 'storeId'],
+      where: { status: { in: ['queued', 'sending'] }, createdAt: { lt: threshold } },
+      _count: true,
+    });
+
+    const affected = new Set(stuck.map((row) => `${row.tenantId}:${row.storeId}`));
+    const terminals = await this.prisma.terminal.findMany({ where: { status: 'active' } });
+
+    for (const terminal of terminals) {
+      const key = `${terminal.tenantId}:${terminal.storeId}`;
+      if (!affected.has(key)) {
+        await this.resolve(terminal.tenantId, terminal.id, 'fiscal_stuck');
+        continue;
+      }
+
+      const pending = stuck.find((row) => `${row.tenantId}:${row.storeId}` === key)?._count ?? 0;
+      await this.raise(terminal.tenantId, terminal.id, {
+        kind: 'fiscal_stuck',
+        severity: 'critical',
+        message: `${pending} venda(s) sem nota autorizada há mais de ${FISCAL_STUCK_AFTER_MINUTES} minutos`,
       });
     }
   }

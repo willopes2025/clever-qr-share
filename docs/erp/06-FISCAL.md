@@ -96,42 +96,54 @@ plano, tipicamente em 2–5s.
 Toda rejeição vira métrica: `fiscal_rejections_total{code}` — se um código dispara, é erro de
 cadastro sistêmico, não azar.
 
-## 5. Contingência — o ponto mais delicado do projeto
+## 5. Sem internet não sai nota — e o caixa não para
 
-### 5.1 O problema, dito com clareza
+### 5.1 A regra, dita com clareza
 
-A NFC-e é autorizada **antes** da entrega da mercadoria. Com o certificado custodiado na nuvem do
-provedor, **sem internet não há como obter autorização nem assinar localmente**. A contingência
-offline prevista na legislação exige assinatura local do XML — algo que, num modelo 100% cloud,
-o PDV não consegue fazer sozinho.
+**A emissão depende de internet.** O sistema é web e o certificado fica custodiado no provedor, então
+sem conexão não há como obter autorização da SEFAZ nem assinar o XML localmente. Isso é uma
+consequência aceita da decisão D3, não um problema em aberto.
 
-Ou seja: a decisão D3 (gateway em nuvem) e o requisito O2 (vender offline) **se tensionam**. Este é
-o principal ponto de arquitetura a decidir com o contador antes da F1.
+O que **não** depende de internet é a venda. As duas coisas foram deliberadamente separadas:
 
-### 5.2 Caminhos possíveis
+| Momento | Com internet | Sem internet |
+|---------|--------------|--------------|
+| Registrar a venda | ✅ | ✅ grava no PDV e entra na fila |
+| Receber o pagamento | ✅ | ✅ dinheiro, Pix ou maquineta (que tem link próprio) |
+| Entregar comprovante ao cliente | ✅ DANFE da NFC-e | ✅ comprovante de venda, não fiscal |
+| **Autorizar a NFC-e** | ✅ em 2–5s | ❌ fica na fila |
+| Entregar a nota ao cliente | ✅ impressa ou por link | ✅ por link/e-mail quando a conexão voltar |
 
-| # | Estratégia | Como funciona | Prós | Contras |
-|---|-----------|---------------|------|---------|
-| **A** | **Venda offline + emissão diferida** | Offline o cliente leva comprovante de venda com QR; a NFC-e é emitida assim que a conexão volta e o cupom vai por link/e-mail | Simples; nenhum certificado no PDV | A nota não sai no ato da venda — **precisa de validação do contador**; risco em fiscalização de balcão |
-| **B** | **Provedor com componente local de contingência** | Componente do provedor roda no PDV com o certificado, assina em contingência offline e transmite depois | Aderente à legislação; offline real | Certificado no PDV (risco a mitigar); depende do provedor oferecer isso; instalação mais pesada |
-| **C** | **Emissor local próprio só para contingência** | O SM Bridge assina localmente quando o gateway está fora | Independência total | Reimplementa a parte mais cara do fiscal — **contradiz D3** |
-| **D** | **Redundância de conexão** | 4G de backup no roteador do quiosque, failover automático | Barato, resolve 95% dos casos reais | Não cobre queda da SEFAZ nem falha total de link |
+### 5.2 Como o sistema se comporta
 
-### 5.3 Recomendação
+```mermaid
+graph LR
+    V["Venda finalizada<br/>no PDV"] --> Q["Fila local"]
+    Q -->|"há conexão"| S["Sobe para a nuvem"]
+    Q -->|"sem conexão"| Q
+    S --> F["Fila fiscal"]
+    F --> A["NFC-e autorizada"]
+    A --> L["Cupom por link<br/>ao cliente"]
+    V --> C["Comprovante impresso<br/>na hora"]
+```
 
-**D + A na F1, com B avaliado antes do rollout amplo.**
+1. A venda é gravada no PDV com o id que ele mesmo gera, e o cliente leva o comprovante impresso.
+2. Quando a conexão volta, a venda sobe (idempotente, sem duplicar) e entra na fila fiscal.
+3. A NFC-e é autorizada e o cupom vai ao cliente por link, se ele tiver deixado contato.
+4. O painel mostra, o tempo todo, quantas vendas estão sem nota — é a métrica
+   `sales_without_document` do §9, a mais importante da lista.
 
-1. **Sempre D**: todo quiosque com 4G de backup. Custa pouco e elimina a maioria dos incidentes —
-   queda de link de shopping é muito mais frequente que queda de SEFAZ.
-2. **A como comportamento padrão** do sistema: a venda **nunca** para; a nota entra na fila e sai
-   quando a conexão volta, com o cupom indo ao cliente por link. Essa é a única postura compatível
-   com "a loja não pode parar".
-3. **B como definitivo** se o contador da Soul Muscle considerar que a emissão diferida não é
-   aceitável para o volume/perfil das unidades — nesse caso, o critério "tem componente local de
-   contingência" passa a ser eliminatório na escolha do provedor (§7).
+### 5.3 O que reduz a exposição
 
-> **Ação necessária:** validar o caminho A com o contador **antes** de começar a F1. É a única
-> pendência do projeto que pode mudar a escolha de provedor depois de contratado.
+- **4G de backup em todo quiosque.** É a medida que mais resolve: queda de link de shopping é muito
+  mais comum que indisponibilidade da SEFAZ, e o custo é baixo.
+- **Alerta imediato** quando houver venda sem nota há mais de uma hora, para a retaguarda agir no dia.
+- **Nada de fechamento contábil com pendência**: documento não autorizado bloqueia o fechamento do
+  dia (RN-06), sem nunca bloquear a operação da loja.
+
+> **Comunicar ao contador**, não decidir com ele: a nota de uma venda feita durante uma queda de
+> conexão é emitida quando a conexão volta. É bom que a contabilidade saiba disso antes do piloto,
+> mas a decisão de arquitetura já está tomada.
 
 ## 6. Configuração por CNPJ (onboarding do cliente)
 
@@ -164,7 +176,6 @@ Regras que evitam o pior erro do fiscal:
 |:----:|----------|
 | ⭐⭐⭐ | Gestão de **múltiplos CNPJs por conta** (essencial para revenda) |
 | ⭐⭐⭐ | Cobertura de **NFC-e em todas as UFs** onde há ou haverá quiosque |
-| ⭐⭐⭐ | **Contingência offline** com componente local (define o caminho B do §5) |
 | ⭐⭐⭐ | Webhook confiável de retorno (não depender de *polling*) |
 | ⭐⭐ | Custo por documento em escala e modelo de repasse para revenda |
 | ⭐⭐ | Ambiente de homologação de verdade, com sandbox estável |
@@ -177,7 +188,7 @@ Regras que evitam o pior erro do fiscal:
 | Provedor | Perfil | Observação |
 |----------|--------|-----------|
 | **PlugNotas** | Focado em **software houses**, gestão multi-CNPJ, API REST | Melhor encaixe com modelo de revenda |
-| **Tecnospeed** | Tradicional no mercado de software house; oferece componentes **locais** além da API | Candidato natural se o caminho B (contingência local) for exigido |
+| **Tecnospeed** | Tradicional no mercado de software house, com API madura | Alternativa sólida, especialmente para volume alto |
 | **Focus NFe** | API REST simples e documentação direta | Menor curva de implementação; ótimo para o piloto |
 | **NFe.io / eNotas** | Boa cobertura de NFS-e municipal | Ganha peso quando a Ordem de Serviço entrar (F5) |
 
@@ -187,9 +198,8 @@ Regras que evitam o pior erro do fiscal:
 
 ### 7.3 Recomendação
 
-**PlugNotas ou Tecnospeed como provedor principal**, pelo encaixe com revenda multi-CNPJ —
-com **Tecnospeed ganhando** se o contador exigir contingência offline local. **Focus NFe** é uma
-alternativa muito razoável para acelerar o piloto.
+**PlugNotas ou Tecnospeed como provedor principal**, pelo encaixe com revenda multi-CNPJ.
+**Focus NFe** é uma alternativa muito razoável para acelerar o piloto.
 
 Como a decisão está atrás de um adaptador (§2), ela **não trava o cronograma**: o time começa pelo
 `FakeFiscalProvider`, e o adaptador real é uma tarefa de 3–5 dias.
@@ -203,7 +213,7 @@ Com cada finalista, em homologação:
 3. Cancelar uma nota, fazer uma carta de correção e inutilizar uma faixa.
 4. Forçar uma rejeição de NCM e conferir se a mensagem de erro é acionável.
 5. Testar o webhook: derrubar nosso endpoint por 5 min e verificar o reenvio.
-6. Simular queda de internet e verificar o que o provedor oferece de contingência.
+6. Derrubar a conexão no meio de um envio e verificar se o documento não fica em estado ambíguo.
 7. Baixar XML e DANFE de uma nota emitida há mais de 30 dias.
 8. Medir o tempo real de onboarding de um CNPJ novo, do zero até a primeira nota.
 
