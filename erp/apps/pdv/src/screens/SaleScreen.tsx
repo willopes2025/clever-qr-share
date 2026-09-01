@@ -3,7 +3,6 @@ import { formatMoney } from '@soul/ui';
 import { usePos } from '../store/pos-store';
 import { cartTotal, findByBarcode, searchCatalog } from '../lib/cart';
 import type { CachedCatalogItem } from '../lib/db';
-import { openDrawer, printReceipt } from '../lib/bridge';
 import { PaymentDialog } from './PaymentDialog';
 
 /**
@@ -14,7 +13,7 @@ import { PaymentDialog } from './PaymentDialog';
  * atendente tem uma mão no leitor e outra no teclado, e nenhuma no mouse.
  */
 export function SaleScreen() {
-  const { catalog, cart, addItem, setLineQuantity, removeLine, clearCart, finalizeSale } = usePos();
+  const { catalog, cart, addItem, setLineQuantity, removeLine, clearCart, finalizeSale, printSale } = usePos();
   const [term, setTerm] = useState('');
   const [paying, setPaying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -58,8 +57,7 @@ export function SaleScreen() {
     const sale = await finalizeSale(payments, document);
     setPaying(false);
     setMessage(`Venda registrada · ${formatMoney(sale.totalCents)}`);
-    void printReceipt({ sale });
-    if (payments.some((payment) => payment.method === 'cash')) void openDrawer();
+    void printSale(sale);
     setTimeout(() => setMessage(null), 4000);
     searchRef.current?.focus();
   }

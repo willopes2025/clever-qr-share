@@ -1,0 +1,21 @@
+{
+  "name": "@soul/bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Agente local do PDV: impressora térmica e gaveta de dinheiro",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "ts-node --transpile-only src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.0.5"
+  }
+}

@@ -201,21 +201,29 @@ sequenceDiagram
     P-->>P: sync sobe a venda quando houver rede
 ```
 
-**Contrato do SM Bridge** (HTTP local em `https://localhost:9123`, certificado próprio,
-token pareado com o terminal):
+**Contrato do SM Bridge** — HTTP local em `http://127.0.0.1:9123`, escutando apenas no próprio
+computador, com a origem do PDV verificada contra a lista do arquivo de configuração. É HTTP, e não
+HTTPS, porque o navegador trata `localhost` como origem segura: um certificado autoassinado viraria
+um problema de instalação em cada loja, sem ganho de segurança.
 
-| Endpoint | Uso |
-|----------|-----|
-| `GET /health` | Status dos dispositivos — alimenta a saúde do terminal (RF-20.5) |
-| `POST /print/receipt` | Impressão ESC/POS de cupom, comprovante e relatório de caixa |
-| `POST /print/danfe` | Impressão do DANFE NFC-e a partir do layout devolvido pelo gateway |
-| `POST /drawer/open` | Abertura da gaveta |
-| `GET /devices` | Descoberta e teste de dispositivos (tela de configuração) |
-| `GET /version` · `POST /update` | Autoatualização silenciosa |
+| Endpoint | Uso | Estado |
+|----------|-----|--------|
+| `GET /health` | Estado do agente e da impressora — alimenta a saúde do terminal (RF-20.5) | ✅ |
+| `GET /version` | Versão instalada | ✅ |
+| `POST /print/receipt` | Cupom da venda em ESC/POS | ✅ |
+| `POST /print/test` | Impressão de teste, usada na instalação da loja | ✅ |
+| `POST /drawer/open` | Pulso de abertura da gaveta | ✅ |
+| `POST /print/danfe` | DANFE da NFC-e a partir do layout do gateway | pendente |
+| `POST /update` | Autoatualização silenciosa | pendente |
 
-**Degradação:** se o Bridge não responde, o PDV **continua vendendo**. Peso pode ser digitado
-(com permissão, RN-08), o cupom fica pendente de impressão e o terminal aparece com alerta amarelo
-no painel de saúde. Nunca trava a venda.
+**Transportes de impressão** (escolhidos no arquivo de configuração da loja):
+impressora de rede (`tcp`, porta 9100 — o caso mais comum no balcão), dispositivo local (`device`:
+`COM1`, `LPT1` ou fila de impressão do Windows) e arquivo (`file`, usado no desenvolvimento e no
+teste automatizado).
+
+**Degradação:** se o Bridge não responde, o PDV **continua vendendo**. O cupom fica sem sair, o
+terminal aparece com alerta amarelo no painel de saúde e a venda segue seu caminho normal até a nota
+fiscal. Impressora é acessório do atendimento; venda perdida, não.
 
 ## 7. PDV offline-first
 

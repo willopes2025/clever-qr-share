@@ -3,7 +3,12 @@
  * no computador do quiosque. O navegador não manda ESC/POS nem abre gaveta,
  * então tudo passa por ele — e, se ele não responder, a venda continua.
  */
-const BRIDGE_URL = import.meta.env.VITE_BRIDGE_URL ?? 'https://localhost:9123';
+/**
+ * O agente escuta em HTTP no próprio computador. Navegador trata `localhost`
+ * como origem segura, então a página em HTTPS consegue falar com ele sem
+ * certificado autoassinado — que seria um problema de instalação em cada loja.
+ */
+const BRIDGE_URL = import.meta.env.VITE_BRIDGE_URL ?? 'http://127.0.0.1:9123';
 const TIMEOUT_MS = 1500;
 
 export interface BridgeStatus {
@@ -29,11 +34,34 @@ export function bridgeStatus(): Promise<BridgeStatus | null> {
   return bridge<BridgeStatus>('/health');
 }
 
-export function printReceipt(payload: unknown): Promise<unknown> {
+export interface ReceiptPayload {
+  store: string;
+  cnpj: string;
+  terminal: string;
+  operator: string;
+  occurredAt: string;
+  items: Array<{
+    description: string;
+    quantity: number;
+    unitPriceCents: number;
+    totalCents: number;
+  }>;
+  totalCents: number;
+  discountCents?: number;
+  payments: Array<{
+    method: string;
+    amountCents: number;
+    changeCents?: number;
+    cardBrand?: string;
+  }>;
+  customerDocument?: string;
+}
+
+export function printReceipt(receipt: ReceiptPayload): Promise<unknown> {
   return bridge('/print/receipt', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(receipt),
   });
 }
 

@@ -11,7 +11,7 @@ import {
 } from '../lib/db';
 import { Outbox } from '../lib/outbox';
 import { addToCart, cartTotal, changeQuantity, renumber, type CartLine } from '../lib/cart';
-import { bridgeStatus } from '../lib/bridge';
+import { bridgeStatus, openDrawer, printReceipt } from '../lib/bridge';
 
 interface Bootstrap {
   tenant: { id: string; tradeName: string; cnpj: string };
@@ -46,6 +46,7 @@ interface PosState {
   removeLine: (lineNumber: number) => void;
   clearCart: () => void;
   finalizeSale: (payments: SalePaymentInput[], customerDocument?: string) => Promise<SaleInput>;
+  printSale: (sale: SaleInput) => Promise<void>;
   refreshStatus: () => Promise<void>;
 }
 
@@ -209,6 +210,43 @@ export const usePos = create<PosState>((set, get) => ({
     await outbox?.enqueue(sale);
     set({ cart: [], lastSaleAt: sale.occurredAt, pendingCount: await countPending() });
     return sale;
+  },
+
+  /**
+   * Imprime o comprovante pelo agente local. Falha de impressora não desfaz a
+   * venda: ela já está gravada e na fila — o cupom é o que pode ser reimpresso,
+   * a venda não pode ser perdida.
+   */
+  async printSale(sale) {
+    const { bootstrap, operator } = get();
+    if (!bootstrap) return;
+
+    await printReceipt({
+      store: bootstrap.store.name,
+      cnpj: bootstrap.tenant.cnpj,
+      terminal: bootstrap.terminal.code,
+      operator: operator?.name ?? '',
+      occurredAt: sale.occurredAt,
+      items: sale.items.map((item) => ({
+        description: item.description,
+        quantity: Number(item.quantity),
+        unitPriceCents: item.unitPriceCents,
+        totalCents: item.totalCents,
+      })),
+      totalCents: sale.totalCents,
+      discountCents: sale.discountCents || undefined,
+      payments: sale.payments.map((payment) => ({
+        method: payment.method,
+        amountCents: payment.amountCents,
+        changeCents: payment.changeCents || undefined,
+        cardBrand: payment.cardBrand,
+      })),
+      customerDocument: sale.customerDocument,
+    });
+
+    if (sale.payments.some((payment) => payment.method === 'cash')) {
+      await openDrawer();
+    }
   },
 
   async refreshStatus() {

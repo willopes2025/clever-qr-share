@@ -12,6 +12,7 @@ revenda — multiempresa por CNPJ, com planos comerciais desde o primeiro commit
 |------|--------|
 | PDV offline-first: venda por pote, caixa e lançamento de pagamentos | ✅ |
 | PWA instalável: o PDV **abre** e vende com a internet caída | ✅ |
+| Impressão do cupom e abertura da gaveta pelo agente local | ✅ |
 | Sincronização idempotente (reenviar não duplica venda) | ✅ |
 | Emissão de NFC-e via gateway, com fila e retentativa | ✅ (provedor `fake` em desenvolvimento) |
 | Venda offline com a nota saindo quando a conexão volta | ✅ |
@@ -32,7 +33,8 @@ erp/
 ├── apps/
 │   ├── api/          NestJS + Prisma + PostgreSQL (monólito modular)
 │   ├── pdv/          PWA do caixa, offline-first
-│   └── web/          retaguarda e painel de performance
+│   ├── web/          retaguarda e painel de performance
+│   └── bridge/       agente local: impressora térmica e gaveta
 └── scripts/          teste de fumaça e roteiros de navegador
 ```
 
@@ -60,15 +62,16 @@ credenciais e o código de ativação do terminal.
 **3. Subir os três aplicativos**
 
 ```bash
-npm run dev -w @soul/api    # API      :3000  (docs em /v1/docs)
-npm run dev -w @soul/pdv    # PDV      :5173
-npm run dev -w @soul/web    # retaguarda :5174
+npm run dev -w @soul/api     # API        :3000  (docs em /v1/docs)
+npm run dev -w @soul/pdv     # PDV        :5173
+npm run dev -w @soul/web     # retaguarda :5174
+npm run dev -w @soul/bridge  # agente local :9123 (ver apps/bridge/README.md)
 ```
 
 ## Verificação
 
 ```bash
-npx vitest run --config vitest.config.ts    # 50 testes de domínio
+npx vitest run --config vitest.config.ts    # 62 testes de domínio
 node scripts/smoke.mjs                      # caminho crítico de ponta a ponta
 node scripts/e2e-pdv.mjs                    # PDV num navegador real
 node scripts/e2e-web.mjs                    # retaguarda num navegador real
@@ -91,7 +94,7 @@ DEVICE_TOKEN=soul-pdv-q01-xxxxxxxx node scripts/smoke.mjs
 | **O provedor fiscal fica atrás de um adaptador** — trocar não encosta no PDV. | `apps/api/src/modules/fiscal/fiscal-provider.ts` |
 | **Toda tabela tem `tenant_id`** e política de RLS no banco. | `apps/api/prisma/migrations/*_row_level_security` |
 | **Toda feature de plano nasce atrás de um entitlement.** | `apps/api/src/modules/tenancy` |
-| **Periférico é acessado pelo agente local**, nunca pelo navegador. | `apps/pdv/src/lib/bridge.ts` |
+| **Periférico é acessado pelo agente local**, nunca pelo navegador. | `apps/bridge/` |
 | **O aplicativo é guardado no terminal** por service worker: a primeira abertura precisa de internet, as seguintes não. | `apps/pdv/vite.config.ts` |
 
 ## Ambiente de desenvolvimento sem gateway fiscal

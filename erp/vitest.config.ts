@@ -14,7 +14,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['packages/**/*.spec.ts', 'apps/api/src/**/*.spec.ts'],
+    include: ['packages/**/*.spec.ts', 'apps/api/src/**/*.spec.ts', 'apps/bridge/src/**/*.spec.ts'],
     reporters: ['default'],
   },
 });
