@@ -1,22 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { formatMoney, formatQuantity } from '@soul/ui';
+import { formatMoney } from '@soul/ui';
 import { usePos } from '../store/pos-store';
 import { cartTotal, findByBarcode, searchCatalog } from '../lib/cart';
 import type { CachedCatalogItem } from '../lib/db';
-import { openDrawer, printReceipt, readScale } from '../lib/scale';
+import { openDrawer, printReceipt } from '../lib/bridge';
 import { PaymentDialog } from './PaymentDialog';
-import { WeightDialog } from './WeightDialog';
 
 /**
  * Tela de venda.
  *
- * Toda a operação é feita por teclado: o atendente do quiosque tem uma mão no
- * leitor e outra no teclado, e nenhuma no mouse.
+ * Tudo é vendido por pote fechado: ler o código soma uma unidade, e ler o mesmo
+ * pote de novo soma na mesma linha. A operação inteira é feita por teclado — o
+ * atendente tem uma mão no leitor e outra no teclado, e nenhuma no mouse.
  */
 export function SaleScreen() {
-  const { catalog, cart, addItem, removeLine, clearCart, finalizeSale } = usePos();
+  const { catalog, cart, addItem, setLineQuantity, removeLine, clearCart, finalizeSale } = usePos();
   const [term, setTerm] = useState('');
-  const [weighing, setWeighing] = useState<CachedCatalogItem | null>(null);
   const [paying, setPaying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -43,29 +42,16 @@ export function SaleScreen() {
     return () => window.removeEventListener('keydown', onKey);
   }, [cart.length]);
 
-  async function pick(item: CachedCatalogItem) {
+  function pick(item: CachedCatalogItem) {
+    addItem(item);
     setTerm('');
     searchRef.current?.focus();
-
-    if (!item.soldByWeight) {
-      addItem(item, 1);
-      return;
-    }
-
-    // Item por peso: tenta a balança primeiro; só cai para digitação se ela não responder.
-    const reading = await readScale();
-    if (reading?.stable && reading.weightKg > 0) {
-      addItem(item, reading.weightKg, { weighed: true });
-      return;
-    }
-    setWeighing(item);
   }
 
   function submitSearch(event: React.FormEvent) {
     event.preventDefault();
-    const scanned = findByBarcode(catalog, term.trim());
-    const chosen = scanned ?? suggestions[0];
-    if (chosen) void pick(chosen);
+    const chosen = findByBarcode(catalog, term.trim()) ?? suggestions[0];
+    if (chosen) pick(chosen);
   }
 
   async function onPaid(payments: Parameters<typeof finalizeSale>[0], document?: string) {
@@ -96,21 +82,15 @@ export function SaleScreen() {
                 <li key={item.skuId}>
                   <button
                     type="button"
-                    onClick={() => void pick(item)}
+                    onClick={() => pick(item)}
                     className="flex w-full items-center justify-between px-4 py-2 text-left hover:bg-lavender"
                   >
                     <span className="text-sm text-indigo">
                       {index === 0 && <span className="mr-2 font-mono text-[10px] text-violet">ENTER</span>}
                       {item.description}
-                      {item.soldByWeight && (
-                        <span className="ml-2 rounded-pill bg-lavender-200 px-2 py-0.5 font-mono text-[10px] text-violet">
-                          por peso
-                        </span>
-                      )}
                     </span>
                     <span className="font-mono text-sm tabular-nums text-slate">
                       {formatMoney(item.priceCents)}
-                      {item.soldByWeight ? '/kg' : ''}
                     </span>
                   </button>
                 </li>
@@ -122,14 +102,14 @@ export function SaleScreen() {
         <div className="min-h-0 flex-1 overflow-y-auto">
           {cart.length === 0 ? (
             <p className="p-10 text-center text-sm text-slate-soft">
-              Carrinho vazio. Leia o primeiro produto para começar.
+              Carrinho vazio. Leia o primeiro pote para começar.
             </p>
           ) : (
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-lavender text-left font-mono text-[10px] uppercase tracking-widest text-slate">
                 <tr>
                   <th className="px-4 py-2">Item</th>
-                  <th className="px-4 py-2">Qtd</th>
+                  <th className="px-4 py-2 text-center">Qtd</th>
                   <th className="px-4 py-2 text-right">Unitário</th>
                   <th className="px-4 py-2 text-right">Total</th>
                   <th />
@@ -138,14 +118,25 @@ export function SaleScreen() {
               <tbody>
                 {cart.map((line) => (
                   <tr key={line.lineNumber} className="border-b border-lavender-200 last:border-0">
-                    <td className="px-4 py-3 text-indigo">
-                      {line.description}
-                      {line.weighed && (
-                        <span className="ml-2 font-mono text-[10px] uppercase text-violet">balança</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-mono tabular-nums text-slate">
-                      {formatQuantity(line.quantity, line.unit)}
+                    <td className="px-4 py-3 text-indigo">{line.description}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1">
+                        <StepButton
+                          label="menos um"
+                          onClick={() => setLineQuantity(line.lineNumber, line.quantity - 1)}
+                        >
+                          −
+                        </StepButton>
+                        <span className="w-8 text-center font-mono tabular-nums text-indigo">
+                          {line.quantity}
+                        </span>
+                        <StepButton
+                          label="mais um"
+                          onClick={() => setLineQuantity(line.lineNumber, line.quantity + 1)}
+                        >
+                          +
+                        </StepButton>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right font-mono tabular-nums text-slate">
                       {formatMoney(line.unitPriceCents)}
@@ -174,7 +165,7 @@ export function SaleScreen() {
           <p className="label">Total da venda</p>
           <p className="font-display text-5xl font-bold tabular-nums text-indigo">{formatMoney(total)}</p>
           <p className="mt-1 font-mono text-xs text-slate">
-            {cart.length} {cart.length === 1 ? 'item' : 'itens'}
+            {itemCount(cart)} {itemCount(cart) === 1 ? 'item' : 'itens'}
           </p>
 
           <button
@@ -205,19 +196,32 @@ export function SaleScreen() {
         </div>
       </aside>
 
-      {weighing && (
-        <WeightDialog
-          item={weighing}
-          onCancel={() => setWeighing(null)}
-          onConfirm={(quantity) => {
-            addItem(weighing, quantity, { weighed: false });
-            setWeighing(null);
-            searchRef.current?.focus();
-          }}
-        />
-      )}
-
       {paying && <PaymentDialog totalCents={total} onCancel={() => setPaying(false)} onConfirm={onPaid} />}
     </div>
   );
+}
+
+function StepButton({
+  children,
+  label,
+  onClick,
+}: {
+  children: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className="h-7 w-7 rounded-full border border-lavender-400 font-mono text-indigo hover:border-violet hover:text-violet"
+    >
+      {children}
+    </button>
+  );
+}
+
+function itemCount(cart: ReadonlyArray<{ quantity: number }>): number {
+  return cart.reduce((total, line) => total + line.quantity, 0);
 }

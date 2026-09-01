@@ -11,18 +11,9 @@ export interface CartLine {
   unitPriceCents: number;
   discountCents: number;
   totalCents: number;
-  weighed: boolean;
 }
 
-export function buildLine(
-  item: CachedCatalogItem,
-  quantity: number,
-  lineNumber: number,
-  options: { weighed?: boolean; overrideTotalCents?: number } = {},
-): CartLine {
-  const totalCents =
-    options.overrideTotalCents ?? multiplyByQuantity(item.priceCents, quantity);
-
+export function buildLine(item: CachedCatalogItem, quantity: number, lineNumber: number): CartLine {
   return {
     lineNumber,
     skuId: item.skuId,
@@ -31,8 +22,30 @@ export function buildLine(
     unit: item.unit,
     unitPriceCents: item.priceCents,
     discountCents: 0,
-    totalCents,
-    weighed: options.weighed ?? item.soldByWeight,
+    totalCents: multiplyByQuantity(item.priceCents, quantity),
+  };
+}
+
+/**
+ * Ler o mesmo pote duas vezes soma na linha em vez de criar outra — é o que o
+ * atendente espera quando passa três potes iguais.
+ */
+export function addToCart(lines: readonly CartLine[], item: CachedCatalogItem, quantity = 1): CartLine[] {
+  const existing = lines.find((line) => line.skuId === item.skuId);
+  if (existing) {
+    return lines.map((line) =>
+      line.skuId === item.skuId ? changeQuantity(line, line.quantity + quantity) : line,
+    );
+  }
+  return [...lines, buildLine(item, quantity, lines.length + 1)];
+}
+
+/** Quantidade zero ou negativa remove a linha. */
+export function changeQuantity(line: CartLine, quantity: number): CartLine {
+  return {
+    ...line,
+    quantity,
+    totalCents: multiplyByQuantity(line.unitPriceCents, quantity) - line.discountCents,
   };
 }
 

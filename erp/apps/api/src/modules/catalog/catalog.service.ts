@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { NotFoundError } from '../../common/errors/domain-error';
-import { DEFAULT_SCALE_CONFIG, parseScaleBarcode } from './scale-barcode';
 
 export interface CatalogItem {
   skuId: string;
@@ -9,7 +8,6 @@ export interface CatalogItem {
   description: string;
   categoryName: string | null;
   unit: string;
-  soldByWeight: boolean;
   priceCents: number;
   barcodes: string[];
   trackLot: boolean;
@@ -17,10 +15,6 @@ export interface CatalogItem {
 
 export interface BarcodeLookup {
   item: CatalogItem;
-  /** Preenchido quando o código veio da balança e já traz o peso. */
-  quantity?: number;
-  /** Preenchido quando a balança embute o valor final em vez do peso. */
-  overrideTotalCents?: number;
 }
 
 @Injectable()
@@ -57,7 +51,6 @@ export class CatalogService {
         description: sku.description,
         categoryName: sku.product.category?.name ?? null,
         unit: sku.product.unit,
-        soldByWeight: sku.product.soldByWeight,
         // Preço específico da loja vence o preço padrão do tenant (ordenação acima).
         priceCents: Number(sku.prices[0]!.priceCents),
         barcodes: sku.barcodes.map((barcode) => barcode.code),
@@ -66,20 +59,10 @@ export class CatalogService {
   }
 
   /**
-   * Resolve a leitura do scanner: código comum, código interno ou etiqueta de balança.
-   * O PDV chama isto localmente pelo catálogo em cache; aqui serve retaguarda e testes.
+   * Resolve a leitura do scanner: código de barras do produto ou código interno.
+   * O PDV faz isso localmente pelo catálogo em cache; aqui serve retaguarda e testes.
    */
   async lookupBarcode(tenantId: string, storeId: string, code: string): Promise<BarcodeLookup> {
-    const scale = parseScaleBarcode(code, DEFAULT_SCALE_CONFIG);
-    if (scale) {
-      const item = await this.findByCode(tenantId, storeId, scale.itemCode);
-      return {
-        item,
-        quantity: scale.weightKg,
-        overrideTotalCents: scale.priceCents,
-      };
-    }
-
     const barcode = await this.prisma.barcode.findUnique({
       where: { tenantId_code: { tenantId, code } },
     });

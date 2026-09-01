@@ -11,19 +11,18 @@ const baseSale = {
     {
       lineNumber: 1,
       skuId: '01927f3e-4444-7000-8000-000000000004',
-      description: 'Açaí no peso',
-      quantity: '0.4120',
-      unit: 'KG' as const,
-      unitPriceCents: 5990,
+      description: 'Pote 500ml Napolitano',
+      quantity: '2',
+      unit: 'UN' as const,
+      unitPriceCents: 2290,
       discountCents: 0,
-      totalCents: 2468,
-      weighed: true,
+      totalCents: 4580,
     },
   ],
-  payments: [{ method: 'debit' as const, amountCents: 2468, changeCents: 0, captured: false, installments: 1 }],
-  grossCents: 2468,
+  payments: [{ method: 'debit' as const, amountCents: 4580, changeCents: 0, installments: 1 }],
+  grossCents: 4580,
   discountCents: 0,
-  totalCents: 2468,
+  totalCents: 4580,
 };
 
 describe('validação da venda', () => {
@@ -38,7 +37,7 @@ describe('validação da venda', () => {
   it('recusa venda cujos pagamentos não liquidam o total', () => {
     const result = saleSchema.safeParse({
       ...baseSale,
-      payments: [{ method: 'cash' as const, amountCents: 1000, changeCents: 0, captured: false, installments: 1 }],
+      payments: [{ method: 'cash' as const, amountCents: 1000, changeCents: 0, installments: 1 }],
     });
     expect(result.success).toBe(false);
   });
@@ -46,7 +45,18 @@ describe('validação da venda', () => {
   it('aceita pagamento em dinheiro com troco', () => {
     const result = saleSchema.safeParse({
       ...baseSale,
-      payments: [{ method: 'cash' as const, amountCents: 5000, changeCents: 2532, captured: false, installments: 1 }],
+      payments: [{ method: 'cash' as const, amountCents: 5000, changeCents: 420, installments: 1 }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('aceita pagamento dividido entre maquineta e dinheiro', () => {
+    const result = saleSchema.safeParse({
+      ...baseSale,
+      payments: [
+        { method: 'credit' as const, amountCents: 3000, changeCents: 0, cardBrand: 'visa', installments: 1 },
+        { method: 'cash' as const, amountCents: 1580, changeCents: 0, installments: 1 },
+      ],
     });
     expect(result.success).toBe(true);
   });

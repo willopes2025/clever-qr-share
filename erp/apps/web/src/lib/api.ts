@@ -79,6 +79,5 @@ export interface TerminalHealth {
   pendingSales: number;
   fiscalQueue: number;
   printerOk: boolean | null;
-  scaleOk: boolean | null;
   openAlerts: Array<{ kind: string; severity: string; openedAt: string }>;
 }

@@ -32,7 +32,6 @@ export function TerminalHealth({ terminals }: { terminals: Terminal[] }) {
                 <Row label="fila de venda" value={String(terminal.pendingSales)} />
                 <Row label="fila fiscal" value={String(terminal.fiscalQueue)} />
                 <Row label="impressora" value={deviceLabel(terminal.printerOk)} />
-                <Row label="balança" value={deviceLabel(terminal.scaleOk)} />
               </dl>
             </li>
           );
@@ -70,8 +69,7 @@ function describe(terminal: Terminal): { tone: Tone; label: string } {
   if (!terminal.online) return { tone: 'critical', label: 'offline' };
   if (terminal.pendingSales > 0) return { tone: 'critical', label: 'venda na fila' };
   if (terminal.fiscalQueue > 5) return { tone: 'warning', label: 'nota atrasada' };
-  if (terminal.printerOk === false || terminal.scaleOk === false)
-    return { tone: 'warning', label: 'dispositivo fora' };
+  if (terminal.printerOk === false) return { tone: 'warning', label: 'impressora fora' };
   return { tone: 'good', label: 'ok' };
 }
 

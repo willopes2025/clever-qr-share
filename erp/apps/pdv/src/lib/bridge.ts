@@ -1,19 +1,13 @@
 /**
- * Conversa com a balança e a impressora através do SM Bridge, o agente que roda
- * no computador do quiosque. O navegador não abre porta serial nem manda ESC/POS,
+ * Conversa com a impressora e a gaveta através do SM Bridge, o agente que roda
+ * no computador do quiosque. O navegador não manda ESC/POS nem abre gaveta,
  * então tudo passa por ele — e, se ele não responder, a venda continua.
  */
 const BRIDGE_URL = import.meta.env.VITE_BRIDGE_URL ?? 'https://localhost:9123';
 const TIMEOUT_MS = 1500;
 
-export interface ScaleReading {
-  weightKg: number;
-  stable: boolean;
-}
-
 export interface BridgeStatus {
   printerOk: boolean | null;
-  scaleOk: boolean | null;
   version: string | null;
 }
 
@@ -29,10 +23,6 @@ async function bridge<T>(path: string, init?: RequestInit): Promise<T | null> {
   } finally {
     clearTimeout(timer);
   }
-}
-
-export function readScale(): Promise<ScaleReading | null> {
-  return bridge<ScaleReading>('/scale/read');
 }
 
 export function bridgeStatus(): Promise<BridgeStatus | null> {

@@ -228,8 +228,8 @@ model Product {
   categoryId   String? @map("category_id")
   name         String
   kind         String  @default("simple") // simple | grid | combo | service | ingredient
-  unit         String  @default("UN") // UN | KG | L
-  soldByWeight Boolean @default(false) @map("sold_by_weight")
+  /// Tudo é vendido por unidade (pote, casquinha, bebida).
+  unit         String  @default("UN")
   ncm          String? @db.Char(8)
   cest         String? @db.Char(7)
   origin       Int     @default(0)
@@ -501,7 +501,6 @@ model SaleItem {
   totalCents     BigInt  @map("total_cents")
   unitCostCents  BigInt  @default(0) @map("unit_cost_cents")
   taxSnapshot    Json?   @map("tax_snapshot")
-  weighed        Boolean @default(false)
   returnedQty    Decimal @default(0) @map("returned_qty") @db.Decimal(14, 4)
 
   sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
@@ -519,13 +518,13 @@ model SalePayment {
   method            String
   amountCents       BigInt  @map("amount_cents")
   changeCents       BigInt  @default(0) @map("change_cents")
-  /// false na v1 (maquininha avulsa): o dado veio do operador, não da adquirente
-  captured          Boolean @default(false)
+  /// Pagamento é feito fora do sistema (dinheiro, Pix ou maquineta) e lançado
+  /// aqui pelo operador. Bandeira e NSU entram quando a loja quer conciliar
+  /// o extrato da adquirente depois.
   acquirer          String?
   cardBrand         String? @map("card_brand")
   installments      Int     @default(1)
   nsu               String?
-  authorizationCode String? @map("authorization_code")
 
   sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
@@ -590,7 +589,6 @@ model TerminalHeartbeat {
   pendingSales  Int      @default(0) @map("pending_sales")
   fiscalQueue   Int      @default(0) @map("fiscal_queue")
   printerOk     Boolean? @map("printer_ok")
-  scaleOk       Boolean? @map("scale_ok")
   lastSaleAt    DateTime? @map("last_sale_at")
 
   terminal Terminal @relation(fields: [terminalId], references: [id], onDelete: Cascade)

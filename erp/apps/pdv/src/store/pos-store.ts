@@ -10,8 +10,8 @@ import {
   type CachedCatalogItem,
 } from '../lib/db';
 import { Outbox } from '../lib/outbox';
-import { buildLine, cartTotal, renumber, type CartLine } from '../lib/cart';
-import { bridgeStatus } from '../lib/scale';
+import { addToCart, cartTotal, changeQuantity, renumber, type CartLine } from '../lib/cart';
+import { bridgeStatus } from '../lib/bridge';
 
 interface Bootstrap {
   tenant: { id: string; tradeName: string; cnpj: string };
@@ -32,7 +32,7 @@ interface PosState {
   cart: CartLine[];
   pendingCount: number;
   online: boolean;
-  devices: { printerOk: boolean | null; scaleOk: boolean | null };
+  devices: { printerOk: boolean | null };
   lastSaleAt: string | null;
   booting: boolean;
   error: string | null;
@@ -41,7 +41,8 @@ interface PosState {
   restore: () => Promise<void>;
   selectOperator: (operator: { id: string; name: string }) => void;
   openCashSession: (openingFloatCents: number) => Promise<void>;
-  addItem: (item: CachedCatalogItem, quantity: number, options?: { weighed?: boolean; overrideTotalCents?: number }) => void;
+  addItem: (item: CachedCatalogItem, quantity?: number) => void;
+  setLineQuantity: (lineNumber: number, quantity: number) => void;
   removeLine: (lineNumber: number) => void;
   clearCart: () => void;
   finalizeSale: (payments: SalePaymentInput[], customerDocument?: string) => Promise<SaleInput>;
@@ -62,7 +63,7 @@ export const usePos = create<PosState>((set, get) => ({
   cart: [],
   pendingCount: 0,
   online: navigator.onLine,
-  devices: { printerOk: null, scaleOk: null },
+  devices: { printerOk: null },
   lastSaleAt: null,
   booting: true,
   error: null,
@@ -148,9 +149,18 @@ export const usePos = create<PosState>((set, get) => ({
     set({ sessionId: session.id });
   },
 
-  addItem(item, quantity, options) {
-    const cart = get().cart;
-    set({ cart: [...cart, buildLine(item, quantity, cart.length + 1, options)] });
+  addItem(item, quantity = 1) {
+    set({ cart: renumber(addToCart(get().cart, item, quantity)) });
+  },
+
+  setLineQuantity(lineNumber, quantity) {
+    if (quantity <= 0) {
+      get().removeLine(lineNumber);
+      return;
+    }
+    set({
+      cart: get().cart.map((line) => (line.lineNumber === lineNumber ? changeQuantity(line, quantity) : line)),
+    });
   },
 
   removeLine(lineNumber) {
@@ -183,12 +193,11 @@ export const usePos = create<PosState>((set, get) => ({
         lineNumber: line.lineNumber,
         skuId: line.skuId,
         description: line.description,
-        quantity: line.quantity.toFixed(4),
-        unit: line.unit as 'UN' | 'KG' | 'L',
+        quantity: String(line.quantity),
+        unit: 'UN' as const,
         unitPriceCents: line.unitPriceCents,
         discountCents: line.discountCents,
         totalCents: line.totalCents,
-        weighed: line.weighed,
       })),
       payments,
       grossCents: total,
@@ -207,7 +216,7 @@ export const usePos = create<PosState>((set, get) => ({
     set({
       pendingCount: await countPending(),
       online: navigator.onLine,
-      devices: { printerOk: status?.printerOk ?? null, scaleOk: status?.scaleOk ?? null },
+      devices: { printerOk: status?.printerOk ?? null },
     });
   },
 }));

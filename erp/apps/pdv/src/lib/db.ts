@@ -13,7 +13,6 @@ export interface CachedCatalogItem {
   description: string;
   categoryName: string | null;
   unit: string;
-  soldByWeight: boolean;
   priceCents: number;
   barcodes: string[];
 }

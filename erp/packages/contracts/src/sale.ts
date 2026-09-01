@@ -11,27 +11,29 @@ export const saleItemSchema = z.object({
   lineNumber: z.number().int().positive(),
   skuId: uuidSchema,
   description: z.string().min(1),
+  /** Produto é vendido por pote/unidade; a casa decimal existe para kits e insumos. */
   quantity: quantitySchema,
-  unit: z.enum(['UN', 'KG', 'L']),
+  unit: z.literal('UN'),
   unitPriceCents: centsSchema.nonnegative(),
   discountCents: centsSchema.nonnegative().default(0),
   totalCents: centsSchema.nonnegative(),
-  /** true quando o peso veio da balança, não da digitação */
-  weighed: z.boolean().default(false),
 });
 export type SaleItemInput = z.infer<typeof saleItemSchema>;
 
+/**
+ * O pagamento acontece fora do sistema: dinheiro, Pix ou maquineta de cartão.
+ * O operador lança aqui o que foi recebido, e é isso que alimenta a nota fiscal
+ * e a conferência do caixa. Bandeira e NSU são opcionais, digitados quando a
+ * loja quer conciliar o extrato da adquirente depois.
+ */
 export const salePaymentSchema = z.object({
   method: paymentMethodSchema,
   amountCents: centsSchema.positive(),
   changeCents: centsSchema.nonnegative().default(0),
-  /** v1: maquininha avulsa, então o dado é informado pelo operador e não capturado */
-  captured: z.boolean().default(false),
   acquirer: z.string().optional(),
   cardBrand: z.string().optional(),
   installments: z.number().int().min(1).max(24).default(1),
   nsu: z.string().optional(),
-  authorizationCode: z.string().optional(),
 });
 export type SalePaymentInput = z.infer<typeof salePaymentSchema>;
 

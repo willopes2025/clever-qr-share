@@ -39,7 +39,6 @@ export class TelemetryService {
           pendingSales: input.pendingSales,
           fiscalQueue,
           printerOk: input.printerOk,
-          scaleOk: input.scaleOk,
           lastSaleAt: input.lastSaleAt ? new Date(input.lastSaleAt) : null,
         },
       }),
@@ -81,7 +80,6 @@ export class TelemetryService {
         pendingSales: last?.pendingSales ?? 0,
         fiscalQueue: last?.fiscalQueue ?? 0,
         printerOk: last?.printerOk ?? null,
-        scaleOk: last?.scaleOk ?? null,
         openAlerts: terminal.alerts.map((alert) => ({
           kind: alert.kind,
           severity: alert.severity,
@@ -123,11 +121,6 @@ export class TelemetryService {
       [
         input.printerOk === false,
         { kind: 'printer_down', severity: 'warning', message: 'Impressora não respondeu' },
-      ],
-      [
-        input.scaleOk === false,
-        // Em quiosque que vende no peso, balança fora é perda de venda direta.
-        { kind: 'scale_down', severity: 'critical', message: 'Balança não respondeu' },
       ],
       [
         input.pendingSales > 0 && isStale(input.lastSaleAt, UNSYNCED_AFTER_MINUTES),

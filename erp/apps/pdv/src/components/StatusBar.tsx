@@ -25,7 +25,6 @@ export function StatusBar() {
         <Badge tone={online ? 'ok' : 'warn'} label={online ? 'online' : 'offline'} />
         {pendingCount > 0 && <Badge tone="warn" label={`${pendingCount} na fila`} />}
         <DeviceBadge label="impressora" ok={devices.printerOk} />
-        <DeviceBadge label="balança" ok={devices.scaleOk} />
       </div>
     </header>
   );

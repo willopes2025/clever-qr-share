@@ -3,7 +3,7 @@ import { formatMoney } from '@soul/ui';
 import { toCents } from '@soul/money';
 import type { PaymentMethod, SalePaymentInput } from '@soul/contracts';
 import { calculateChange, outstandingAmount } from '../lib/payment';
-import { Overlay } from './WeightDialog';
+import { Overlay } from '../components/Overlay';
 
 const METHODS: Array<{ key: PaymentMethod; label: string; shortcut: string }> = [
   { key: 'cash', label: 'Dinheiro', shortcut: 'F5' },
@@ -15,9 +15,11 @@ const METHODS: Array<{ key: PaymentMethod; label: string; shortcut: string }> = 
 const CARD_BRANDS = ['visa', 'master', 'elo', 'amex', 'outra'];
 
 /**
- * Recebimento. Na v1 a maquininha é avulsa: o sistema registra bandeira e
- * parcelas informadas pelo atendente, marcando que o dado não foi capturado —
- * é isso que permite conciliar depois e medir o erro de digitação.
+ * Recebimento.
+ *
+ * O pagamento é feito fora do sistema — dinheiro, Pix ou maquineta de cartão.
+ * Aqui o atendente lança o que recebeu, e é esse lançamento que vira a nota
+ * fiscal e a conferência do caixa.
  */
 export function PaymentDialog({
   totalCents,
@@ -63,7 +65,6 @@ export function PaymentDialog({
         method,
         amountCents: value,
         changeCents: 0,
-        captured: false,
         cardBrand: isCard ? brand : undefined,
         installments: 1,
       },
@@ -113,7 +114,7 @@ export function PaymentDialog({
       {(method === 'credit' || method === 'debit') && (
         <div className="mb-3">
           <label className="label" htmlFor="brand">
-            Bandeira (maquininha avulsa)
+            Bandeira da maquineta
           </label>
           <select id="brand" className="field" value={brand} onChange={(event) => setBrand(event.target.value)}>
             {CARD_BRANDS.map((option) => (

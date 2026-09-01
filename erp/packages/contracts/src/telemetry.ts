@@ -7,7 +7,6 @@ export const heartbeatSchema = z.object({
   bridgeVersion: z.string().optional(),
   pendingSales: z.number().int().nonnegative(),
   printerOk: z.boolean().nullable(),
-  scaleOk: z.boolean().nullable(),
   lastSaleAt: isoDateTimeSchema.nullable(),
 });
 export type HeartbeatInput = z.infer<typeof heartbeatSchema>;
@@ -17,7 +16,6 @@ export const terminalAlertKinds = [
   'unsynced_sales',
   'fiscal_stuck',
   'printer_down',
-  'scale_down',
   'cash_open_after_hours',
 ] as const;
 export type TerminalAlertKind = (typeof terminalAlertKinds)[number];

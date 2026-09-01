@@ -52,6 +52,20 @@ const ROLES = [
   { code: 'caixa', name: 'Operador de caixa', permissions: ['sale.create', 'cash.open'] },
 ];
 
+interface SeedSku {
+  id: string;
+  priceCents: number;
+  description: string;
+  trackLot: boolean;
+}
+
+/** Tamanhos de pote com preço próprio — a venda é sempre por pote fechado. */
+const TAMANHOS = [
+  { label: '300ml', priceCents: 1690 },
+  { label: '500ml', priceCents: 2290 },
+  { label: '1L', priceCents: 3490 },
+] as const;
+
 const SABORES = [
   'Napolitano', 'Chocolate Belga', 'Morango', 'Flocos', 'Leite Ninho',
   'Pistache', 'Coco Queimado', 'Doce de Leite',
@@ -212,12 +226,13 @@ async function createUsers(tenantId: string) {
 
 async function createCatalog(tenantId: string, stores: Array<{ id: string }>) {
   const categorias = await Promise.all(
-    ['Sorvete', 'Açaí', 'Complementos', 'Bebidas'].map((name, index) =>
+    ['Sorvete', 'Complementos', 'Bebidas'].map((name, index) =>
       prisma.category.create({ data: { tenantId, name, sortOrder: index } }),
     ),
   );
-  const [sorvete, acai, complementos, bebidas] = categorias;
+  const [sorvete, complementos, bebidas] = categorias;
 
+  // Grade de dois eixos: o pote é escolhido por sabor e por tamanho.
   const eixoSabor = await prisma.variantAxis.create({ data: { tenantId, name: 'Sabor' } });
   const valoresSabor = await Promise.all(
     SABORES.map((value, index) =>
@@ -225,83 +240,53 @@ async function createCatalog(tenantId: string, stores: Array<{ id: string }>) {
     ),
   );
 
-  const skus: Array<{ id: string; priceCents: number; soldByWeight: boolean; description: string }> = [];
-
-  // Sorvete no peso — o carro-chefe do quiosque.
-  const sorveteNoPeso = await prisma.product.create({
-    data: {
-      tenantId,
-      categoryId: sorvete!.id,
-      name: 'Sorvete no peso',
-      unit: 'KG',
-      soldByWeight: true,
-      ncm: '21050010',
-      cfop: '5102',
-    },
-  });
-  skus.push(
-    await createSku(tenantId, stores, {
-      productId: sorveteNoPeso.id,
-      code: '000010',
-      description: 'Sorvete no peso',
-      priceCents: 7990,
-      barcode: null,
-      soldByWeight: true,
-    }),
+  const eixoTamanho = await prisma.variantAxis.create({ data: { tenantId, name: 'Tamanho' } });
+  const valoresTamanho = await Promise.all(
+    TAMANHOS.map((tamanho, index) =>
+      prisma.variantValue.create({
+        data: { axisId: eixoTamanho.id, value: tamanho.label, sortOrder: index },
+      }),
+    ),
   );
 
-  const acaiNoPeso = await prisma.product.create({
-    data: {
-      tenantId,
-      categoryId: acai!.id,
-      name: 'Açaí no peso',
-      unit: 'KG',
-      soldByWeight: true,
-      ncm: '21050010',
-      cfop: '5102',
-    },
-  });
-  skus.push(
-    await createSku(tenantId, stores, {
-      productId: acaiNoPeso.id,
-      code: '000042',
-      description: 'Açaí no peso',
-      priceCents: 5990,
-      barcode: null,
-      soldByWeight: true,
-    }),
-  );
+  const skus: SeedSku[] = [];
 
-  // Pote de 1L com grade de sabores — usa os dois eixos do catálogo.
   const pote = await prisma.product.create({
     data: {
       tenantId,
       categoryId: sorvete!.id,
-      name: 'Pote 1L',
+      name: 'Pote de sorvete',
       kind: 'grid',
       unit: 'UN',
       ncm: '21050010',
       cfop: '5102',
     },
   });
-  for (const [index, sabor] of valoresSabor.entries()) {
-    skus.push(
-      await createSku(tenantId, stores, {
-        productId: pote.id,
-        code: `2000${String(index + 1).padStart(2, '0')}`,
-        description: `Pote 1L ${sabor.value}`,
-        priceCents: 3490,
-        barcode: `789000000${String(index + 10).padStart(3, '0')}`,
-        axis1ValueId: sabor.id,
-      }),
-    );
+
+  for (const [saborIndex, sabor] of valoresSabor.entries()) {
+    for (const [tamanhoIndex, tamanho] of TAMANHOS.entries()) {
+      skus.push(
+        await createSku(tenantId, {
+          productId: pote.id,
+          code: `1${String(saborIndex + 1).padStart(2, '0')}${String(tamanhoIndex + 1).padStart(2, '0')}`,
+          description: `Pote ${tamanho.label} ${sabor.value}`,
+          priceCents: tamanho.priceCents,
+          barcode: `789${String(saborIndex + 1).padStart(4, '0')}${String(tamanhoIndex + 1).padStart(5, '0')}`,
+          axis1ValueId: sabor.id,
+          axis2ValueId: valoresTamanho[tamanhoIndex]!.id,
+          // Sorvete tem validade: o pote é rastreado por lote.
+          trackLot: true,
+        }),
+      );
+    }
   }
 
   const avulsos = [
-    { categoryId: complementos!.id, name: 'Casquinha', code: '000101', priceCents: 600, ncm: '19053100' },
-    { categoryId: complementos!.id, name: 'Granola', code: '000102', priceCents: 300, ncm: '19041000' },
-    { categoryId: complementos!.id, name: 'Calda de chocolate', code: '000103', priceCents: 400, ncm: '18069000' },
-    { categoryId: complementos!.id, name: 'Whey no copo', code: '000104', priceCents: 1200, ncm: '22029900' },
+    { categoryId: complementos!.id, name: 'Casquinha', code: '000101', priceCents: 900, ncm: '19053100' },
+    { categoryId: complementos!.id, name: 'Copinho 120ml', code: '000102', priceCents: 1200, ncm: '21050010' },
+    { categoryId: complementos!.id, name: 'Granola', code: '000103', priceCents: 300, ncm: '19041000' },
+    { categoryId: complementos!.id, name: 'Calda de chocolate', code: '000104', priceCents: 400, ncm: '18069000' },
+    { categoryId: complementos!.id, name: 'Whey no copo', code: '000105', priceCents: 1200, ncm: '22029900' },
     { categoryId: bebidas!.id, name: 'Água mineral 500ml', code: '000201', priceCents: 500, ncm: '22011000' },
     { categoryId: bebidas!.id, name: 'Refrigerante lata', code: '000202', priceCents: 700, ncm: '22021000' },
   ];
@@ -318,7 +303,7 @@ async function createCatalog(tenantId: string, stores: Array<{ id: string }>) {
       },
     });
     skus.push(
-      await createSku(tenantId, stores, {
+      await createSku(tenantId, {
         productId: product.id,
         code: item.code,
         description: item.name,
@@ -333,7 +318,6 @@ async function createCatalog(tenantId: string, stores: Array<{ id: string }>) {
 
 async function createSku(
   tenantId: string,
-  stores: Array<{ id: string }>,
   input: {
     productId: string;
     code: string;
@@ -341,9 +325,10 @@ async function createSku(
     priceCents: number;
     barcode: string | null;
     axis1ValueId?: string;
-    soldByWeight?: boolean;
+    axis2ValueId?: string;
+    trackLot?: boolean;
   },
-) {
+): Promise<SeedSku> {
   const sku = await prisma.sku.create({
     data: {
       tenantId,
@@ -351,9 +336,10 @@ async function createSku(
       code: input.code,
       description: input.description,
       axis1ValueId: input.axis1ValueId,
+      axis2ValueId: input.axis2ValueId,
       avgCostCents: BigInt(Math.round(input.priceCents * 0.42)),
-      trackLot: input.soldByWeight ?? false,
-      minStock: new Prisma.Decimal(input.soldByWeight ? 5 : 10),
+      trackLot: input.trackLot ?? false,
+      minStock: new Prisma.Decimal(6),
     },
   });
 
@@ -369,36 +355,42 @@ async function createSku(
   return {
     id: sku.id,
     priceCents: input.priceCents,
-    soldByWeight: input.soldByWeight ?? false,
     description: input.description,
+    trackLot: input.trackLot ?? false,
   };
 }
 
 async function createStock(
   tenantId: string,
   stores: Array<{ id: string }>,
-  skus: Array<{ id: string; soldByWeight: boolean }>,
+  skus: SeedSku[],
 ) {
   for (const store of stores) {
     for (const sku of skus) {
-      if (sku.soldByWeight) {
-        // Produto por peso tem lote e validade — sorvete vence.
-        const lot = await prisma.stockLot.create({
-          data: {
-            tenantId,
-            skuId: sku.id,
-            lotCode: `L${store.id.slice(0, 4)}${sku.id.slice(0, 4)}`.toUpperCase(),
-            expiresAt: new Date(Date.now() + 90 * 86_400_000),
-          },
-        });
+      if (!sku.trackLot) {
         await prisma.stockBalance.create({
-          data: { tenantId, storeId: store.id, skuId: sku.id, lotId: lot.id, quantity: new Prisma.Decimal(60) },
+          data: { tenantId, storeId: store.id, skuId: sku.id, quantity: new Prisma.Decimal(80) },
         });
         continue;
       }
 
+      // Pote de sorvete vence: entra com lote e validade, e sai por FEFO.
+      const lot = await prisma.stockLot.create({
+        data: {
+          tenantId,
+          skuId: sku.id,
+          lotCode: `L${store.id.slice(0, 4)}${sku.id.slice(0, 4)}`.toUpperCase(),
+          expiresAt: new Date(Date.now() + 120 * 86_400_000),
+        },
+      });
       await prisma.stockBalance.create({
-        data: { tenantId, storeId: store.id, skuId: sku.id, quantity: new Prisma.Decimal(80) },
+        data: {
+          tenantId,
+          storeId: store.id,
+          skuId: sku.id,
+          lotId: lot.id,
+          quantity: new Prisma.Decimal(40),
+        },
       });
     }
   }
@@ -409,7 +401,7 @@ async function createSalesHistory(
   stores: Array<{ id: string; name: string }>,
   terminals: Array<{ id: string; storeId: string; fiscalSeries: number }>,
   users: Array<{ id: string }>,
-  skus: Array<{ id: string; priceCents: number; soldByWeight: boolean; description: string }>,
+  skus: SeedSku[],
 ) {
   const operators = users.slice(1);
   let saleNumber = new Map<string, number>();
@@ -467,7 +459,6 @@ async function createSalesHistory(
                 unit: item.unit,
                 unitPriceCents: BigInt(item.unitPriceCents),
                 totalCents: BigInt(item.totalCents),
-                weighed: item.unit === 'KG',
               })),
             },
             documents: {
@@ -493,7 +484,6 @@ async function createSalesHistory(
                 method: payment.method,
                 amountCents: BigInt(payment.amountCents),
                 changeCents: BigInt(payment.changeCents),
-                captured: false,
                 cardBrand: payment.cardBrand,
                 installments: 1,
               })),
@@ -520,7 +510,7 @@ function hourOfDay(): number {
   return 12;
 }
 
-function pickItems(skus: Array<{ id: string; priceCents: number; soldByWeight: boolean; description: string }>) {
+function pickItems(skus: SeedSku[]) {
   const count = 1 + Math.floor(Math.random() * 3);
   const items: Array<{
     skuId: string;
@@ -533,12 +523,12 @@ function pickItems(skus: Array<{ id: string; priceCents: number; soldByWeight: b
 
   for (let i = 0; i < count; i += 1) {
     const sku = skus[Math.floor(Math.random() * skus.length)]!;
-    const quantity = sku.soldByWeight ? round3(0.15 + Math.random() * 0.5) : 1 + Math.floor(Math.random() * 2);
+    const quantity = 1 + Math.floor(Math.random() * 2);
     items.push({
       skuId: sku.id,
       description: sku.description,
       quantity,
-      unit: sku.soldByWeight ? 'KG' : 'UN',
+      unit: 'UN',
       unitPriceCents: sku.priceCents,
       totalCents: Math.round(sku.priceCents * quantity),
     });
@@ -563,9 +553,6 @@ function fakeAccessKey(series: number, number: number): string {
   return `3526091234567800019065${body}`.padEnd(44, '0').slice(0, 44);
 }
 
-function round3(value: number): number {
-  return Math.round(value * 1000) / 1000;
-}
 
 main()
   .catch((error) => {
