@@ -11,14 +11,14 @@ Detalhamento por módulo: o que faz, telas, fluxos e o que precisa ficar decidid
 | Tela | Conteúdo |
 |------|----------|
 | **Abertura de caixa** | Operador, terminal, fundo de troco, conferência da última sessão |
-| **Venda** | Carrinho (70% da tela), busca/leitura, teclas rápidas de produto, painel de peso, total gigante |
+| **Venda** | Carrinho (70% da tela), busca/leitura, teclas rápidas de produto, ajuste de quantidade, total gigante |
 | **Pagamento** | Meios múltiplos, calculadora de troco, atalhos (F1 dinheiro, F2 débito, F3 crédito, F4 Pix) |
 | **Vendas em espera** | Lista de vendas pausadas no terminal |
 | **Sangria/Suprimento** | Valor, motivo, comprovante |
 | **Fechamento** | Conferência cega por meio de pagamento, diferença e justificativa |
 | **Status** | Sincronização, fila fiscal, dispositivos — o mesmo que o dono vê no painel |
 
-### 1.2 Fluxo da venda com peso (o caso mais comum do quiosque)
+### 1.2 Fluxo da venda (o caso mais comum do quiosque)
 
 ```mermaid
 sequenceDiagram
@@ -29,13 +29,11 @@ sequenceDiagram
     participant Q as Outbox
     participant API as Nuvem
 
-    A->>P: tecla rápida "Açaí no peso"
-    P->>B: GET /scale/read
-    B-->>P: 0,412 kg (estável)
-    P->>P: 0,412 × R$ 59,90/kg = R$ 24,68
-    A->>P: adiciona "Granola" (leitura EAN)
-    A->>P: F2 (débito) R$ 27,68
-    Note over A: passa o cartão na maquininha avulsa<br/>e confirma no PDV
+    A->>P: lê o pote (ou usa a tecla rápida)
+    P->>P: soma na linha existente e recalcula o total
+    A->>P: lê o complemento
+    A->>P: F2 · recebe R$ 78,80
+    Note over A: passa na maquineta da adquirente<br/>e lança o pagamento no PDV
     P->>P: grava venda local (UUID v7) + baixa estoque local
     P->>Q: enfileira venda
     P->>B: imprime comprovante
@@ -107,7 +105,6 @@ abre e fecha alertas:
 | Fila fiscal parada | documento em `queued` há > 15min ou > 3 tentativas | crítico |
 | Nota rejeitada | rejeição definitiva | alto |
 | Impressora fora | `printer_ok = false` por 2 heartbeats | médio |
-| Balança fora | `scale_ok = false` | médio (alto em quiosque, que vende por peso) |
 | Caixa aberto fora de horário | aberto após `store.closes_at` + tolerância | médio |
 | Versão desatualizada | app < versão mínima suportada | baixo |
 
@@ -155,7 +152,6 @@ graph TB
 | Performance do PDV | ✅ | ✅ | ✅ |
 | Importação de XML | ❌ | ✅ | ✅ |
 | Estoque em grade | ❌ | ✅ | ✅ |
-| TEF | ❌ | ✅ | ✅ |
 | Conciliação bancária | ❌ | ❌ | ✅ |
 | Contratos de cartões | ❌ | ❌ | ✅ |
 | Mesas · Delivery | ❌ | ❌ | ✅ |
@@ -179,14 +175,14 @@ Acesso ao tenant do cliente exige **impersonation com motivo, prazo e auditoria 
 
 ## 5. `catalog` + `inventory` (F1 básico · F2 completo)
 
-- **F1**: cadastro de produto/SKU, código de barras (incluindo EAN de balança), preço por loja com
+- **F1**: cadastro de produto/SKU, código de barras, preço por loja com
   vigência, saldo por loja, baixa automática na venda, entrada manual, ajuste com motivo, alerta de mínimo.
 - **F2**: grade (RF-10) com tela de matriz, lote e validade com FEFO, inventário por celular
   (contagem cega, divergência, aprovação), transferência entre lojas, curva ABC, sugestão de compra.
 
-**Grade na prática (sorvete):** eixo 1 = Sabor (Napolitano, Chocolate, Flocos…), eixo 2 = Embalagem
-(Pote 1L, Pote 2L, Casquinha). A tela mostra a matriz com saldo por célula e permite lançar entrada
-direto na célula — é o que torna o recebimento de 30 sabores viável.
+**Grade na prática (sorvete):** eixo 1 = Sabor (Napolitano, Chocolate, Flocos…), eixo 2 = Tamanho
+(300ml, 500ml, 1L), cada combinação com seu preço. A tela mostra a matriz com saldo por célula e
+permite lançar entrada direto na célula — é o que torna o recebimento de dezenas de sabores viável.
 
 ---
 
@@ -234,10 +230,10 @@ graph TB
     M -->|"não veio"| NR["not_received + alerta"]
 ```
 
-**Limitação honesta da v1:** com maquininha avulsa não há NSU confiável, então o match é por
-`valor + data + bandeira` e a taxa de acerto fica em torno de 85–95% — casos ambíguos (duas vendas
-de mesmo valor no mesmo dia) vão para revisão manual. Quando o TEF entrar (F3), o NSU eleva o match
-para praticamente 100%. Esse número é justamente o argumento para o investimento no TEF.
+**Limitação honesta:** como o pagamento é lançado à mão, o match é por `valor + data + bandeira` e a
+taxa de acerto fica em torno de 85–95% — casos ambíguos (duas vendas de mesmo valor no mesmo dia)
+vão para revisão manual. Se a loja passar a digitar o NSU do comprovante da maquineta, o casamento
+vira exato; é uma escolha de disciplina operacional, não de tecnologia.
 
 ---
 
@@ -258,8 +254,8 @@ para praticamente 100%. Esse número é justamente o argumento para o investimen
 - **Produção**: ficha técnica com insumos e perda, ordem de produção, baixa de insumo e entrada do
   acabado, custo de produção, kits/combos, painel de preparo.
 
-Para a Soul Muscle, "produção" é o que transforma **pote de sorvete → porções vendidas**: a ficha
-técnica resolve o consumo de insumo (calda, granola, casquinha) que hoje some do controle.
+Para a Soul Muscle, "produção" é o que monta **kits e combos** a partir de potes e complementos: a
+ficha técnica resolve o consumo de insumo (calda, granola, casquinha) que hoje some do controle.
 
 ---
 

@@ -8,7 +8,7 @@
 | A2 | **A venda não espera a nota** | Emissão fiscal é assíncrona, em fila, com retentativa. Nunca é bloqueante na tela do caixa. |
 | A3 | **Um só monólito modular, até doer** | Nada de microsserviços na v1. Fronteiras de módulo bem definidas hoje = extração barata amanhã. |
 | A4 | **Tudo é multi-tenant desde a primeira linha** | `tenant_id` obrigatório, isolado em duas camadas. Não existe "depois a gente adapta". |
-| A5 | **Fornecedor externo fica atrás de adaptador** | Gateway fiscal, TEF, PSP, banco: interface nossa, implementação deles. |
+| A5 | **Fornecedor externo fica atrás de adaptador** | Gateway fiscal, PSP, banco: interface nossa, implementação deles. |
 | A6 | **Dinheiro é inteiro** | Centavos em `bigint`. Ponto flutuante para valor monetário é bug esperando acontecer. |
 | A7 | **Movimento é append-only** | Venda, caixa, estoque e fiscal são registros imutáveis; correção gera novo registro. |
 | A8 | **O que o dono precisa ver, o sistema mede** | Telemetria de PDV é funcionalidade de produto (RF-20), não item de infra. |
@@ -21,8 +21,8 @@ graph TB
         Atendente(["👤 Atendente"])
         PDV["PDV<br/>(PWA Windows)"]
         Bridge["SM Bridge<br/>(agente local)"]
-        Perif["🖨️ Impressora · Gaveta<br/>⚖️ Balança · 📷 Leitor"]
-        Maq["💳 Maquininha avulsa<br/>(não integrada · v1)"]
+        Perif["🖨️ Impressora · Gaveta<br/>📷 Leitor de código"]
+        Maq["💳 Maquineta da adquirente<br/>(fora do sistema)"]
     end
 
     subgraph Nuvem["☁️ Soul ERP (SaaS multi-tenant)"]
@@ -163,7 +163,7 @@ declara **explicitamente** o que exporta:
 | `inventory` | Saldo, movimento, lote/validade, inventário, transferência | `catalog` |
 | `pos` | Sessão de caixa, venda em andamento, sincronização, telemetria do terminal | `catalog`, `iam` |
 | `sales` | Venda finalizada, devolução, troca, promoção, comissão | `inventory`, `catalog` |
-| `payments` | Meios de pagamento, registro de cartão, Pix, TEF (F3) | `sales` |
+| `payments` | Meios de pagamento e lançamento do recebido | `sales` |
 | `fiscal` | Documentos fiscais, fila de emissão, adaptadores de gateway, guarda de XML | `sales` |
 | `purchasing` | Fornecedor, compra, importação de XML, custo | `inventory`, `finance` |
 | `finance` | Contas a pagar/receber, caixa, conciliação bancária, DRE | `sales`, `purchasing` |
@@ -191,13 +191,9 @@ sequenceDiagram
     participant B as SM Bridge (localhost)
     participant D as Dispositivos
 
-    C->>P: seleciona "Sorvete no peso"
-    P->>B: GET /scale/read
-    B->>D: lê balança (serial/USB)
-    D-->>B: 0,412 kg estável
-    B-->>P: {peso: 412, unidade: "g", estavel: true}
-    P->>P: calcula valor = peso × preço/kg
-    C->>P: finaliza e recebe pagamento
+    C->>P: lê o código do pote
+    P->>P: soma na linha e recalcula o total
+    C->>P: finaliza e lança o pagamento recebido
     P->>P: grava venda local + enfileira no outbox
     P->>B: POST /print/receipt (cupom provisório)
     B->>D: ESC/POS + abre gaveta
@@ -211,12 +207,10 @@ token pareado com o terminal):
 | Endpoint | Uso |
 |----------|-----|
 | `GET /health` | Status dos dispositivos — alimenta a saúde do terminal (RF-20.5) |
-| `GET /scale/read` | Leitura de peso (Toledo Prix, Filizola, Urano — protocolo por driver) |
 | `POST /print/receipt` | Impressão ESC/POS de cupom, comprovante e relatório de caixa |
 | `POST /print/danfe` | Impressão do DANFE NFC-e a partir do layout devolvido pelo gateway |
 | `POST /drawer/open` | Abertura da gaveta |
 | `GET /devices` | Descoberta e teste de dispositivos (tela de configuração) |
-| `POST /tef/*` | *(F3)* pagamento, confirmação e estorno via pinpad |
 | `GET /version` · `POST /update` | Autoatualização silenciosa |
 
 **Degradação:** se o Bridge não responde, o PDV **continua vendendo**. Peso pode ser digitado

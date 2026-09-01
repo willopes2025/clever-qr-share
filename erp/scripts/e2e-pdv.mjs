@@ -1,6 +1,7 @@
 /**
  * Percorre o PDV num navegador real: pareia o terminal, escolhe o operador,
- * abre o caixa, vende um item por peso e um avulso, recebe em cartão e conclui.
+ * abre o caixa, monta um carrinho com potes e um complemento, recebe na
+ * maquineta e conclui a venda.
  * Salva uma captura de cada passo em /tmp/pdv-*.png.
  *
  * Requer a API em :3000, o PDV servido em :5173 e o banco semeado.
@@ -37,31 +38,30 @@ if (await page.locator('text=Abrir o caixa').count()) {
 await page.waitForSelector('text=Total da venda', { timeout: 15000 });
 await shot('3-venda-vazia');
 
-// Vende um item por peso (balança fora do ar → digitação) e um avulso.
-await page.fill('input[placeholder*="Leia o código"]', 'acai');
+// Monta o carrinho: dois potes iguais (somam na mesma linha) e um complemento.
+await page.fill('input[placeholder*="Leia o código"]', 'pote 1l chocolate');
 await page.waitForTimeout(600);
 await page.keyboard.press('Enter');
-await page.waitForTimeout(1800);
-if (await page.locator('#grams').count()) {
-  await page.fill('#grams', '412');
-  await shot('4-peso');
-  await page.click('button:has-text("Adicionar")');
-}
-await page.fill('input[placeholder*="Leia o código"]', 'granola');
 await page.waitForTimeout(500);
+await page.fill('input[placeholder*="Leia o código"]', 'pote 1l chocolate');
+await page.waitForTimeout(600);
+await page.keyboard.press('Enter');
+await page.waitForTimeout(500);
+await page.fill('input[placeholder*="Leia o código"]', 'casquinha');
+await page.waitForTimeout(600);
 await page.keyboard.press('Enter');
 await page.waitForTimeout(700);
-await shot('5-carrinho');
+await shot('4-carrinho');
 
 await page.click('button:has-text("Receber")');
 await page.waitForSelector('text=Bandeira', { timeout: 5000 });
 await page.click('button:has-text("Lançar")');
 await page.waitForTimeout(400);
-await shot('6-pagamento');
+await shot('5-pagamento');
 
 await page.click('button:has-text("Concluir venda")');
 await page.waitForTimeout(2500);
-await shot('7-concluida');
+await shot('6-concluida');
 
 const badge = await page.locator('header').innerText();
 console.log('\nbarra de status:', badge.replace(/\n/g, ' | '));

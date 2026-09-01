@@ -10,14 +10,14 @@ revenda — multiempresa por CNPJ, com planos comerciais desde o primeiro commit
 
 | Área | Estado |
 |------|--------|
-| PDV offline-first com venda por peso, caixa e pagamentos | ✅ |
+| PDV offline-first: venda por pote, caixa e lançamento de pagamentos | ✅ |
 | Sincronização idempotente (reenviar não duplica venda) | ✅ |
 | Emissão de NFC-e via gateway, com fila e retentativa | ✅ (provedor `fake` em desenvolvimento) |
 | Estoque com baixa automática, lote e consumo FEFO | ✅ |
 | Painel de performance: faturamento ao vivo, curva do dia, mix | ✅ |
 | Monitor de saúde dos terminais com alertas | ✅ |
 | Multiempresa, grupo econômico, planos e medição de uso | ✅ |
-| TEF integrado, conciliações, mesas, delivery, OS, produção | planejado (fases 3 a 5) |
+| Conciliações, mesas, delivery, autoatendimento, OS, produção | planejado (fases 3 a 5) |
 
 ## Estrutura
 
@@ -88,7 +88,7 @@ DEVICE_TOKEN=soul-pdv-q01-xxxxxxxx node scripts/smoke.mjs
 | **O provedor fiscal fica atrás de um adaptador** — trocar não encosta no PDV. | `apps/api/src/modules/fiscal/fiscal-provider.ts` |
 | **Toda tabela tem `tenant_id`** e política de RLS no banco. | `apps/api/prisma/migrations/*_row_level_security` |
 | **Toda feature de plano nasce atrás de um entitlement.** | `apps/api/src/modules/tenancy` |
-| **Periférico é acessado pelo agente local**, nunca pelo navegador. | `apps/pdv/src/lib/scale.ts` |
+| **Periférico é acessado pelo agente local**, nunca pelo navegador. | `apps/pdv/src/lib/bridge.ts` |
 
 ## Ambiente de desenvolvimento sem gateway fiscal
 

@@ -89,9 +89,9 @@ para fidelidade ou delivery.
 
 ## 7. Dados de cartão (PCI)
 
-Nem na v1 (maquininha avulsa) nem na fase de TEF o sistema recebe PAN, CVV ou trilha. Guardamos
-**apenas** NSU, código de autorização, bandeira, parcelas, valor e adquirente. O campo de número de
-cartão **não existe no schema** — a melhor defesa é não ter onde guardar.
+O sistema nunca recebe PAN, CVV ou trilha: a maquineta fala direto com a adquirente. Guardamos
+**apenas** bandeira, parcelas, valor, adquirente e, quando o operador digita, o NSU do comprovante.
+O campo de número de cartão **não existe no schema** — a melhor defesa é não ter onde guardar.
 
 ## 8. Segredos e criptografia
 

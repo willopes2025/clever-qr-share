@@ -20,7 +20,6 @@ comercial por plano** — o motor de *entitlements* (RF-19), já que o sistema s
 | Financeiro | RF-09 | `finance` | F2 | Ideal |
 | Contratos de cartões e outros | RF-11 | `receivables` | F3 | Completo |
 | Conciliação Bancária | RF-12 | `finance/reconciliation` | F3 | Completo |
-| TEF | RF-02 | `payments` + SM Bridge | **F3** (não é v1 — maquininha avulsa na v1) | Ideal |
 | Terminais de Autoatendimento | RF-03 | `kiosk` | F4 | Completo |
 | Controle de Mesas | RF-13 | `tables` | F4 | Completo |
 | Delivery | RF-14 | `delivery` | F4 | Completo |
@@ -40,10 +39,10 @@ comercial por plano** — o motor de *entitlements* (RF-19), já que o sistema s
 |----|-----------|--------------------|
 | RF-01.1 | Abertura de caixa com fundo de troco, vinculada a operador e terminal | Sem caixa aberto, não vende |
 | RF-01.2 | Venda por leitura de EAN, busca por nome/código e **teclas rápidas de produto** (sabor, casquinha, taça) | Item no carrinho em < 200ms com catálogo de 20k SKUs |
-| RF-01.3 | **Venda por peso**: tara, leitura direta da balança e cálculo preço/kg | Peso lido do equipamento sem digitação; recálculo instantâneo do valor |
-| RF-01.4 | **Leitura de EAN de balança** (código prefixo 2 com peso ou valor embutido) | Etiqueta gerada na balança é interpretada corretamente |
+| RF-01.3 | Ler o mesmo produto de novo **soma na linha existente** em vez de criar outra | Três potes iguais aparecem como uma linha com quantidade 3 |
+| RF-01.4 | Ajuste de quantidade da linha direto na tela, e remoção da linha | Quantidade zero remove o item |
 | RF-01.5 | Desconto por item e no total, com limite por papel | Acima do limite exige aprovação de gerente registrada |
-| RF-01.6 | Pagamento **múltiplo**: dinheiro, cartão (maquininha avulsa), Pix, voucher, crédito do cliente | Soma ≥ total; troco só em dinheiro |
+| RF-01.6 | Pagamento **múltiplo**: dinheiro, cartão na maquineta, Pix, voucher, crédito do cliente | Soma ≥ total; troco só em dinheiro |
 | RF-01.7 | Cartão na v1: operador escolhe **débito/crédito, bandeira e parcelas**; NSU opcional | Dado suficiente para conciliar depois com o extrato da adquirente (RF-11) |
 | RF-01.8 | Identificação do cliente: CPF na nota, telefone, cadastro rápido | CPF validado; consentimento LGPD registrado |
 | RF-01.9 | Sangria, suprimento e reforço com justificativa | Todo movimento vira lançamento + comprovante |
@@ -55,17 +54,17 @@ comercial por plano** — o motor de *entitlements* (RF-19), já que o sistema s
 | RF-01.15 | Impressão do cupom e abertura de gaveta | Via SM Bridge; falha de impressora **não** bloqueia a venda |
 | RF-01.16 | Operação inteira por teclado, sem mouse | Teste com atendente real |
 
-### RF-02 · TEF integrado `should` `F3` — **não é v1**
+### RF-02 · Lançamento do pagamento `must` `F1`
 
-Na v1 a maquininha é avulsa (D6). O modelo de dados e a interface de pagamento já nascem prontos
-para receber a captura, para que a entrada do TEF **não exija reescrever o PDV**:
+**Não existe TEF integrado.** O pagamento acontece fora do sistema — dinheiro, Pix ou maquineta de
+cartão da adquirente — e o operador **lança no PDV** o que recebeu. É esse lançamento que alimenta
+a nota fiscal, o fechamento do caixa e, mais tarde, a conciliação do extrato.
 
-- RF-02.1 — Valor enviado do PDV ao pinpad, sem redigitação.
-- RF-02.2 — Retorno com NSU, autorização, bandeira, rede e parcelas gravado em `payment_transaction`.
-- RF-02.3 — Confirmação em duas fases (*undo/confirm*): transação não confirmada é desfeita sozinha.
-- RF-02.4 — Estorno pelo PDV com permissão de gerente.
-- RF-02.5 — Pix por QR dinâmico com baixa automática via webhook do PSP (< 10s p95).
-- RF-02.6 — Pelo menos dois provedores homologados (ex.: PayGo/SiTef e Stone), trocáveis por configuração.
+- RF-02.1 — Escolha do meio: dinheiro, débito, crédito, Pix, voucher ou crédito do cliente.
+- RF-02.2 — Em cartão, o operador informa **bandeira e parcelas**; o NSU é opcional e só é digitado
+  quando a loja quer conciliar o extrato da adquirente com precisão maior.
+- RF-02.3 — Pagamento dividido entre meios, com troco calculado apenas sobre o dinheiro recebido.
+- RF-02.4 — Nenhum dado de cartão trafega ou é armazenado (ver [07 §7](./07-SEGURANCA.md)).
 
 ### RF-03 · Terminal de autoatendimento `could` `F4`
 Totem em modo quiosque, catálogo com foto, carrinho, pagamento sem dinheiro, envio do pedido ao
@@ -122,8 +121,9 @@ recebível líquido por venda · importação do extrato/EDI da adquirente e con
 alerta de taxa cobrada ≠ contratada e de venda não repassada · antecipação com custo registrado ·
 mesma mecânica para vale-refeição, iFood e marketplaces.
 
-> **Atenção:** com maquininha avulsa (v1), a conciliação nasce **por aproximação** (valor + data +
-> bandeira). A precisão sobe para ~100% quando o TEF entrar na F3 e trouxer o NSU.
+> **Atenção:** como o pagamento é lançado à mão, a conciliação é **por aproximação** (valor + data +
+> bandeira). Quando a loja digita o NSU do comprovante, o casamento passa a ser exato — por isso o
+> campo existe e é opcional.
 
 ### RF-12 · Conciliação bancária `should` `F3`
 OFX/CNAB 240 e, quando houver, Open Finance via agregador · motor de regras (valor + data ± tolerância +
@@ -176,7 +176,7 @@ sempre limitado ao tenant e às permissões do usuário.
 | RF-20.2 | Comparativo com o mesmo dia da semana anterior e com a meta | Variação % visível no painel |
 | RF-20.3 | **Curva de horário** por faixa de 30min e por dia da semana | Base para escala de gente e reposição |
 | RF-20.4 | **Mix de produtos e sabores** mais vendidos, por loja e período | Top N com participação % e margem |
-| RF-20.5 | **Saúde técnica do terminal**: online/offline, última sincronização, vendas pendentes, fila fiscal, impressora, balança | Cartão por terminal com semáforo |
+| RF-20.5 | **Saúde técnica do terminal**: online/offline, última sincronização, vendas pendentes, fila fiscal e impressora | Cartão por terminal com semáforo |
 | RF-20.6 | Alertas: terminal offline > 15min, venda não sincronizada > 30min, nota rejeitada, caixa aberto fora do horário | Notificação em < 5min (painel + e-mail/WhatsApp) |
 | RF-20.7 | Painel mobile-first para o dono | Legível no celular, sem zoom |
 | RF-20.8 | *(barato, porque o dado já existe)* desempenho por operador: ticket médio, descontos, cancelamentos | Ranking por loja e período |
@@ -197,7 +197,7 @@ sempre limitado ao tenant e às permissões do usuário.
 | RNF-08 | Auditoria | Quem/quando/o quê/antes/depois em toda ação sensível | Tabela `audit_log` append-only |
 | RNF-09 | LGPD | Base legal por finalidade, minimização, expurgo, exportação e eliminação do titular | Checklist em [07 §6](./07-SEGURANCA.md) |
 | RNF-10 | Observabilidade | Log estruturado, tracing, alerta de fila fiscal parada e de terminal mudo | Dashboards + alertas testados |
-| RNF-11 | Manutenibilidade | Trocar gateway fiscal ou provedor TEF **sem tocar no PDV** | Teste de contrato por adaptador |
+| RNF-11 | Manutenibilidade | Trocar o gateway fiscal **sem tocar no PDV** | Teste de contrato por adaptador |
 | RNF-12 | Backup/DR | RPO ≤ 5min, RTO ≤ 4h | PITR + ensaio mensal de restauração |
 | RNF-13 | Instalação do PDV | Instalador Windows único, atualização automática e silenciosa | Rollout no piloto sem visita técnica |
 | RNF-14 | Portabilidade dev | Todo o backend sobe com `docker compose up` | Ambiente local do desenvolvedor |
@@ -214,6 +214,6 @@ sempre limitado ao tenant e às permissões do usuário.
 | RN-05 | Caixa não fecha com venda pendente de sincronização ainda não reconhecida pelo servidor. |
 | RN-06 | Documento fiscal rejeitado **bloqueia o fechamento contábil do dia, não a operação da loja**. |
 | RN-07 | Desconto acima do limite do papel exige aprovação identificada. |
-| RN-08 | Item por peso só pode ser vendido com peso vindo da balança ou do EAN de balança — nunca digitado, salvo permissão. |
+| RN-08 | Todo produto é vendido por unidade fechada; quantidade é sempre inteira na venda ao consumidor. |
 | RN-09 | Lote vencido não é vendido; lote a vencer em ≤ N dias alerta o operador. |
 | RN-10 | Tenant suspenso por inadimplência entra em modo leitura **após** o período de tolerância, e nunca no meio de uma venda aberta. |

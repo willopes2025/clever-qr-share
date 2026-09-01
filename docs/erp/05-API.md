@@ -7,7 +7,7 @@
 | Base | `https://api.soulerp.com.br/v1` |
 | Formato | JSON, `camelCase` |
 | Dinheiro | **Inteiro de centavos** (`totalCents: 2468`) — nunca `24.68` |
-| Quantidade | String decimal (`"0.4120"`) para não perder precisão em peso |
+| Quantidade | String decimal (`"2"`); a venda ao consumidor é sempre inteira |
 | Data/hora | ISO-8601 com fuso (`2026-09-14T14:32:07-03:00`) |
 | Paginação | Cursor: `?limit=50&cursor=...` → `{ data, nextCursor }` |
 | Versionamento | Prefixo de caminho (`/v1`); mudança quebrando gera `/v2` com 6 meses de convívio |
@@ -107,16 +107,16 @@ Idempotency-Key: 01927f3e-8c4a-7bd2-9f1e-3a5c8d2e4b71
     "customerDocument": "12345678901",
     "channel": "pos",
     "items": [
-      { "lineNumber": 1, "skuId": "...", "quantity": "0.4120", "unit": "KG",
-        "unitPriceCents": 5990, "discountCents": 0, "totalCents": 2468, "weighed": true },
+      { "lineNumber": 1, "skuId": "...", "quantity": "2", "unit": "UN",
+        "unitPriceCents": 3490, "discountCents": 0, "totalCents": 6980 },
       { "lineNumber": 2, "skuId": "...", "quantity": "1.0000", "unit": "UN",
-        "unitPriceCents": 300, "discountCents": 0, "totalCents": 300, "weighed": false }
+        "unitPriceCents": 900, "discountCents": 0, "totalCents": 900 }
     ],
     "payments": [
-      { "method": "debit", "amountCents": 2768, "captured": false,
+      { "method": "debit", "amountCents": 7880,
         "acquirer": "stone", "cardBrand": "visa", "installments": 1 }
     ],
-    "grossCents": 2768, "discountCents": 0, "totalCents": 2768,
+    "grossCents": 7880, "discountCents": 0, "totalCents": 7880,
     "clientVersion": "1.4.2"
   }]
 }
@@ -185,7 +185,7 @@ de merge por construção.
 ```
 /ws?token=<jwt>
   → canal tenant:{id}:analytics   { salesCount, revenueCents, avgTicketCents, byStore[] }
-  → canal tenant:{id}:terminals   { terminalId, online, pendingSales, printerOk, scaleOk }
+  → canal tenant:{id}:terminals   { terminalId, online, pendingSales, printerOk }
   → canal tenant:{id}:fiscal      { documentId, status, rejectionMsg }
   → canal terminal:{id}:commands  { type: "sync_now" | "update_app" | "reload_catalog" }
 ```

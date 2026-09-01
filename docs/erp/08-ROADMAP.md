@@ -12,9 +12,9 @@
 |-------|---------|-----:|
 | E1.1 Fundação | Monorepo, CI/CD, Docker, Postgres, autenticação, RLS, esqueleto dos módulos | 3 |
 | E1.2 Multiempresa | Tenant/CNPJ, grupo econômico, planos, entitlements, medição de uso | 2 |
-| E1.3 Cadastros | Produto, SKU, código de barras (inclusive EAN de balança), preço por loja, perfis tributários | 2 |
-| E1.4 SM Bridge | Agente Windows: impressora ESC/POS, gaveta, **balança**, instalador e autoatualização | 3 |
-| E1.5 PDV | Venda, peso, pagamentos, caixa, sangria, offline + outbox, impressão | 4 |
+| E1.3 Cadastros | Produto, SKU, grade sabor × tamanho, código de barras, preço por loja, perfis tributários | 2 |
+| E1.4 SM Bridge | Agente Windows: impressora ESC/POS, gaveta, instalador e autoatualização | 2 |
+| E1.5 PDV | Venda, pagamentos, caixa, sangria, offline + outbox, impressão | 4 |
 | E1.6 Fiscal | Adaptador do gateway, fila, webhook, guarda de XML, fila de correção | 3 |
 | E1.7 Performance | Dashboard ao vivo, curva de horário, mix, saúde do terminal, alertas | 2 |
 | E1.8 Estoque básico | Saldo, baixa na venda, entrada manual, ajuste, alerta de mínimo | 1,5 |
@@ -32,7 +32,7 @@ pagar/receber, fluxo de caixa, DRE) · Relatórios fixos com exportação e agen
 
 ### F3 · Dinheiro fino — "sei quanto realmente entrou" · ~9 semanas
 Contratos de cartão e previsão de recebíveis · Conciliação de cartões (EDI/API) · Conciliação
-bancária (OFX/CNAB, motor de regras) · **TEF integrado** com dois provedores · Pix com baixa automática.
+bancária (OFX/CNAB, motor de regras) · Pix com baixa automática por webhook do PSP.
 
 ### F4 · Canais — "vendo por mais portas" · ~10 semanas
 Totem de autoatendimento · Mesas/comandas com KDS · Delivery com integração iFood · App de consulta
@@ -58,7 +58,7 @@ gantt
     Financeiro + Relatórios      :f22, after f21, 28d
     section F3 · Dinheiro
     Recebíveis + Conciliações    :f31, after f22, 35d
-    TEF + Pix                    :f32, after f31, 28d
+    Pix automático               :f32, after f31, 21d
     section F4 · Canais
     Totem + Mesas + Delivery     :f41, after f32, 70d
     section F5 · Avançado
@@ -71,10 +71,10 @@ gantt
 |-------|--------|----------------------------------|
 | M0 | Antes da F1 | **Contador valida a emissão diferida** ([06 §5](./06-FISCAL.md)) — pode mudar o provedor |
 | M1 | Semana 2 | Provedor fiscal escolhido após a POC de 1 semana |
-| M2 | Semana 4 | Balança e impressora reais testadas com o SM Bridge |
+| M2 | Semana 4 | Impressora e gaveta reais testadas com o SM Bridge |
 | M3 | Fim da F1 | Piloto aprovado → libera rollout para os demais quiosques |
 | M4 | Fim da F2 | Produto tem escopo mínimo para ser **vendido a terceiros** |
-| M5 | Fim da F3 | Decisão sobre TEF com base na taxa real de erro da conciliação |
+| M5 | Fim da F3 | Decisão sobre digitar o NSU no caixa, com base na taxa real de acerto da conciliação |
 
 ## 3. Time sugerido
 
@@ -83,7 +83,7 @@ gantt
 | Tech lead / arquiteto | 1 | Fronteiras de módulo, revisão, decisões técnicas |
 | Backend (Node/Nest/Postgres) | 2 | API, workers, fiscal, financeiro |
 | Frontend (React) | 2 | PDV (1 dedicado) e retaguarda/dashboard |
-| Dev desktop/integração | 1 | SM Bridge, periféricos, TEF na F3 (pode ser meio período após a F1) |
+| Dev desktop/integração | 1 | SM Bridge e periféricos (pode ser meio período após a F1) |
 | QA | 1 | Testes automatizados, teste de campo no quiosque |
 | Product/analista fiscal | 0,5 | Requisito, parametrização fiscal, ponte com o contador |
 
@@ -104,9 +104,9 @@ atrasa. É a economia que mais custa caro neste tipo de projeto.
 | # | Risco | Prob. | Impacto | Mitigação |
 |---|-------|:-----:|:-------:|-----------|
 | R-01 | **Contingência fiscal offline** não aceita pelo contador | Média | **Alto** | Decidir no M0; provedor com componente local (caminho B) como plano; 4G de backup sempre |
-| R-02 | Balança do quiosque com protocolo não suportado | Média | Alto | Testar equipamento real no M2; driver por modelo; fallback de digitação com permissão |
+| R-02 | Impressora do quiosque com comando ESC/POS fora do padrão | Média | Médio | Testar equipamento real no M2; driver por modelo; falha de impressão não bloqueia a venda |
 | R-03 | Rejeição fiscal em massa por cadastro errado (NCM/CST) | **Alta** | Alto | Validação de NCM no cadastro, emissão de teste em homologação por cliente, fila de correção |
-| R-04 | Conciliação imprecisa por maquininha avulsa | **Alta** | Médio | Capturar bandeira/parcelas na venda; medir a taxa de erro; usar o número para decidir o TEF na F3 |
+| R-04 | Conciliação imprecisa porque o pagamento é digitado | **Alta** | Médio | Capturar bandeira e parcelas na venda; medir a taxa de acerto; avaliar digitar o NSU do comprovante |
 | R-05 | Internet do shopping instável demais | Alta | Médio | Offline-first + 4G; alertas de terminal offline |
 | R-06 | Vazamento entre tenants | Baixa | **Crítico** | RLS + teste de invasão obrigatório no CI |
 | R-07 | Escopo inflando (a lista tem 18 módulos) | **Alta** | Alto | Fases fechadas; nada entra na F1 sem tirar outra coisa |
@@ -118,6 +118,8 @@ atrasa. É a economia que mais custa caro neste tipo de projeto.
 
 - ❌ Microsserviços na v1 — complexidade sem benefício com este time e este volume.
 - ❌ PDV online-first "porque offline é difícil" — é o requisito que define o produto.
+- ❌ Integrar TEF "já que estamos aqui" — a operação usa a maquineta da adquirente, e o ganho não
+  paga a homologação.
 - ❌ Emitir nota direto na SEFAZ "para economizar o gateway" — decisão já tomada (D3) e o custo real
   é meses de trabalho e manutenção fiscal permanente.
 - ❌ Deixar entitlements para depois — feature sem chave de plano é retrabalho garantido na revenda.

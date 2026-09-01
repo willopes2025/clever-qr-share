@@ -1,6 +1,6 @@
 /**
  * Teste de fumaça do Soul ERP: percorre o caminho crítico de ponta a ponta —
- * login, abertura de caixa, venda com item por peso, sincronização idempotente,
+ * login, abertura de caixa, venda de potes, sincronização idempotente,
  * emissão fiscal e painel de performance.
  *
  * Uso: node scripts/smoke.mjs [http://localhost:3000/v1]
@@ -63,9 +63,9 @@ async function main() {
   const bootstrap = await call('/pos/bootstrap', { token: posToken });
   check('catálogo baixado para o PDV', bootstrap.catalog.length > 0, `${bootstrap.catalog.length} itens`);
 
-  const porPeso = bootstrap.catalog.find((item) => item.soldByWeight);
-  const avulso = bootstrap.catalog.find((item) => !item.soldByWeight);
-  check('produto vendido por peso no catálogo', Boolean(porPeso), porPeso?.description);
+  const pote = bootstrap.catalog.find((item) => item.description.startsWith('Pote'));
+  const avulso = bootstrap.catalog.find((item) => !item.description.startsWith('Pote'));
+  check('pote de sorvete no catálogo', Boolean(pote), pote?.description);
 
   const operator = bootstrap.operators[0];
   const session =
@@ -77,10 +77,10 @@ async function main() {
     }));
   check('caixa aberto', Boolean(session.id));
 
-  // Venda: 0,412 kg do item por peso + 1 unidade do avulso.
-  const quantidade = 0.412;
-  const itemPesoTotal = Math.round(porPeso.priceCents * quantidade);
-  const total = itemPesoTotal + avulso.priceCents;
+  // Venda: 2 potes + 1 complemento — o carrinho típico do quiosque.
+  const quantidade = 2;
+  const totalPotes = pote.priceCents * quantidade;
+  const total = totalPotes + avulso.priceCents;
   const saleId = crypto.randomUUID();
 
   const salePayload = {
@@ -95,14 +95,13 @@ async function main() {
         items: [
           {
             lineNumber: 1,
-            skuId: porPeso.skuId,
-            description: porPeso.description,
-            quantity: quantidade.toFixed(4),
-            unit: 'KG',
-            unitPriceCents: porPeso.priceCents,
+            skuId: pote.skuId,
+            description: pote.description,
+            quantity: String(quantidade),
+            unit: 'UN',
+            unitPriceCents: pote.priceCents,
             discountCents: 0,
-            totalCents: itemPesoTotal,
-            weighed: true,
+            totalCents: totalPotes,
           },
           {
             lineNumber: 2,
@@ -113,11 +112,10 @@ async function main() {
             unitPriceCents: avulso.priceCents,
             discountCents: 0,
             totalCents: avulso.priceCents,
-            weighed: false,
           },
         ],
         payments: [
-          { method: 'debit', amountCents: total, changeCents: 0, captured: false, cardBrand: 'visa', installments: 1 },
+          { method: 'debit', amountCents: total, changeCents: 0, cardBrand: 'visa', installments: 1 },
         ],
         grossCents: total,
         discountCents: 0,

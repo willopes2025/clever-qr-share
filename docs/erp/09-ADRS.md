@@ -63,15 +63,15 @@ navegador; testar offline é obrigatório em toda release do PDV.
 ## ADR-004 · Agente local SM Bridge para periféricos
 **Status:** Aceito
 
-**Contexto.** O PDV roda em Windows com impressora térmica, gaveta e **balança** — nada disso é
-acessível pelo navegador (Web Serial não cobre o cenário, e o PDV precisa funcionar como PWA).
+**Contexto.** O PDV roda em Windows com impressora térmica e gaveta — nada disso é acessível pelo
+navegador (Web Serial não cobre o cenário, e o PDV precisa funcionar como PWA).
 
 **Decisão.** Agente local em Tauri + sidecar Node, instalado como serviço do Windows, HTTP local em
 `https://localhost:9123`, pareado ao terminal por token, com autoatualização.
 
 **Alternativas.** *App Electron/Tauri completo* (sem PWA): um instalador só, mas perde atualização
 instantânea da UI. *WebUSB/Web Serial*: cobertura insuficiente e experiência ruim de permissão.
-*Impressão por driver do Windows*: sem controle de gaveta e sem balança.
+*Impressão por driver do Windows*: sem controle de gaveta e sem diagnóstico do equipamento.
 
 **Consequências.** (+) Acesso completo aos periféricos, PDV segue web. (−) Dois artefatos para
 instalar e atualizar; suporte precisa diagnosticar o agente (por isso ele reporta no heartbeat).
@@ -116,28 +116,33 @@ muito grande pode, no futuro, ser movido para banco dedicado com o mesmo schema.
 
 ---
 
-## ADR-007 · Sem TEF na v1; pagamento em cartão apenas registrado
-**Status:** Aceito (decisão do negócio) · **Revisão prevista:** F3
+## ADR-007 · Sem TEF: o pagamento é lançado, não capturado
+**Status:** Aceito (decisão do negócio)
 
-**Contexto.** Os quiosques usam maquininha avulsa. Homologar TEF com adquirente leva tempo e
-atrasaria o objetivo principal (nota fiscal + performance do PDV).
+**Contexto.** Os quiosques recebem na maquineta da adquirente, em dinheiro ou por Pix. Integrar TEF
+exigiria homologação com a adquirente, pinpad por terminal e um caminho crítico a mais dentro da
+venda — para uma operação que já funciona bem com a maquineta ao lado do caixa.
 
-**Decisão.** Na v1 o operador informa meio, bandeira e parcelas; o sistema registra e marca
-`captured = false`. O modelo de dados e a interface de pagamento já nascem prontos para o TEF.
+**Decisão.** O sistema **não conversa com a adquirente**. O operador lança o que recebeu: meio de
+pagamento, valor e, em cartão, bandeira e parcelas. Esse lançamento é o que alimenta a nota fiscal,
+o fechamento do caixa e a conciliação. O NSU do comprovante é opcional, digitado só quando a loja
+quiser casamento exato com o extrato.
 
-**Alternativas.** *TEF desde a v1*: melhor conciliação e zero erro de digitação, mas +6 a 8 semanas e
-dependência de homologação externa antes de qualquer venda.
+**Alternativas.** *TEF integrado*: elimina erro de digitação e dá conciliação exata, mas custa
+homologação, pinpad por PDV e dependência de uma adquirente. *Maquineta inteligente rodando o PDV*:
+resolveria o pagamento, mas prenderia toda a operação a um fornecedor e trocaria o PDV de plataforma.
 
-**Consequências.** (+) F1 entrega mais rápido. (−) Conciliação por aproximação (85–95%) e risco de
-erro de digitação — medido em produção para embasar a decisão do TEF na F3 (risco R-04).
-
----
+**Consequências.** (+) Nada de dado de cartão no sistema, menos hardware e uma integração a menos
+para manter; a venda nunca trava por falha de comunicação com adquirente. (−) O valor lançado pode
+divergir do que passou na maquineta, e a conciliação é por aproximação (risco R-04) — mitigado
+medindo a taxa de acerto e, se necessário, digitando o NSU.
 
 ## ADR-008 · Dinheiro em inteiro de centavos
 **Status:** Aceito
 
 **Decisão.** Todo valor monetário é `bigint` de centavos no banco e `number` inteiro na API, com
-aritmética centralizada em `packages/money`. Quantidade usa `numeric(14,4)` por causa do peso.
+aritmética centralizada em `packages/money`. Quantidade usa `numeric(14,4)`, embora a venda ao
+consumidor seja sempre inteira — as casas servem à ficha técnica e ao insumo de produção.
 Arredondamento explícito e uma única vez, no final do cálculo.
 
 **Consequências.** (+) Fim dos erros de centavo em desconto, rateio e imposto. (−) Toda formatação

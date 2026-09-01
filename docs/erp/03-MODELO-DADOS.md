@@ -1,8 +1,9 @@
 # 03 · Modelo de Dados
 
 > PostgreSQL 16. Convenções: `snake_case`; PK `uuid` (v7, ordenável por tempo — bom para índice);
-> **dinheiro sempre em `bigint` de centavos**; quantidade em `numeric(14,4)` (peso de sorvete exige
-> casas decimais); timestamps em `timestamptz` (UTC); `tenant_id` em **toda** tabela de negócio.
+> **dinheiro sempre em `bigint` de centavos**; quantidade em `numeric(14,4)` — a venda ao consumidor
+> é sempre inteira (pote fechado), e as casas decimais servem à ficha técnica e ao insumo de
+> produção; timestamps em `timestamptz` (UTC); `tenant_id` em **toda** tabela de negócio.
 
 ## 1. Visão geral do modelo
 
@@ -180,7 +181,6 @@ CREATE TABLE product (
   name          text NOT NULL,
   kind          text NOT NULL DEFAULT 'simple',   -- simple | grid | combo | service | ingredient
   unit          text NOT NULL DEFAULT 'UN',       -- UN | KG | L
-  sold_by_weight boolean NOT NULL DEFAULT false,  -- sorvete/açaí no peso
   -- fiscal (herdado pelos SKUs)
   ncm           char(8), cest char(7), origin smallint NOT NULL DEFAULT 0,
   cfop_internal char(4), tax_profile_id uuid,
@@ -210,9 +210,9 @@ CREATE TABLE sku (
 
 CREATE TABLE barcode (
   tenant_id uuid NOT NULL,
-  code      text NOT NULL,          -- EAN-13, EAN-8, DUN-14 ou código de balança
+  code      text NOT NULL,          -- EAN-13, EAN-8, DUN-14 ou código interno
   sku_id    uuid NOT NULL REFERENCES sku(id),
-  kind      text NOT NULL DEFAULT 'ean',  -- ean | scale_weight | scale_price | internal
+  kind      text NOT NULL DEFAULT 'ean',  -- ean | internal
   PRIMARY KEY (tenant_id, code)
 );
 
@@ -222,25 +222,28 @@ CREATE TABLE price (
   tenant_id   uuid NOT NULL,
   sku_id      uuid NOT NULL REFERENCES sku(id),
   store_id    uuid,                             -- NULL = preço padrão do tenant
-  price_cents bigint NOT NULL,                  -- por unidade OU por kg, conforme product.unit
+  price_cents bigint NOT NULL,                  -- preço do pote/unidade
   valid_from  timestamptz NOT NULL DEFAULT now(),
   valid_to    timestamptz
 );
 CREATE INDEX ON price (tenant_id, sku_id, store_id, valid_from DESC);
 ```
 
-### 4.1 Código de barras de balança (essencial para sorvete/açaí)
+### 4.1 Grade de dois eixos na prática
 
-A balança de balcão imprime EAN-13 com prefixo `2`, carregando **peso** ou **valor** no próprio código:
+O pote de sorvete é escolhido por **sabor × tamanho**, e cada combinação é um SKU com preço, código
+de barras e saldo próprios:
 
 ```
-2 CCCCC PPPPP D     → 2 + código do item (5) + peso em gramas (5) + dígito verificador
-2 CCCCC VVVVV D     → 2 + código do item (5) + valor em centavos (5) + dígito verificador
+              300ml     500ml      1L
+Napolitano    R$16,90   R$22,90   R$34,90
+Chocolate     R$16,90   R$22,90   R$34,90
+Flocos        R$16,90   R$22,90   R$34,90
 ```
 
-`barcode.kind` diz qual layout usar. A configuração de máscara fica em `store.settings.scale_barcode`,
-porque varia por balança. **Isso precisa ser testado com a balança real do quiosque antes do rollout** —
-é a fonte clássica de erro de valor no varejo de peso.
+A tela de grade mostra a matriz com o saldo por célula e permite lançar entrada direto na célula —
+é o que torna o recebimento de dezenas de sabores viável. **Vende-se sempre o SKU, nunca o
+produto-pai**, e a quantidade na venda ao consumidor é sempre inteira: pote fechado.
 
 ## 5. Estoque
 
@@ -358,7 +361,6 @@ CREATE TABLE sale_item (
   total_cents    bigint NOT NULL,
   unit_cost_cents bigint NOT NULL DEFAULT 0,
   tax_snapshot   jsonb,                -- NCM, CST, alíquotas usadas na nota
-  weighed        boolean NOT NULL DEFAULT false,  -- veio da balança
   returned_qty   numeric(14,4) NOT NULL DEFAULT 0
 );
 
@@ -369,20 +371,18 @@ CREATE TABLE sale_payment (
   method         text NOT NULL,        -- cash | credit | debit | pix | voucher | store_credit
   amount_cents   bigint NOT NULL,
   change_cents   bigint NOT NULL DEFAULT 0,
-  -- v1 (maquininha avulsa): informado pelo operador. F3 (TEF): capturado do pinpad.
-  captured       boolean NOT NULL DEFAULT false,
+  -- O pagamento é feito fora do sistema e lançado pelo operador; bandeira e NSU
+  -- entram quando a loja quer conciliar o extrato da adquirente depois.
   acquirer       text,                 -- stone | cielo | rede | getnet
   card_brand     text,                 -- visa | master | elo | amex
   installments   smallint NOT NULL DEFAULT 1,
-  nsu            text,
-  authorization_code text,
-  transaction_id uuid                  -- FK para payment_transaction quando houver TEF
+  nsu            text
 );
 ```
 
-> **Detalhe que decide a conciliação:** `sale_payment.captured = false` na v1 marca que o dado veio
-> do atendente, não da adquirente. O módulo de recebíveis usa isso para conciliar por aproximação e
-> para medir a taxa de erro de digitação — número que justifica (ou não) investir no TEF na F3.
+> **Detalhe que decide a conciliação:** como o pagamento é digitado pelo atendente, o casamento com
+> o extrato da adquirente é por aproximação (valor + data + bandeira). Quando a loja digita o NSU do
+> comprovante, o casamento passa a ser exato — por isso o campo existe e é opcional.
 
 ## 7. Fiscal
 
@@ -497,7 +497,6 @@ CREATE TABLE terminal_heartbeat (
   pending_sales    int NOT NULL DEFAULT 0,   -- outbox do PDV
   fiscal_queue     int NOT NULL DEFAULT 0,
   printer_ok       boolean,
-  scale_ok         boolean,
   bridge_version   text,
   disk_free_mb     int,
   last_sale_at     timestamptz,
@@ -581,7 +580,7 @@ CREATE INDEX ON sku USING gin (unaccent(description) gin_trgm_ops);
 | # | Ponto | Pergunta |
 |---|-------|----------|
 | D1 | Dois eixos de grade | Sorvete precisa de um terceiro eixo (ex.: sabor × tamanho × embalagem)? |
-| D2 | `numeric(14,4)` para quantidade | 4 casas bastam para peso, ou a balança entrega mais precisão? |
+| D2 | `numeric(14,4)` para quantidade | A venda é inteira; as casas decimais só servirão à ficha técnica na F5. Mantemos assim ou usamos inteiro na venda? |
 | D3 | Saldo materializado | Aceitamos reconciliação noturna de `stock_balance` contra o somatório de movimentos? |
 | D4 | Sequencial de venda no servidor | Como numerar venda criada offline: sequencial local por terminal + global no servidor? |
 | D5 | Retenção de heartbeat | 90 dias resolve para investigar problema recorrente de terminal? |

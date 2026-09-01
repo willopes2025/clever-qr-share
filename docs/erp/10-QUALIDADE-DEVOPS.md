@@ -22,7 +22,7 @@
 | **Offline → online completo** | Vender offline por 72h, religar e conferir tudo |
 | **Aritmética de dinheiro** | Rateio de desconto, imposto e troco em centavos |
 | **FEFO com lote vencido** | Sorvete vencido não pode passar no caixa |
-| **EAN de balança** | Erro de máscara vira erro de preço em toda venda por peso |
+| **Grade de produto** | Sabor × tamanho errado no cadastro vira preço errado na venda |
 | **Rejeição fiscal e reprocessamento** | Fila fiscal parada é receita sem nota |
 | **Fechamento de caixa com diferença** | Regra de conferência cega e justificativa |
 | **Entitlement bloqueando no servidor** | Cliente do plano Básico não pode acessar módulo do Completo |
@@ -131,7 +131,7 @@ pnpm db:migrate && pnpm db:seed   # tenant demo com 2 quiosques e catálogo de s
 pnpm dev                      # api :3000 · pdv :5173 · web :5174 · backoffice :5175
 ```
 
-O seed cria dados realistas (produtos por peso, grade de sabores, vendas de 30 dias) para que o
+O seed cria dados realistas (grade de sabores e tamanhos, vendas de duas semanas) para que o
 dashboard tenha o que mostrar desde o primeiro dia. `FAKE_FISCAL=true` emite notas falsas sem
 depender de provedor externo.
 
