@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { session } from './lib/api';
+import { AppShell } from './components/AppShell';
 import { LoginScreen } from './screens/LoginScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
+import { ProductsScreen } from './screens/ProductsScreen';
+import { StoresScreen } from './screens/StoresScreen';
+import { UsersScreen } from './screens/UsersScreen';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -11,13 +16,26 @@ const queryClient = new QueryClient({
 export default function App() {
   const [signedIn, setSignedIn] = useState(Boolean(session.read()));
 
+  if (!signedIn) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <LoginScreen onSignedIn={() => setSignedIn(true)} />
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
-      {signedIn ? (
-        <DashboardScreen onSignOut={() => setSignedIn(false)} />
-      ) : (
-        <LoginScreen onSignedIn={() => setSignedIn(true)} />
-      )}
+      <BrowserRouter>
+        <Routes>
+          <Route element={<AppShell onSignOut={() => setSignedIn(false)} />}>
+            <Route index element={<DashboardScreen />} />
+            <Route path="produtos" element={<ProductsScreen />} />
+            <Route path="lojas" element={<StoresScreen />} />
+            <Route path="usuarios" element={<UsersScreen />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
     </QueryClientProvider>
   );
 }

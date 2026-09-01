@@ -7,6 +7,7 @@ export const PERMISSIONS = {
   cashClose: 'cash.close',
   cashWithdrawal: 'cash.withdrawal',
   productManage: 'product.manage',
+  storeManage: 'store.manage',
   productCostView: 'product.cost.view',
   priceUpdate: 'price.update',
   stockAdjust: 'stock.adjust',
@@ -26,7 +27,7 @@ export const ROLE_TEMPLATES = [
       PERMISSIONS.saleCreate, PERMISSIONS.saleCancel, PERMISSIONS.saleDiscountAboveLimit,
       PERMISSIONS.cashOpen, PERMISSIONS.cashClose, PERMISSIONS.cashWithdrawal,
       PERMISSIONS.stockAdjust, PERMISSIONS.reportView, PERMISSIONS.fiscalView,
-      PERMISSIONS.productCostView,
+      PERMISSIONS.productCostView, PERMISSIONS.productManage,
     ],
   },
   {

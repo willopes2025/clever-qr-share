@@ -81,3 +81,56 @@ export interface TerminalHealth {
   printerOk: boolean | null;
   openAlerts: Array<{ kind: string; severity: string; openedAt: string }>;
 }
+
+// ---------------------------------------------------------------- retaguarda
+
+export interface ProductSku {
+  id?: string;
+  code: string;
+  description: string;
+  priceCents: number | null;
+  barcode: string | null;
+  active?: boolean;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  categoryName: string | null;
+  ncm: string | null;
+  active: boolean;
+  skus: ProductSku[];
+}
+
+export interface Terminal {
+  id: string;
+  code: string;
+  fiscalSeries: number;
+  status: string;
+  appVersion: string | null;
+  lastSeenAt: string | null;
+  paired: boolean;
+}
+
+export interface Store {
+  id: string;
+  code: string;
+  name: string;
+  kind: string;
+  opensAt: string | null;
+  closesAt: string | null;
+  active: boolean;
+  salesCount: number;
+  terminals: Terminal[];
+}
+
+export interface AppUser {
+  id: string;
+  name: string;
+  email: string | null;
+  status: string;
+  lastLoginAt: string | null;
+  hasPin: boolean;
+  hasPassword: boolean;
+  roles: Array<{ code: string; name: string; storeId: string | null }>;
+}

@@ -1,18 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { formatMoney } from '@soul/ui';
-import { api, session, type HourSlot, type LivePerformance, type MixEntry, type TerminalHealth as Terminal } from '../lib/api';
+import { api, type HourSlot, type LivePerformance, type MixEntry, type TerminalHealth as Terminal } from '../lib/api';
 import { KpiTile } from '../components/KpiTile';
 import { StoreBars } from '../components/StoreBars';
 import { HourlyCurve } from '../components/HourlyCurve';
 import { MixList } from '../components/MixList';
 import { TerminalHealth } from '../components/TerminalHealth';
 import { FiscalPanel } from '../components/FiscalPanel';
-import { SoulLogo } from '../components/SoulLogo';
 
 const LIVE_REFRESH_MS = 30_000;
 
 /** Painel que o dono deixa aberto: números do dia, movimento, mix e saúde da operação. */
-export function DashboardScreen({ onSignOut }: { onSignOut: () => void }) {
+export function DashboardScreen() {
   const live = useQuery({
     queryKey: ['live'],
     queryFn: () => api<LivePerformance>('/analytics/live'),
@@ -34,27 +33,7 @@ export function DashboardScreen({ onSignOut }: { onSignOut: () => void }) {
   const performance = live.data;
 
   return (
-    <div className="min-h-screen bg-lavender">
-      <header className="flex items-center gap-4 bg-indigo px-6 py-4 text-white">
-        <SoulLogo className="h-7 text-white" />
-        <div className="ml-2 border-l border-white/20 pl-4">
-          <p className="font-display text-sm font-semibold">Retaguarda</p>
-          <p className="font-mono text-[11px] uppercase tracking-widest text-lavender-400">
-            desempenho da rede
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            session.clear();
-            onSignOut();
-          }}
-          className="ml-auto rounded-pill border border-white/25 px-4 py-2 font-mono text-[11px] uppercase tracking-widest hover:bg-white/10"
-        >
-          sair
-        </button>
-      </header>
-
-      <main className="mx-auto max-w-6xl space-y-4 p-6">
+    <div className="space-y-4">
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiTile
             label="Faturamento hoje"
@@ -94,8 +73,7 @@ export function DashboardScreen({ onSignOut }: { onSignOut: () => void }) {
           <FiscalPanel summary={fiscal.data ?? {}} />
         </section>
 
-        <TerminalHealth terminals={terminals.data ?? []} />
-      </main>
+      <TerminalHealth terminals={terminals.data ?? []} />
     </div>
   );
 }

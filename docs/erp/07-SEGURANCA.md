@@ -38,7 +38,7 @@ async cancel(@Param('id') id: string, @Body() dto: CancelSaleDto, @Ctx() ctx: Re
 ```
 
 Permissões sensíveis que precisam existir desde o dia 1: `sale.cancel`, `sale.discount.above_limit`,
-`cash.close`, `cash.withdrawal`, `product.cost.view`, `price.update`, `stock.adjust`,
+`cash.close`, `cash.withdrawal`, `product.cost.view`, `product.manage`, `store.manage`, `price.update`, `stock.adjust`,
 `fiscal.cancel`, `report.export`, `user.manage`, `tenant.impersonate`.
 
 ## 4. Isolamento multi-tenant

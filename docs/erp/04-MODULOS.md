@@ -165,7 +165,16 @@ graph TB
 > comercial ajusta sem deploy. O que o time precisa garantir é que **toda** feature esteja atrás de
 > uma chave de entitlement desde o primeiro commit; retrofitar isso depois custa caro.
 
-### 4.3 Back-office da revenda
+### 4.3 Telas da retaguarda do cliente
+
+| Tela | Conteúdo |
+|------|----------|
+| **Desempenho** | Faturamento ao vivo, curva do dia, mix de produtos, situação fiscal e saúde dos terminais |
+| **Produtos** | Produto com suas variações; preço novo cria vigência e preserva o histórico; SKU removido é desativado, nunca apagado |
+| **Lojas e terminais** | Loja com horário de funcionamento; terminal com série fiscal automática e **código de ativação exibido uma única vez** |
+| **Usuários** | Papel, loja, e-mail e senha para a retaguarda, PIN para o caixa |
+
+### 4.4 Back-office da revenda
 
 Aplicação separada: lista de clientes, plano e status, uso do mês (notas, terminais, usuários),
 faturas, log de acesso do suporte, ativação/suspensão e ferramenta de diagnóstico do terminal.

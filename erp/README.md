@@ -14,6 +14,7 @@ revenda — multiempresa por CNPJ, com planos comerciais desde o primeiro commit
 | PWA instalável: o PDV **abre** e vende com a internet caída | ✅ |
 | Impressão do cupom e abertura da gaveta pelo agente local | ✅ |
 | Sangria, suprimento e fechamento de caixa por conferência cega | ✅ |
+| Retaguarda: produtos, lojas, terminais com código de ativação e usuários | ✅ |
 | Sincronização idempotente (reenviar não duplica venda) | ✅ |
 | Emissão de NFC-e via gateway, com fila e retentativa | ✅ (provedor `fake` em desenvolvimento) |
 | Venda offline com a nota saindo quando a conexão volta | ✅ |
@@ -78,6 +79,7 @@ node scripts/e2e-pdv.mjs                    # PDV num navegador real
 node scripts/e2e-web.mjs                    # retaguarda num navegador real
 node scripts/e2e-offline.mjs                # corta a rede e prova que o PDV vende assim mesmo
 node scripts/e2e-fechamento.mjs             # sangria, conferência cega e relatório impresso
+node scripts/e2e-retaguarda.mjs             # cadastro de produto, loja, terminal e usuário
 ```
 
 O teste de fumaça precisa do `DEVICE_TOKEN` impresso pelo seed:
