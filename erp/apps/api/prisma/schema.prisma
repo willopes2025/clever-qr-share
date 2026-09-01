@@ -1,0 +1,616 @@
+// Soul ERP — modelo de dados (Fase 1)
+// Convenções: dinheiro em centavos (BigInt), quantidade em Decimal(14,4),
+// tenantId em toda tabela de negócio (isolamento por CNPJ licenciado).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- tenancy
+
+model EconomicGroup {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  tenants   Tenant[]
+
+  @@map("economic_group")
+}
+
+model Plan {
+  id           String   @id @default(uuid())
+  code         String   @unique // basico | ideal | completo
+  name         String
+  monthlyCents BigInt   @map("monthly_cents")
+  features     Json // { "fiscal": true, "grade": false, ... }
+  limits       Json // { "terminals": 1, "users": 5, "invoicesMonth": 3000 }
+  overage      Json     @default("{}")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  tenants      Tenant[]
+
+  @@map("plan")
+}
+
+enum TenantStatus {
+  trial
+  active
+  past_due
+  suspended
+  cancelled
+}
+
+model Tenant {
+  id              String        @id @default(uuid())
+  economicGroupId String?       @map("economic_group_id")
+  planId          String        @map("plan_id")
+  legalName       String        @map("legal_name")
+  tradeName       String        @map("trade_name")
+  cnpj            String        @unique @db.Char(14)
+  ie              String?
+  taxRegime       String        @map("tax_regime") // simples | presumido | real
+  crt             Int
+  address         Json
+  status          TenantStatus  @default(trial)
+  graceUntil      DateTime?     @map("grace_until")
+  timezone        String        @default("America/Sao_Paulo")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  economicGroup EconomicGroup?      @relation(fields: [economicGroupId], references: [id])
+  plan          Plan                @relation(fields: [planId], references: [id])
+  entitlements  TenantEntitlement[]
+  stores        Store[]
+  users         AppUser[]
+  usage         UsageCounter[]
+
+  @@index([economicGroupId])
+  @@map("tenant")
+}
+
+/// Ajuste comercial pontual sem trocar o plano do cliente.
+model TenantEntitlement {
+  tenantId  String    @map("tenant_id")
+  key       String
+  value     Json
+  expiresAt DateTime? @map("expires_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, key])
+  @@map("tenant_entitlement")
+}
+
+/// Medição de uso: base do faturamento da revenda.
+model UsageCounter {
+  tenantId String   @map("tenant_id")
+  period   DateTime @db.Date
+  metric   String // invoices | terminals | users | sales
+  value    BigInt   @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, period, metric])
+  @@map("usage_counter")
+}
+
+model Store {
+  id       String  @id @default(uuid())
+  tenantId String  @map("tenant_id")
+  code     String
+  name     String
+  kind     String  @default("kiosk") // kiosk | store | container | warehouse
+  address  Json?
+  opensAt  String? @map("opens_at") // "10:00"
+  closesAt String? @map("closes_at")
+  active   Boolean @default(true)
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  terminals  Terminal[]
+  prices     Price[]
+  balances   StockBalance[]
+  sales      Sale[]
+  movements  StockMovement[]
+  sessions   CashSession[]
+  documents  FiscalDocument[]
+
+  @@unique([tenantId, code])
+  @@map("store")
+}
+
+model Terminal {
+  id           String    @id @default(uuid())
+  tenantId     String    @map("tenant_id")
+  storeId      String    @map("store_id")
+  code         String
+  fiscalSeries Int       @map("fiscal_series")
+  deviceToken  String    @unique @map("device_token")
+  appVersion   String?   @map("app_version")
+  lastSeenAt   DateTime? @map("last_seen_at")
+  status       String    @default("active")
+
+  store      Store               @relation(fields: [storeId], references: [id])
+  sessions   CashSession[]
+  sales      Sale[]
+  heartbeats TerminalHeartbeat[]
+  alerts     TerminalAlert[]
+
+  @@unique([tenantId, storeId, code])
+  @@map("terminal")
+}
+
+// -------------------------------------------------------------------- iam
+
+model AppUser {
+  id           String    @id @default(uuid())
+  tenantId     String    @map("tenant_id")
+  name         String
+  email        String?
+  passwordHash String?   @map("password_hash")
+  pinHash      String?   @map("pin_hash")
+  status       String    @default("active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  tenant    Tenant        @relation(fields: [tenantId], references: [id])
+  roles     UserRole[]
+  sessions  CashSession[] @relation("SessionOperator")
+  sales     Sale[]        @relation("SaleOperator")
+  movements CashMovement[]
+
+  @@unique([tenantId, email])
+  @@map("app_user")
+}
+
+model Role {
+  id          String     @id @default(uuid())
+  tenantId    String?    @map("tenant_id") // null = papel de sistema
+  code        String
+  name        String
+  permissions String[]
+  users       UserRole[]
+
+  @@unique([tenantId, code])
+  @@map("role")
+}
+
+model UserRole {
+  userId  String  @map("user_id")
+  roleId  String  @map("role_id")
+  storeId String? @map("store_id") // null = todas as lojas do tenant
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role    @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+  @@map("user_role")
+}
+
+/// Trilha append-only: sem update, sem delete.
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  tenantId  String   @map("tenant_id")
+  userId    String?  @map("user_id")
+  storeId   String?  @map("store_id")
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  before    Json?
+  after     Json?
+  reason    String?
+  ip        String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@map("audit_log")
+}
+
+// ---------------------------------------------------------------- catálogo
+
+model Category {
+  id       String    @id @default(uuid())
+  tenantId String    @map("tenant_id")
+  name     String
+  sortOrder Int      @default(0) @map("sort_order")
+  products Product[]
+
+  @@unique([tenantId, name])
+  @@map("category")
+}
+
+model Product {
+  id           String  @id @default(uuid())
+  tenantId     String  @map("tenant_id")
+  categoryId   String? @map("category_id")
+  name         String
+  kind         String  @default("simple") // simple | grid | combo | service | ingredient
+  unit         String  @default("UN") // UN | KG | L
+  soldByWeight Boolean @default(false) @map("sold_by_weight")
+  ncm          String? @db.Char(8)
+  cest         String? @db.Char(7)
+  origin       Int     @default(0)
+  cfop         String? @db.Char(4)
+  taxProfileId String? @map("tax_profile_id")
+  active       Boolean @default(true)
+
+  category   Category?   @relation(fields: [categoryId], references: [id])
+  skus       Sku[]
+  taxProfile TaxProfile? @relation(fields: [taxProfileId], references: [id])
+
+  @@index([tenantId, active])
+  @@map("product")
+}
+
+model VariantAxis {
+  id       String         @id @default(uuid())
+  tenantId String         @map("tenant_id")
+  name     String // "Sabor", "Tamanho"
+  values   VariantValue[]
+
+  @@unique([tenantId, name])
+  @@map("variant_axis")
+}
+
+model VariantValue {
+  id        String @id @default(uuid())
+  axisId    String @map("axis_id")
+  value     String
+  sortOrder Int    @default(0) @map("sort_order")
+
+  axis      VariantAxis @relation(fields: [axisId], references: [id], onDelete: Cascade)
+  skusAxis1 Sku[]       @relation("SkuAxis1")
+  skusAxis2 Sku[]       @relation("SkuAxis2")
+
+  @@unique([axisId, value])
+  @@map("variant_value")
+}
+
+model Sku {
+  id           String  @id @default(uuid())
+  tenantId     String  @map("tenant_id")
+  productId    String  @map("product_id")
+  code         String
+  axis1ValueId String? @map("axis1_value_id")
+  axis2ValueId String? @map("axis2_value_id")
+  description  String
+  avgCostCents BigInt  @default(0) @map("avg_cost_cents")
+  trackLot     Boolean @default(false) @map("track_lot")
+  minStock     Decimal @default(0) @map("min_stock") @db.Decimal(14, 4)
+  active       Boolean @default(true)
+
+  product   Product         @relation(fields: [productId], references: [id])
+  axis1     VariantValue?   @relation("SkuAxis1", fields: [axis1ValueId], references: [id])
+  axis2     VariantValue?   @relation("SkuAxis2", fields: [axis2ValueId], references: [id])
+  barcodes  Barcode[]
+  prices    Price[]
+  balances  StockBalance[]
+  lots      StockLot[]
+  movements StockMovement[]
+  saleItems SaleItem[]
+
+  @@unique([tenantId, code])
+  @@unique([productId, axis1ValueId, axis2ValueId])
+  @@index([tenantId, active])
+  @@map("sku")
+}
+
+model Barcode {
+  tenantId String @map("tenant_id")
+  code     String
+  skuId    String @map("sku_id")
+  kind     String @default("ean") // ean | scale_weight | scale_price | internal
+
+  sku Sku @relation(fields: [skuId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, code])
+  @@index([skuId])
+  @@map("barcode")
+}
+
+/// Preço por loja com vigência: nunca se altera preço em cima, cria-se nova vigência.
+model Price {
+  id         String    @id @default(uuid())
+  tenantId   String    @map("tenant_id")
+  skuId      String    @map("sku_id")
+  storeId    String?   @map("store_id") // null = preço padrão do tenant
+  priceCents BigInt    @map("price_cents")
+  validFrom  DateTime  @default(now()) @map("valid_from")
+  validTo    DateTime? @map("valid_to")
+
+  sku   Sku    @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  store Store? @relation(fields: [storeId], references: [id])
+
+  @@index([tenantId, skuId, storeId, validFrom])
+  @@map("price")
+}
+
+model TaxProfile {
+  id       String    @id @default(uuid())
+  tenantId String    @map("tenant_id")
+  name     String
+  rules    Json
+  products Product[]
+
+  @@unique([tenantId, name])
+  @@map("tax_profile")
+}
+
+// ---------------------------------------------------------------- estoque
+
+model StockLot {
+  id        String    @id @default(uuid())
+  tenantId  String    @map("tenant_id")
+  skuId     String    @map("sku_id")
+  lotCode   String    @map("lot_code")
+  expiresAt DateTime? @map("expires_at") @db.Date
+
+  sku       Sku             @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  balances  StockBalance[]
+  movements StockMovement[]
+
+  @@unique([tenantId, skuId, lotCode])
+  @@map("stock_lot")
+}
+
+model StockBalance {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  storeId   String   @map("store_id")
+  skuId     String   @map("sku_id")
+  lotId     String?  @map("lot_id")
+  quantity  Decimal  @default(0) @db.Decimal(14, 4)
+  reserved  Decimal  @default(0) @db.Decimal(14, 4)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store Store     @relation(fields: [storeId], references: [id])
+  sku   Sku       @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  lot   StockLot? @relation(fields: [lotId], references: [id])
+
+  @@unique([storeId, skuId, lotId])
+  @@index([tenantId, storeId])
+  @@map("stock_balance")
+}
+
+model StockMovement {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  storeId       String   @map("store_id")
+  skuId         String   @map("sku_id")
+  lotId         String?  @map("lot_id")
+  kind          String // sale | return | purchase | adjust | transfer_in | transfer_out | loss
+  quantity      Decimal  @db.Decimal(14, 4) // + entrada, − saída
+  unitCostCents BigInt   @default(0) @map("unit_cost_cents")
+  refType       String?  @map("ref_type")
+  refId         String?  @map("ref_id")
+  reason        String?
+  userId        String?  @map("user_id")
+  occurredAt    DateTime @default(now()) @map("occurred_at")
+
+  store Store     @relation(fields: [storeId], references: [id])
+  sku   Sku       @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  lot   StockLot? @relation(fields: [lotId], references: [id])
+
+  @@index([tenantId, storeId, skuId, occurredAt])
+  @@map("stock_movement")
+}
+
+// ------------------------------------------------------------ caixa e venda
+
+model CashSession {
+  id                String    @id @default(uuid())
+  tenantId          String    @map("tenant_id")
+  storeId           String    @map("store_id")
+  terminalId        String    @map("terminal_id")
+  openedById        String    @map("opened_by")
+  openedAt          DateTime  @map("opened_at")
+  openingFloatCents BigInt    @default(0) @map("opening_float_cents")
+  closedById        String?   @map("closed_by")
+  closedAt          DateTime? @map("closed_at")
+  counted           Json?
+  expected          Json?
+  differenceCents   BigInt?   @map("difference_cents")
+  status            String    @default("open") // open | closed
+  notes             String?
+
+  store     Store          @relation(fields: [storeId], references: [id])
+  terminal  Terminal       @relation(fields: [terminalId], references: [id])
+  openedBy  AppUser        @relation("SessionOperator", fields: [openedById], references: [id])
+  sales     Sale[]
+  movements CashMovement[]
+
+  @@index([tenantId, storeId, status])
+  @@map("cash_session")
+}
+
+model CashMovement {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  sessionId    String   @map("session_id")
+  kind         String // withdrawal | supply | reinforcement
+  amountCents  BigInt   @map("amount_cents")
+  reason       String
+  userId       String   @map("user_id")
+  approvedById String?  @map("approved_by")
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+
+  session CashSession @relation(fields: [sessionId], references: [id])
+  user    AppUser     @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, sessionId])
+  @@map("cash_movement")
+}
+
+enum SaleStatus {
+  completed
+  cancelled
+  returned
+  partially_returned
+}
+
+/// O id vem do PDV (UUID v7) e é a chave de idempotência da sincronização.
+model Sale {
+  id               String     @id
+  tenantId         String     @map("tenant_id")
+  storeId          String     @map("store_id")
+  terminalId       String     @map("terminal_id")
+  sessionId        String     @map("session_id")
+  number           BigInt
+  customerDocument String?    @map("customer_document") @db.Char(11)
+  operatorId       String     @map("operator_id")
+  status           SaleStatus @default(completed)
+  grossCents       BigInt     @map("gross_cents")
+  discountCents    BigInt     @default(0) @map("discount_cents")
+  totalCents       BigInt     @map("total_cents")
+  costCents        BigInt     @default(0) @map("cost_cents")
+  channel          String     @default("pos")
+  originalSaleId   String?    @map("original_sale_id")
+  occurredAt       DateTime   @map("occurred_at")
+  receivedAt       DateTime   @default(now()) @map("received_at")
+  clockSkewMs      Int?       @map("clock_skew_ms")
+
+  store     Store           @relation(fields: [storeId], references: [id])
+  terminal  Terminal        @relation(fields: [terminalId], references: [id])
+  session   CashSession     @relation(fields: [sessionId], references: [id])
+  operator  AppUser         @relation("SaleOperator", fields: [operatorId], references: [id])
+  items     SaleItem[]
+  payments  SalePayment[]
+  documents FiscalDocument[]
+
+  @@unique([tenantId, storeId, number])
+  @@index([tenantId, storeId, occurredAt])
+  @@index([tenantId, sessionId])
+  @@map("sale")
+}
+
+model SaleItem {
+  id             String  @id @default(uuid())
+  tenantId       String  @map("tenant_id")
+  saleId         String  @map("sale_id")
+  lineNumber     Int     @map("line_number")
+  skuId          String  @map("sku_id")
+  lotId          String? @map("lot_id")
+  description    String
+  quantity       Decimal @db.Decimal(14, 4)
+  unit           String
+  unitPriceCents BigInt  @map("unit_price_cents")
+  discountCents  BigInt  @default(0) @map("discount_cents")
+  totalCents     BigInt  @map("total_cents")
+  unitCostCents  BigInt  @default(0) @map("unit_cost_cents")
+  taxSnapshot    Json?   @map("tax_snapshot")
+  weighed        Boolean @default(false)
+  returnedQty    Decimal @default(0) @map("returned_qty") @db.Decimal(14, 4)
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  sku  Sku  @relation(fields: [skuId], references: [id])
+
+  @@unique([saleId, lineNumber])
+  @@index([tenantId, skuId])
+  @@map("sale_item")
+}
+
+model SalePayment {
+  id                String  @id @default(uuid())
+  tenantId          String  @map("tenant_id")
+  saleId            String  @map("sale_id")
+  method            String
+  amountCents       BigInt  @map("amount_cents")
+  changeCents       BigInt  @default(0) @map("change_cents")
+  /// false na v1 (maquininha avulsa): o dado veio do operador, não da adquirente
+  captured          Boolean @default(false)
+  acquirer          String?
+  cardBrand         String? @map("card_brand")
+  installments      Int     @default(1)
+  nsu               String?
+  authorizationCode String? @map("authorization_code")
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, saleId])
+  @@map("sale_payment")
+}
+
+// ---------------------------------------------------------------- fiscal
+
+enum FiscalStatus {
+  queued
+  sending
+  authorized
+  rejected
+  cancelled
+  denied
+  contingency
+}
+
+model FiscalDocument {
+  id            String       @id @default(uuid())
+  tenantId      String       @map("tenant_id")
+  storeId       String       @map("store_id")
+  saleId        String?      @map("sale_id")
+  model         Int // 65 = NFC-e, 55 = NF-e
+  series        Int
+  number        BigInt?
+  accessKey     String?      @unique @map("access_key") @db.Char(44)
+  status        FiscalStatus @default(queued)
+  provider      String
+  providerRef   String?      @map("provider_ref")
+  environment   Int          @default(2) // 1 produção, 2 homologação
+  protocol      String?
+  authorizedAt  DateTime?    @map("authorized_at")
+  rejectionCode String?      @map("rejection_code")
+  rejectionMsg  String?      @map("rejection_msg")
+  attempts      Int          @default(0)
+  nextAttemptAt DateTime?    @map("next_attempt_at")
+  xmlUrl        String?      @map("xml_url")
+  danfeUrl      String?      @map("danfe_url")
+  qrCode        String?      @map("qr_code")
+  payload       Json
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  store Store @relation(fields: [storeId], references: [id])
+  sale  Sale? @relation(fields: [saleId], references: [id])
+
+  @@index([tenantId, status, nextAttemptAt])
+  @@index([tenantId, storeId, authorizedAt])
+  @@map("fiscal_document")
+}
+
+// -------------------------------------------------------------- telemetria
+
+model TerminalHeartbeat {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  terminalId    String   @map("terminal_id")
+  at            DateTime @default(now())
+  appVersion    String?  @map("app_version")
+  bridgeVersion String?  @map("bridge_version")
+  pendingSales  Int      @default(0) @map("pending_sales")
+  fiscalQueue   Int      @default(0) @map("fiscal_queue")
+  printerOk     Boolean? @map("printer_ok")
+  scaleOk       Boolean? @map("scale_ok")
+  lastSaleAt    DateTime? @map("last_sale_at")
+
+  terminal Terminal @relation(fields: [terminalId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, terminalId, at])
+  @@map("terminal_heartbeat")
+}
+
+model TerminalAlert {
+  id         String    @id @default(uuid())
+  tenantId   String    @map("tenant_id")
+  terminalId String    @map("terminal_id")
+  kind       String
+  severity   String // info | warning | critical
+  openedAt   DateTime  @default(now()) @map("opened_at")
+  resolvedAt DateTime? @map("resolved_at")
+  details    Json?
+
+  terminal Terminal @relation(fields: [terminalId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, resolvedAt])
+  @@map("terminal_alert")
+}

@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# ERP
+erp/node_modules/
+erp/**/dist/
+erp/apps/api/.env
