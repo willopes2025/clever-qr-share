@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config';
 import { resolve } from 'node:path';
 
 export default defineConfig({
+  // Os testes são de domínio puro: sem isto o Vite sobe procurando o
+  // postcss.config.js do repositório de fora e quebra a execução.
+  css: { postcss: { plugins: [] } },
   resolve: {
     alias: {
       '@soul/contracts': resolve(__dirname, 'packages/contracts/src'),

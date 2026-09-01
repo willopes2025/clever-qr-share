@@ -20,9 +20,13 @@ export interface LivePerformance {
 }
 
 export interface HourSlot {
+  /** Faixa do dia no formato "HH:MM" — a curva é do dia típico, não da linha do tempo. */
   slot: string;
   salesCount: number;
   revenueCents: number;
+  /** Dias com movimento naquela faixa, para calcular a média diária. */
+  days: number;
+  avgRevenueCents: number;
 }
 
 export interface MixEntry {
@@ -99,17 +103,27 @@ export class AnalyticsService {
     };
   }
 
-  /** Curva de horário em faixas de 30 minutos — base da escala de gente. */
+  /**
+   * Curva do dia típico: agrega todas as datas do período na mesma faixa de 30
+   * minutos. É o que responde "que horas o quiosque enche?" — plotar a linha do
+   * tempo corrida responderia outra pergunta.
+   */
   async hourlyCurve(tenantIds: string[], from: Date, to: Date, storeId?: string): Promise<HourSlot[]> {
     const storeFilter = storeId ? Prisma.sql`AND store_id = ${storeId}::uuid` : Prisma.empty;
 
-    const rows = await this.prisma.$queryRaw<Array<{ slot: Date; sales_count: bigint; revenue_cents: bigint }>>(
+    const rows = await this.prisma.$queryRaw<
+      Array<{ slot: string; sales_count: bigint; revenue_cents: bigint; days: bigint }>
+    >(
       Prisma.sql`
         SELECT
-          date_trunc('hour', occurred_at)
-            + floor(extract(minute FROM occurred_at) / 30) * interval '30 minutes' AS slot,
-          count(*)         AS sales_count,
-          sum(total_cents) AS revenue_cents
+          to_char(
+            date_trunc('hour', occurred_at)
+              + floor(extract(minute FROM occurred_at) / 30) * interval '30 minutes',
+            'HH24:MI'
+          )                                  AS slot,
+          count(*)                           AS sales_count,
+          sum(total_cents)                   AS revenue_cents,
+          count(DISTINCT occurred_at::date)  AS days
         FROM sale
         WHERE tenant_id = ANY(${tenantIds}::text[])
           AND status = 'completed'
@@ -121,11 +135,17 @@ export class AnalyticsService {
       `,
     );
 
-    return rows.map((row) => ({
-      slot: row.slot.toISOString(),
-      salesCount: Number(row.sales_count),
-      revenueCents: Number(row.revenue_cents),
-    }));
+    return rows.map((row) => {
+      const revenueCents = Number(row.revenue_cents);
+      const days = Math.max(Number(row.days), 1);
+      return {
+        slot: row.slot,
+        salesCount: Number(row.sales_count),
+        revenueCents,
+        days,
+        avgRevenueCents: Math.round(revenueCents / days),
+      };
+    });
   }
 
   /** Mix de produtos: quais sabores realmente sustentam o faturamento. */

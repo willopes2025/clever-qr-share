@@ -225,7 +225,7 @@ async function createCatalog(tenantId: string, stores: Array<{ id: string }>) {
     ),
   );
 
-  const skus: Array<{ id: string; priceCents: number; soldByWeight: boolean }> = [];
+  const skus: Array<{ id: string; priceCents: number; soldByWeight: boolean; description: string }> = [];
 
   // Sorvete no peso — o carro-chefe do quiosque.
   const sorveteNoPeso = await prisma.product.create({
@@ -366,7 +366,12 @@ async function createSku(
     data: { tenantId, skuId: sku.id, priceCents: BigInt(input.priceCents) },
   });
 
-  return { id: sku.id, priceCents: input.priceCents, soldByWeight: input.soldByWeight ?? false };
+  return {
+    id: sku.id,
+    priceCents: input.priceCents,
+    soldByWeight: input.soldByWeight ?? false,
+    description: input.description,
+  };
 }
 
 async function createStock(
@@ -404,7 +409,7 @@ async function createSalesHistory(
   stores: Array<{ id: string; name: string }>,
   terminals: Array<{ id: string; storeId: string; fiscalSeries: number }>,
   users: Array<{ id: string }>,
-  skus: Array<{ id: string; priceCents: number; soldByWeight: boolean }>,
+  skus: Array<{ id: string; priceCents: number; soldByWeight: boolean; description: string }>,
 ) {
   const operators = users.slice(1);
   let saleNumber = new Map<string, number>();
@@ -465,6 +470,23 @@ async function createSalesHistory(
                 weighed: item.unit === 'KG',
               })),
             },
+            documents: {
+              // Histórico já nasce com a nota autorizada: é o estado normal de
+              // uma venda antiga, e é o que o painel fiscal deve mostrar.
+              create: {
+                tenantId,
+                storeId: terminal.storeId,
+                model: 65,
+                series: terminal.fiscalSeries,
+                number: BigInt(next),
+                accessKey: fakeAccessKey(terminal.fiscalSeries, next),
+                status: 'authorized',
+                provider: 'fake',
+                environment: 2,
+                authorizedAt: occurredAt,
+                payload: {},
+              },
+            },
             payments: {
               create: [randomPayment(totalCents)].map((payment) => ({
                 tenantId,
@@ -498,7 +520,7 @@ function hourOfDay(): number {
   return 12;
 }
 
-function pickItems(skus: Array<{ id: string; priceCents: number; soldByWeight: boolean }>) {
+function pickItems(skus: Array<{ id: string; priceCents: number; soldByWeight: boolean; description: string }>) {
   const count = 1 + Math.floor(Math.random() * 3);
   const items: Array<{
     skuId: string;
@@ -514,7 +536,7 @@ function pickItems(skus: Array<{ id: string; priceCents: number; soldByWeight: b
     const quantity = sku.soldByWeight ? round3(0.15 + Math.random() * 0.5) : 1 + Math.floor(Math.random() * 2);
     items.push({
       skuId: sku.id,
-      description: 'Item',
+      description: sku.description,
       quantity,
       unit: sku.soldByWeight ? 'KG' : 'UN',
       unitPriceCents: sku.priceCents,
@@ -531,6 +553,14 @@ function randomPayment(totalCents: number) {
   if (roll < 0.9) return { method: 'pix', amountCents: totalCents, changeCents: 0, cardBrand: null };
   const tendered = Math.ceil(totalCents / 1000) * 1000;
   return { method: 'cash', amountCents: tendered, changeCents: tendered - totalCents, cardBrand: null };
+}
+
+/** Chave de acesso simulada: 44 dígitos únicos, só para o ambiente de teste. */
+let fiscalSequence = 0;
+function fakeAccessKey(series: number, number: number): string {
+  fiscalSequence += 1;
+  const body = `${String(series).padStart(3, '0')}${String(number).padStart(9, '0')}${String(fiscalSequence).padStart(10, '0')}`;
+  return `3526091234567800019065${body}`.padEnd(44, '0').slice(0, 44);
 }
 
 function round3(value: number): number {

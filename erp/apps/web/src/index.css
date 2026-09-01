@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-lavender font-sans text-indigo antialiased;
+  }
+
+  /* O caixa opera por teclado: o foco precisa ser sempre visível. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-violet ring-offset-2 ring-offset-white;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-card border border-lavender-200 bg-white shadow-card;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-pill px-5 py-3
+      font-display text-sm font-semibold transition
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .btn-primary {
+    @apply btn bg-violet text-white hover:bg-violet-dark;
+  }
+
+  .btn-ghost {
+    @apply btn border border-lavender-400 bg-white text-indigo hover:border-violet hover:text-violet;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-lavender-400 bg-white px-4 py-3 text-lg
+      text-indigo placeholder:text-slate-soft focus:border-violet;
+  }
+
+  .label {
+    @apply mb-1 block font-mono text-[11px] uppercase tracking-[0.14em] text-slate;
+  }
+}
