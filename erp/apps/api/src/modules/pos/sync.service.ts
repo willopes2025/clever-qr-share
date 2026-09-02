@@ -131,7 +131,7 @@ export class SyncService {
         },
       });
 
-      await this.inventory.consumeForSale(tx, {
+      const shortfalls = await this.inventory.consumeForSale(tx, {
         tenantId: context.tenantId,
         storeId: context.storeId,
         saleId: sale.id,
@@ -143,6 +143,16 @@ export class SyncService {
           unitCostCents: costByItem.get(item.skuId) ?? 0n,
         })),
       });
+
+      // A venda entra de qualquer jeito; a falta de estoque é aviso, não recusa.
+      // Registrado aqui porque é o único ponto que sabe a loja e a venda juntas.
+      if (shortfalls.length > 0) {
+        this.logger.warn(
+          `Venda ${sale.id} na loja ${context.storeId} baixou estoque negativo: ` +
+            shortfalls.map((item) => `${item.skuId} (-${item.quantity})`).join(', ') +
+            ' — cadastre a entrada do produto para o saldo voltar a bater.',
+        );
+      }
 
       const fiscalDocumentId = await this.fiscal.enqueueForSale(tx as never, {
         tenantId: context.tenantId,

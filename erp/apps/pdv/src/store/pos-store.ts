@@ -3,6 +3,7 @@ import type { SaleInput, SalePaymentInput } from '@soul/contracts';
 import { request } from '../lib/api';
 import {
   countPending,
+  countQuarantined,
   db,
   readSetting,
   replaceCatalog,
@@ -56,6 +57,8 @@ interface PosState {
   sessionId: string | null;
   cart: CartLine[];
   pendingCount: number;
+  /** Vendas recusadas pelo servidor: não voltam sozinhas, precisam de gente. */
+  quarantinedCount: number;
   online: boolean;
   devices: { printerOk: boolean | null };
   lastSaleAt: string | null;
@@ -92,6 +95,7 @@ export const usePos = create<PosState>((set, get) => ({
   sessionId: null,
   cart: [],
   pendingCount: 0,
+  quarantinedCount: 0,
   online: navigator.onLine,
   devices: { printerOk: null },
   lastSaleAt: null,
@@ -158,7 +162,7 @@ export const usePos = create<PosState>((set, get) => ({
       outbox.start();
     }
 
-    set({ booting: false, pendingCount: await countPending() });
+    set({ booting: false, pendingCount: await countPending(), quarantinedCount: await countQuarantined() });
     void get().refreshStatus();
   },
 
@@ -237,7 +241,12 @@ export const usePos = create<PosState>((set, get) => ({
     };
 
     await outbox?.enqueue(sale);
-    set({ cart: [], lastSaleAt: sale.occurredAt, pendingCount: await countPending() });
+    set({
+      cart: [],
+      lastSaleAt: sale.occurredAt,
+      pendingCount: await countPending(),
+      quarantinedCount: await countQuarantined(),
+    });
     return sale;
   },
 
@@ -343,6 +352,7 @@ export const usePos = create<PosState>((set, get) => ({
     const status = await bridgeStatus();
     set({
       pendingCount: await countPending(),
+      quarantinedCount: await countQuarantined(),
       online: navigator.onLine,
       devices: { printerOk: status?.printerOk ?? null },
     });

@@ -69,3 +69,26 @@ export async function replaceCatalog(items: CachedCatalogItem[]): Promise<void> 
 export async function countPending(): Promise<number> {
   return db.outbox.where('status').anyOf('pending', 'sending').count();
 }
+
+/**
+ * Vendas que o servidor recusou por regra de negócio e que não voltam sozinhas.
+ *
+ * Precisam de olho humano: sem isso a venda some da fila sem ninguém saber, o
+ * turno fecha achando que está tudo certo, e o dinheiro na gaveta não bate com
+ * o sistema no dia seguinte.
+ */
+export async function countQuarantined(): Promise<number> {
+  return db.outbox.where('status').equals('quarantined').count();
+}
+
+/** Detalhe das recusadas, para a tela dizer o motivo em vez de só contar. */
+export async function listQuarantined(): Promise<
+  Array<{ saleId: string; lastError?: string; queuedAt: string }>
+> {
+  const entries = await db.outbox.where('status').equals('quarantined').toArray();
+  return entries.map((entry) => ({
+    saleId: entry.saleId,
+    lastError: entry.lastError,
+    queuedAt: entry.queuedAt,
+  }));
+}

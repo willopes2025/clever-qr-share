@@ -70,6 +70,38 @@ export function allocateFefo(
   return allocations;
 }
 
+export interface AvailableAllocation {
+  allocations: LotAllocation[];
+  /** Quanto faltou. Zero quando o estoque cobriu tudo. */
+  shortfall: number;
+}
+
+/**
+ * Baixa o que existe e diz quanto faltou, em vez de recusar.
+ *
+ * Serve à venda no balcão, onde recusar não é opção: o cliente já pagou e já
+ * saiu com o pote. O estoque fica negativo — que é a verdade do que aconteceu —
+ * e a falta vira aviso para quem cuida do inventário. `allocateFefo` continua
+ * existindo para quem pode mesmo recusar, como uma transferência entre lojas.
+ */
+export function allocateAvailable(
+  balances: readonly LotBalance[],
+  requested: number,
+  options: AllocateOptions = {},
+): AvailableAllocation {
+  if (requested <= 0) throw new RangeError('Quantidade a baixar deve ser positiva');
+
+  try {
+    return { allocations: allocateFefo(balances, requested, options), shortfall: 0 };
+  } catch (error) {
+    if (!(error instanceof InsufficientStockError)) throw error;
+
+    const allocations =
+      error.available > 0 ? allocateFefo(balances, error.available, options) : [];
+    return { allocations, shortfall: round4(requested - error.available) };
+  }
+}
+
 /** Lote a vencer em poucos dias: o operador precisa ser avisado, sem travar a venda. */
 export function lotsExpiringWithin(
   balances: readonly LotBalance[],

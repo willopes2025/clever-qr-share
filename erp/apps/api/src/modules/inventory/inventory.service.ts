@@ -1,13 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { ConflictError } from '../../common/errors/domain-error';
-import { allocateFefo, InsufficientStockError, type LotBalance } from './fefo';
+import { allocateAvailable, type LotBalance } from './fefo';
 
 export interface StockConsumption {
   skuId: string;
   quantity: number;
   unitCostCents: bigint;
+}
+
+export interface StockShortfall {
+  skuId: string;
+  /** Quanto faltou em estoque no momento da venda. */
+  quantity: number;
 }
 
 export interface ConsumeSaleInput {
@@ -26,6 +31,12 @@ type TransactionClient = Prisma.TransactionClient;
  *
  * Roda sempre dentro da mesma transação que grava a venda — estoque baixado sem
  * venda gravada (ou o contrário) é divergência que ninguém consegue explicar depois.
+ *
+ * Falta de estoque **não recusa a venda**. No balcão a venda já aconteceu: o
+ * cliente pagou e saiu com o pote. Recusar o registro não desfaz nada — só faz
+ * perder o faturamento e a nota fiscal daquela venda, que é o oposto do que o
+ * sistema existe para fazer. O saldo fica negativo, que é a verdade do que
+ * aconteceu, e a falta volta como aviso para quem cuida do inventário.
  */
 @Injectable()
 export class InventoryService {
@@ -33,10 +44,21 @@ export class InventoryService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async consumeForSale(tx: TransactionClient, input: ConsumeSaleInput): Promise<void> {
+  async consumeForSale(tx: TransactionClient, input: ConsumeSaleInput): Promise<StockShortfall[]> {
+    const shortfalls: StockShortfall[] = [];
+
     for (const item of input.items) {
       const balances = await this.loadBalances(tx, input.tenantId, input.storeId, item.skuId);
-      const allocations = this.allocate(balances, item);
+      const { allocations, shortfall } = allocateAvailable(balances, item.quantity, {
+        now: input.occurredAt,
+      });
+
+      // O que faltou sai do saldo sem lote: é lá que o negativo fica visível
+      // para o acerto de inventário, sem sujar a validade de um lote real.
+      if (shortfall > 0) {
+        shortfalls.push({ skuId: item.skuId, quantity: shortfall });
+        allocations.push({ lotId: null, quantity: shortfall });
+      }
 
       for (const allocation of allocations) {
         await this.applyMovement(tx, {
@@ -54,6 +76,8 @@ export class InventoryService {
         });
       }
     }
+
+    return shortfalls;
   }
 
   /** Devolução: o estoque volta para o mesmo lote de onde saiu. */
@@ -97,33 +121,6 @@ export class InventoryService {
         occurredAt: new Date(),
       }),
     );
-  }
-
-  private allocate(balances: LotBalance[], item: StockConsumption) {
-    // SKU sem controle de lote tem um único saldo, com lotId nulo.
-    if (balances.length === 1 && balances[0]!.lotId === null) {
-      if (balances[0]!.quantity < item.quantity) {
-        throw new ConflictError('INSUFFICIENT_STOCK', 'Estoque insuficiente', {
-          skuId: item.skuId,
-          requested: item.quantity,
-          available: balances[0]!.quantity,
-        });
-      }
-      return [{ lotId: null, quantity: item.quantity }];
-    }
-
-    try {
-      return allocateFefo(balances, item.quantity);
-    } catch (error) {
-      if (error instanceof InsufficientStockError) {
-        throw new ConflictError('INSUFFICIENT_STOCK', 'Estoque insuficiente ou lote vencido', {
-          skuId: item.skuId,
-          requested: error.requested,
-          available: error.available,
-        });
-      }
-      throw error;
-    }
   }
 
   private async loadBalances(

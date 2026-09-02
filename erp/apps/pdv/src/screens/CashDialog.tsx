@@ -21,7 +21,7 @@ type Mode = 'menu' | 'withdrawal' | 'supply' | 'closing';
  * servidor registrou, e não com uma cópia local que ainda pode mudar.
  */
 export function CashDialog({ onClose }: { onClose: () => void }) {
-  const { online, pendingCount, loadCashSummary } = usePos();
+  const { online, pendingCount, quarantinedCount, loadCashSummary } = usePos();
   const [mode, setMode] = useState<Mode>('menu');
   const [summary, setSummary] = useState<CashSessionSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +107,14 @@ export function CashDialog({ onClose }: { onClose: () => void }) {
       {pendingCount > 0 && (
         <p className="mt-2 text-center font-mono text-xs text-magenta">
           {pendingCount} venda(s) ainda não sincronizada(s) — o fechamento será recusado até subirem
+        </p>
+      )}
+      {/* Recusada não sobe sozinha. Fechar o turno sem resolver é fechar com a
+          gaveta batendo diferente do sistema — o aviso precisa ser explícito. */}
+      {quarantinedCount > 0 && (
+        <p className="mt-2 rounded-card bg-red-50 px-3 py-2 text-center font-mono text-xs text-red-700">
+          {quarantinedCount} venda(s) recusada(s) pelo servidor e que não vão subir sozinhas.
+          Chame a retaguarda antes de fechar: elas não entraram no faturamento nem geraram nota.
         </p>
       )}
 

@@ -6,7 +6,7 @@ import { SoulLogo } from './SoulLogo';
  * porque o caixa precisa continuar vendendo sem se assustar.
  */
 export function StatusBar() {
-  const { bootstrap, operator, online, pendingCount, devices } = usePos();
+  const { bootstrap, operator, online, pendingCount, quarantinedCount, devices } = usePos();
 
   return (
     <header className="flex items-center gap-4 bg-indigo px-5 py-3 text-white">
@@ -24,17 +24,23 @@ export function StatusBar() {
       <div className="ml-auto flex items-center gap-2">
         <Badge tone={online ? 'ok' : 'warn'} label={online ? 'online' : 'offline'} />
         {pendingCount > 0 && <Badge tone="warn" label={`${pendingCount} na fila`} />}
+        {/* Venda recusada não volta sozinha: fica à vista até alguém resolver. */}
+        {quarantinedCount > 0 && (
+          <Badge tone="danger" label={`${quarantinedCount} venda(s) recusada(s)`} />
+        )}
         <DeviceBadge label="impressora" ok={devices.printerOk} />
       </div>
     </header>
   );
 }
 
-function Badge({ tone, label }: { tone: 'ok' | 'warn' | 'off'; label: string }) {
+function Badge({ tone, label }: { tone: 'ok' | 'warn' | 'off' | 'danger'; label: string }) {
   const tones = {
     ok: 'bg-white/15 text-white',
     warn: 'bg-pink/20 text-pink',
     off: 'bg-white/10 text-lavender-400',
+    // Venda recusada é o único aviso que precisa gritar na barra.
+    danger: 'bg-red-500 text-white',
   } as const;
 
   return (
