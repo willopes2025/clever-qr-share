@@ -1156,7 +1156,27 @@ Deno.serve(async (req: Request) => {
         }
 
         if (action === 'lead_sync' && params.contact_id) {
-          const pedidosArr = (summary.pedidos as Array<Record<string, unknown>>) || [];
+          const novos = (summary.pedidos as Array<Record<string, unknown>>) || [];
+
+          // Mescla com o snapshot anterior: uma varredura parcial nunca pode
+          // apagar pedidos que já estavam salvos no cartão.
+          const { data: anterior } = await supabaseAdmin
+            .from('gestao_parts_lead_data')
+            .select('pedidos')
+            .eq('contact_id', String(params.contact_id))
+            .maybeSingle();
+
+          const chaveP = (p: Record<string, unknown>) =>
+            String(p.numpedido ?? p.numero ?? p.id ?? JSON.stringify(p).slice(0, 120));
+          const dateKeyP = (p: Record<string, unknown>) =>
+            `${String(p.dtemis ?? '').trim()} ${String(p.hremis ?? '').trim()}`;
+
+          const mapa = new Map<string, Record<string, unknown>>();
+          for (const p of (anterior?.pedidos as Array<Record<string, unknown>>) || []) mapa.set(chaveP(p), p);
+          for (const p of novos) mapa.set(chaveP(p), p);
+          const pedidosArr = Array.from(mapa.values())
+            .sort((a, b) => dateKeyP(b).localeCompare(dateKeyP(a)));
+
           const total = pedidosArr.reduce((sum, p) => {
             const v = Number(String(p.total ?? 0).replace(',', '.'));
             return sum + (Number.isFinite(v) ? v : 0);
@@ -1187,9 +1207,10 @@ Deno.serve(async (req: Request) => {
             .maybeSingle();
 
           if (saveError) console.error('[GestaoParts] lead_sync save:', saveError.message);
-          result = saved ?? summary;
+          result = saved ? { ...saved, parcial: scanParcial } : { ...summary, parcial: scanParcial };
           break;
         }
+
 
         result = summary;
         break;
