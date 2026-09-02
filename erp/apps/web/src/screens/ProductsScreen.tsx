@@ -43,7 +43,8 @@ export function ProductsScreen() {
                 <div>
                   <h2 className="font-display text-base font-semibold text-indigo">{product.name}</h2>
                   <p className="font-mono text-[11px] uppercase tracking-widest text-slate">
-                    {product.categoryName ?? 'sem categoria'} · NCM {product.ncm ?? '—'} ·{' '}
+                    {product.categoryName ?? 'sem categoria'} · NCM {product.ncm ?? '—'} · CEST{' '}
+                    {product.cest ?? '—'} ·{' '}
                     {product.skus.length} {product.skus.length === 1 ? 'variação' : 'variações'}
                   </p>
                 </div>
@@ -100,6 +101,7 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
   const queryClient = useQueryClient();
   const [name, setName] = useState(product?.name ?? '');
   const [ncm, setNcm] = useState(product?.ncm ?? '');
+  const [cest, setCest] = useState(product?.cest ?? '');
   const [skus, setSkus] = useState<DraftSku[]>(
     product?.skus.map((sku) => ({ ...sku, price: toInput(sku.priceCents) })) ?? [
       { code: '', description: '', barcode: '', price: '' },
@@ -117,6 +119,7 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
       const body = {
         name,
         ncm: ncm || null,
+        cest: cest || null,
         categoryId: categoryId || null,
         skus: skus.map((sku) => ({
           id: sku.id,
@@ -164,7 +167,7 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
         </>
       }
     >
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-4">
         <div className="sm:col-span-2">
           <Field label="Nome do produto">
             <input className="field" value={name} onChange={(event) => setName(event.target.value)} autoFocus />
@@ -178,7 +181,22 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
             placeholder="21050010"
           />
         </Field>
+        <Field label="CEST" hint="7 dígitos. Preencha se o produto tem ICMS por substituição tributária — sorvete tem.">
+          <input
+            className="field font-mono"
+            value={cest}
+            onChange={(event) => setCest(event.target.value.replace(/\D/g, '').slice(0, 7))}
+            placeholder="2300100"
+          />
+        </Field>
       </div>
+
+      {ncm.startsWith('2105') && !cest && (
+        <p className="mt-2 text-xs text-amber-700">
+          NCM de sorvete sem CEST. A SEFAZ costuma rejeitar a NFC-e desse item — sorvete de
+          qualquer espécie é CEST 23.001.00.
+        </p>
+      )}
 
       <div className="mt-4">
         <Field label="Categoria">

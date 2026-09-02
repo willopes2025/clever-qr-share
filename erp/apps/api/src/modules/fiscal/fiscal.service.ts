@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { DomainEventBus } from '../../common/events/domain-events';
@@ -10,8 +10,18 @@ import {
   type FiscalProvider,
 } from './fiscal-provider';
 import { isRetryable, nextAttemptAt } from './retry-policy';
+import { parseTaxProfileRules, resolveItemTax } from './tax-rules';
 
 const NFCE_MODEL = 65 as const;
+
+/**
+ * Um SKU pode ter vários códigos de barras (etiqueta de balança, código
+ * interno). Só o EAN vale como GTIN na nota — os outros a SEFAZ recusa.
+ */
+function pickGtin(barcodes: Array<{ code: string; kind: string }> | undefined): string | null {
+  const ean = barcodes?.find((barcode) => barcode.kind === 'ean');
+  return ean?.code ?? null;
+}
 
 /**
  * Emissão fiscal assíncrona.
@@ -80,7 +90,16 @@ export class FiscalService {
       where: { id: documentId },
       include: {
         store: { include: { tenant: true } },
-        sale: { include: { items: { include: { sku: { include: { product: true } } } }, payments: true } },
+        sale: {
+          include: {
+            items: {
+              include: {
+                sku: { include: { product: { include: { taxProfile: true } }, barcodes: true } },
+              },
+            },
+            payments: true,
+          },
+        },
       },
     });
     if (!document?.sale) return;
@@ -192,21 +211,37 @@ export class FiscalService {
         address: tenant.address,
       },
       customerDocument: document.sale.customerDocument,
-      items: document.sale.items.map((item: any) => ({
-        lineNumber: item.lineNumber,
-        code: item.sku.code,
-        description: item.description,
-        ncm: item.sku.product.ncm,
-        cfop: item.sku.product.cfop,
-        unit: item.unit,
-        quantity: Number(item.quantity),
-        unitPriceCents: Number(item.unitPriceCents),
-        totalCents: Number(item.totalCents),
-        discountCents: Number(item.discountCents),
-      })),
+      items: document.sale.items.map((item: any) => {
+        const product = item.sku.product;
+        return {
+          lineNumber: item.lineNumber,
+          code: item.sku.code,
+          description: item.description,
+          ncm: product.ncm,
+          cest: product.cest,
+          cfop: product.cfop,
+          origin: product.origin ?? 0,
+          gtin: pickGtin(item.sku.barcodes),
+          unit: item.unit,
+          quantity: Number(item.quantity),
+          unitPriceCents: Number(item.unitPriceCents),
+          totalCents: Number(item.totalCents),
+          discountCents: Number(item.discountCents),
+          // A tributação é resolvida aqui, com o cadastro em mãos, e viaja
+          // pronta até o adaptador. Assim trocar de gateway não recomeça a
+          // discussão de CSOSN.
+          tax: resolveItemTax({
+            crt: tenant.crt,
+            cest: product.cest ?? null,
+            cfop: product.cfop ?? null,
+            rules: parseTaxProfileRules(product.taxProfile?.rules),
+          }),
+        };
+      }),
       payments: document.sale.payments.map((payment: any) => ({
         method: payment.method,
         amountCents: Number(payment.amountCents),
+        changeCents: Number(payment.changeCents ?? 0),
         cardBrand: payment.cardBrand ?? undefined,
         installments: payment.installments,
       })),
@@ -214,5 +249,58 @@ export class FiscalService {
       discountCents: Number(document.sale.discountCents),
       occurredAt: document.sale.occurredAt,
     };
+  }
+
+  /** Cancela uma nota autorizada. A SEFAZ dá 30 minutos para NFC-e. */
+  async cancel(tenantId: string, documentId: string, reason: string): Promise<void> {
+    const document = await this.prisma.fiscalDocument.findFirst({
+      where: { id: documentId, tenantId },
+    });
+    if (!document) throw new NotFoundException('Documento fiscal não encontrado');
+    if (document.status !== 'authorized') {
+      throw new ConflictException('Só nota autorizada pode ser cancelada');
+    }
+
+    const result = await this.provider.cancel(document.providerRef ?? document.id, reason);
+    if (result.status !== 'accepted') {
+      throw new ConflictException(result.message ?? 'A SEFAZ recusou o cancelamento');
+    }
+
+    await this.prisma.fiscalDocument.update({
+      where: { id: documentId },
+      data: {
+        status: 'cancelled',
+        protocol: result.protocol ?? document.protocol,
+        rejectionMsg: reason,
+        nextAttemptAt: null,
+      },
+    });
+    await this.events.emit('fiscal.document.cancelled', { tenantId, documentId, reason });
+  }
+
+  /**
+   * Devolve à fila uma nota que parou em `rejeitada`. É o botão da tela de
+   * correção: alguém arrumou o NCM ou o CSOSN e manda de novo. Zera as
+   * tentativas, senão a nota corrigida herda a espera longa da anterior.
+   */
+  async retry(tenantId: string, documentId: string): Promise<void> {
+    const document = await this.prisma.fiscalDocument.findFirst({
+      where: { id: documentId, tenantId },
+    });
+    if (!document) throw new NotFoundException('Documento fiscal não encontrado');
+    if (document.status === 'authorized' || document.status === 'cancelled') {
+      throw new ConflictException('Documento já resolvido');
+    }
+
+    await this.prisma.fiscalDocument.update({
+      where: { id: documentId },
+      data: {
+        status: 'queued',
+        attempts: 0,
+        nextAttemptAt: new Date(),
+        rejectionCode: null,
+        rejectionMsg: null,
+      },
+    });
   }
 }

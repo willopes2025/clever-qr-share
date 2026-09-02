@@ -8,6 +8,7 @@ import {
   toAmount,
 } from './focus-mapping';
 import type { FiscalIssueInput } from '../fiscal-provider';
+import { resolveItemTax } from '../tax-rules';
 
 const venda: FiscalIssueInput = {
   documentId: '0193f0aa-1111-7000-8000-000000000001',
@@ -29,12 +30,16 @@ const venda: FiscalIssueInput = {
       code: '10301',
       description: 'Pote 1L Chocolate Belga',
       ncm: '21050010',
-      cfop: '5102',
+      cest: '23.001.00',
+      cfop: null,
+      origin: 0,
+      gtin: '7896543210012',
       unit: 'UN',
       quantity: 2,
       unitPriceCents: 3490,
       totalCents: 6980,
       discountCents: 0,
+      tax: resolveItemTax({ crt: 1, cest: '23.001.00', cfop: null, rules: null }),
     },
   ],
   payments: [{ method: 'debit', amountCents: 7880, cardBrand: 'visa' }],
@@ -88,7 +93,8 @@ describe('montagem da NFC-e', () => {
       numero_item: 1,
       codigo_produto: '10301',
       codigo_ncm: '21050010',
-      cfop: '5102',
+      // O pote é de substituição tributária, então o CFOP de venda é 5405.
+      cfop: '5405',
       quantidade_comercial: 2,
       valor_unitario_comercial: 34.9,
       valor_bruto: 69.8,
@@ -96,8 +102,11 @@ describe('montagem da NFC-e', () => {
   });
 
   it('aplica a tributação do Simples nos itens', () => {
-    expect(payload.items[0].icms_situacao_tributaria).toBe('102');
-    expect(payload.items[0].pis_situacao_tributaria).toBe('07');
+    // CSOSN 500: o ICMS deste pote já foi recolhido pela indústria.
+    expect(payload.items[0].icms_situacao_tributaria).toBe('500');
+    // 49 — outras operações de saída, que é o lançamento de quem recolhe
+    // PIS/COFINS dentro da guia única do Simples.
+    expect(payload.items[0].pis_situacao_tributaria).toBe('49');
   });
 
   it('traduz o meio de pagamento e a bandeira para os códigos da nota', () => {
@@ -105,6 +114,8 @@ describe('montagem da NFC-e', () => {
       forma_pagamento: '04',
       valor_pagamento: 78.8,
       bandeira_operadora: '01',
+      // 2 — pagamento não integrado: a maquineta do quiosque não fala com o PDV.
+      tipo_integracao: '2',
     });
   });
 
@@ -196,5 +207,107 @@ describe('leitura da resposta', () => {
     );
     expect(result.rejection?.message).toContain('codigo_ncm');
     expect(result.rejection?.message).toContain('não pode ficar em branco');
+  });
+});
+
+describe('substituição tributária no payload', () => {
+  it('manda o CEST sem pontuação, como a SEFAZ espera', () => {
+    const payload = buildNfcePayload(venda) as any;
+    expect(payload.items[0].cest).toBe('2300100');
+  });
+
+  it('usa a tributação resolvida do item, não o padrão do regime', () => {
+    const payload = buildNfcePayload(venda) as any;
+    expect(payload.items[0].icms_situacao_tributaria).toBe('500');
+    expect(payload.items[0].cfop).toBe('5405');
+  });
+
+  it('omite o CEST do item que não é de substituição tributária', () => {
+    const agua: FiscalIssueInput = {
+      ...venda,
+      items: [
+        {
+          ...venda.items[0]!,
+          description: 'Água mineral 500ml',
+          ncm: '22011000',
+          cest: null,
+          tax: resolveItemTax({ crt: 1, cest: null, cfop: null, rules: null }),
+        },
+      ],
+    };
+    const payload = buildNfcePayload(agua) as any;
+    expect(payload.items[0].cest).toBeUndefined();
+    expect(payload.items[0].icms_situacao_tributaria).toBe('102');
+    expect(payload.items[0].cfop).toBe('5102');
+  });
+});
+
+describe('troco', () => {
+  // Cliente entrega R$ 100 numa venda de R$ 69,80. Mandar 100 como valor pago
+  // contra um total de 69,80 é rejeição na certa: os dois têm de fechar.
+  const comTroco: FiscalIssueInput = {
+    ...venda,
+    payments: [{ method: 'cash', amountCents: 10000, changeCents: 3020 }],
+    totalCents: 6980,
+  };
+
+  it('declara o troco no total da nota', () => {
+    expect((buildNfcePayload(comTroco) as any).valor_troco).toBe(30.2);
+  });
+
+  it('paga o líquido, não o que o cliente entregou', () => {
+    const payload = buildNfcePayload(comTroco) as any;
+    expect(payload.formas_pagamento[0].valor_pagamento).toBe(69.8);
+    expect(payload.formas_pagamento[0].forma_pagamento).toBe('01');
+  });
+
+  it('não inventa campo de troco quando o pagamento é exato', () => {
+    expect((buildNfcePayload(venda) as any).valor_troco).toBeUndefined();
+  });
+});
+
+describe('identificação do item', () => {
+  it('manda a origem que está no cadastro do produto', () => {
+    const importado: FiscalIssueInput = {
+      ...venda,
+      items: [{ ...venda.items[0]!, origin: 1 }],
+    };
+    expect((buildNfcePayload(importado) as any).items[0].icms_origem).toBe('1');
+  });
+
+  it('manda o código de barras quando existe', () => {
+    expect((buildNfcePayload(venda) as any).items[0].codigo_barras_comercial).toBe('7896543210012');
+  });
+
+  it('escreve SEM GTIN quando o produto não tem código de barras de verdade', () => {
+    const semEan: FiscalIssueInput = { ...venda, items: [{ ...venda.items[0]!, gtin: null }] };
+    const payload = buildNfcePayload(semEan) as any;
+    expect(payload.items[0].codigo_barras_comercial).toBe('SEM GTIN');
+    expect(payload.items[0].codigo_barras_tributavel).toBe('SEM GTIN');
+  });
+});
+
+describe('destinatário e observação', () => {
+  it('marca o consumidor como não contribuinte quando o CPF vai na nota', () => {
+    const payload = buildNfcePayload(venda) as any;
+    expect(payload.cpf_destinatario).toBe('11144477735');
+    expect(payload.indicador_inscricao_estadual_destinatario).toBe('9');
+  });
+
+  it('não manda destinatário nenhum quando o cliente não pede CPF', () => {
+    const payload = buildNfcePayload({ ...venda, customerDocument: null }) as any;
+    expect(payload.cpf_destinatario).toBeUndefined();
+    expect(payload.indicador_inscricao_estadual_destinatario).toBeUndefined();
+  });
+
+  it('inclui a observação do Simples Nacional e a omite no regime normal', () => {
+    expect((buildNfcePayload(venda) as any).informacoes_adicionais_contribuinte).toContain(
+      'Simples Nacional',
+    );
+    const normal = buildNfcePayload({
+      ...venda,
+      issuer: { ...venda.issuer, crt: 3 },
+    }) as any;
+    expect(normal.informacoes_adicionais_contribuinte).toBeUndefined();
   });
 });

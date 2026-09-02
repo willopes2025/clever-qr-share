@@ -12,7 +12,9 @@ import type {
  *
  * Permite rodar o ERP inteiro — inclusive a fila e o tratamento de rejeição —
  * sem depender de rede nem de contrato assinado com fornecedor. Rejeita de
- * propósito quando o item está sem NCM, que é o erro de cadastro mais comum.
+ * propósito nos dois erros de cadastro que mais aparecem: item sem NCM e item
+ * tratado como substituição tributária sem CEST. Ensaiar com um dublê mais
+ * permissivo que a SEFAZ só adia a descoberta para o dia da inauguração.
  */
 @Injectable()
 export class FakeFiscalProvider implements FiscalProvider {
@@ -29,6 +31,19 @@ export class FakeFiscalProvider implements FiscalProvider {
         rejection: {
           code: '778',
           message: `NCM ausente no item ${itemWithoutNcm.lineNumber} (${itemWithoutNcm.description})`,
+          retryable: false,
+        },
+      };
+    }
+
+    const itemStSemCest = input.items.find((item) => item.tax.substituicaoTributaria && !item.cest);
+    if (itemStSemCest) {
+      return {
+        status: 'rejected',
+        providerRef: randomUUID(),
+        rejection: {
+          code: '806',
+          message: `CEST ausente no item ${itemStSemCest.lineNumber} (${itemStSemCest.description}), que está em substituição tributária`,
           retryable: false,
         },
       };
@@ -62,7 +77,19 @@ export class FakeFiscalProvider implements FiscalProvider {
   }
 }
 
+/**
+ * Monta uma chave com a mesma estrutura da real: UF, AAMM, CNPJ, modelo, série,
+ * número, tipo de emissão, código numérico e dígito.
+ *
+ * O código numérico é sorteado, como é na NF-e de verdade. Derivá-lo do número
+ * da nota fazia a chave se repetir a cada reinício do processo — a sequência
+ * volta a 1 e colide com o que já está gravado, e a nota nunca autoriza.
+ */
 function buildFakeAccessKey(cnpj: string, series: number, number: number): string {
-  const base = `35${new Date().toISOString().slice(2, 7).replace('-', '')}${cnpj}65${String(series).padStart(3, '0')}${String(number).padStart(9, '0')}1${String(number).padStart(8, '0')}`;
+  const yearMonth = new Date().toISOString().slice(2, 7).replace('-', '');
+  const numericCode = String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
+  const base =
+    `35${yearMonth}${cnpj}65${String(series).padStart(3, '0')}` +
+    `${String(number).padStart(9, '0')}1${numericCode}`;
   return base.slice(0, 44).padEnd(44, '0');
 }

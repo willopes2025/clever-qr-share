@@ -8,6 +8,7 @@ import { DashboardScreen } from './screens/DashboardScreen';
 import { ProductsScreen } from './screens/ProductsScreen';
 import { StoresScreen } from './screens/StoresScreen';
 import { UsersScreen } from './screens/UsersScreen';
+import { FiscalScreen } from './screens/FiscalScreen';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -31,6 +32,7 @@ export default function App() {
           <Route element={<AppShell onSignOut={() => setSignedIn(false)} />}>
             <Route index element={<DashboardScreen />} />
             <Route path="produtos" element={<ProductsScreen />} />
+            <Route path="fiscal" element={<FiscalScreen />} />
             <Route path="lojas" element={<StoresScreen />} />
             <Route path="usuarios" element={<UsersScreen />} />
           </Route>

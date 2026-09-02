@@ -18,7 +18,14 @@ const productSchema = z.object({
   name: z.string().min(2).max(120),
   categoryId: z.string().uuid().nullish(),
   ncm: z.string().regex(/^\d{8}$/, 'NCM tem 8 dígitos').nullish(),
+  // Aceita com ou sem pontuação (23.001.00 ou 2300100): é assim que o CEST
+  // aparece na tabela do CONFAZ e na nota do fornecedor.
+  cest: z
+    .string()
+    .regex(/^\d{2}\.?\d{3}\.?\d{2}$/, 'CEST tem 7 dígitos (ex.: 23.001.00)')
+    .nullish(),
   cfop: z.string().regex(/^\d{4}$/).nullish(),
+  origin: z.number().int().min(0).max(8).nullish(),
   active: z.boolean().optional(),
   skus: z.array(skuSchema).min(1, 'o produto precisa de ao menos uma variação'),
 });

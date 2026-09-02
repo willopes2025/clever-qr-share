@@ -98,6 +98,9 @@ export interface Product {
   name: string;
   categoryName: string | null;
   ncm: string | null;
+  cest: string | null;
+  cfop: string | null;
+  origin: number;
   active: boolean;
   skus: ProductSku[];
 }

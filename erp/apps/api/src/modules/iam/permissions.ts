@@ -12,6 +12,8 @@ export const PERMISSIONS = {
   priceUpdate: 'price.update',
   stockAdjust: 'stock.adjust',
   fiscalCancel: 'fiscal.cancel',
+  /** Reenviar à SEFAZ uma nota que parou em rejeitada, depois de corrigir o cadastro. */
+  fiscalRetry: 'fiscal.retry',
   fiscalView: 'fiscal.view',
   reportView: 'report.view',
   userManage: 'user.manage',
@@ -27,6 +29,7 @@ export const ROLE_TEMPLATES = [
       PERMISSIONS.saleCreate, PERMISSIONS.saleCancel, PERMISSIONS.saleDiscountAboveLimit,
       PERMISSIONS.cashOpen, PERMISSIONS.cashClose, PERMISSIONS.cashWithdrawal,
       PERMISSIONS.stockAdjust, PERMISSIONS.reportView, PERMISSIONS.fiscalView,
+      PERMISSIONS.fiscalCancel, PERMISSIONS.fiscalRetry,
       PERMISSIONS.productCostView, PERMISSIONS.productManage,
     ],
   },
@@ -43,7 +46,10 @@ export const ROLE_TEMPLATES = [
   {
     code: 'financeiro',
     name: 'Financeiro',
-    permissions: [PERMISSIONS.reportView, PERMISSIONS.fiscalView, PERMISSIONS.productCostView],
+    permissions: [
+      PERMISSIONS.reportView, PERMISSIONS.fiscalView, PERMISSIONS.fiscalRetry,
+      PERMISSIONS.productCostView,
+    ],
   },
   { code: 'contador', name: 'Contador', permissions: [PERMISSIONS.fiscalView] },
 ] as const;

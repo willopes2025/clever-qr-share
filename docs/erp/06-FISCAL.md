@@ -180,6 +180,9 @@ avaliação que levou a ela e o que já está implementado.
 |------|------|
 | Adaptador HTTP | `apps/api/src/modules/fiscal/providers/focus-nfe.provider.ts` |
 | Mapeamento fiscal (puro, sem rede) | `.../providers/focus-mapping.ts` |
+| Regra tributária do item (CSOSN/CST, CFOP, CEST) | `.../fiscal/tax-rules.ts` |
+| Fila de correção (retaguarda) | `apps/web/src/screens/FiscalScreen.tsx` |
+| Cancelar e reenviar | `POST /v1/fiscal/documents/:id/cancel` e `/retry` |
 | Retorno da Focus (gatilho) | `.../fiscal-webhook.controller.ts` → `POST /v1/webhooks/fiscal/focus?key=…` |
 | Configuração | `FISCAL_PROVIDER=focus`, `FOCUS_TOKEN`, `FISCAL_WEBHOOK_SECRET`, `FISCAL_ENVIRONMENT` |
 
@@ -198,6 +201,38 @@ Decisões que o adaptador fixa:
   correção, porque reenviar não resolve.
 - O segredo do gatilho viaja na URL porque a Focus não assina a chamada; é o
   mecanismo que ela recomenda. Sem `FISCAL_WEBHOOK_SECRET` a rota recusa tudo.
+
+### 7.0.1 Tributação do item: o que decide CSOSN, CFOP e CEST
+
+Esta é a parte que rejeita nota na prática. O gateway resolve certificado e
+transmissão; parametrização errada continua voltando da SEFAZ.
+
+**A regra vale para o quiosque de sorvete.** Sorvete está em substituição
+tributária no Espírito Santo — a indústria já recolheu o ICMS de toda a cadeia.
+O quiosque revende como *contribuinte substituído*, e a nota precisa dizer isso
+em três campos que andam juntos:
+
+| Campo | Produto em ST (sorvete, bebidas) | Produto sem ST |
+|---|---|---|
+| CEST | obrigatório — sorvete é **23.001.00** | ausente |
+| ICMS no Simples | **CSOSN 500** | CSOSN 102 |
+| ICMS no regime normal | **CST 60** | CST 00 |
+| CFOP de venda interna | **5405** | 5102 |
+
+O gatilho de tudo isso é um campo só: **o CEST cadastrado no produto**. Com CEST,
+`resolveItemTax` trata o item como ST; sem CEST, como tributado normalmente.
+Nunca se deduz ST a partir do NCM — a lista muda por estado e por protocolo, e
+errar para mais é tão ruim quanto errar para menos.
+
+A exceção é escrita em `TaxProfile.rules`, um JSON por produto que sobrescreve
+qualquer um desses campos (`icmsSituacao`, `cfop`, `pisSituacao`,
+`cofinsSituacao`, `substituicaoTributaria`). A precedência é sempre: **regra do
+perfil → cadastro do produto → padrão do regime**. O contador acerta a exceção
+pela retaguarda, sem deploy.
+
+PIS/COFINS no Simples Nacional saem como **49** (outras operações de saída),
+não como isenta — a empresa recolhe dentro da guia única, e o 49 é o lançamento
+que se alinha com a EFD.
 
 ### 7.1 Critérios de avaliação
 

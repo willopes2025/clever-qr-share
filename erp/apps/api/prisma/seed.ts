@@ -259,7 +259,12 @@ async function createCatalog(tenantId: string, stores: Array<{ id: string }>) {
       kind: 'grid',
       unit: 'UN',
       ncm: '21050010',
-      cfop: '5102',
+      // Sorvete está em substituição tributária no Espírito Santo (item 25 da
+      // lista da SEFAZ-ES): a indústria já recolheu o ICMS de toda a cadeia.
+      // O quiosque revende como contribuinte substituído — CEST obrigatório,
+      // CFOP 5405 e CSOSN 500, que o módulo fiscal deduz a partir do CEST.
+      cest: '2300100', // 23.001.00 — sorvetes de qualquer espécie (NCM 2105.00)
+      cfop: '5405',
     },
   });
 
@@ -281,14 +286,22 @@ async function createCatalog(tenantId: string, stores: Array<{ id: string }>) {
     }
   }
 
+  // `cest` preenchido = produto em substituição tributária. É o que faz a nota
+  // sair com CSOSN 500 e CFOP 5405 em vez de 102 e 5102.
+  //
+  // Os itens marcados com `cest: null` ficam assim de propósito: a lista de ST
+  // varia por estado e a classificação depende da composição exata do produto
+  // (uma calda de chocolate pode ou não entrar). Antes da primeira venda em
+  // produção, o contador confirma cada um pela lista da SEFAZ-ES.
   const avulsos = [
-    { categoryId: complementos!.id, name: 'Casquinha', code: '000101', priceCents: 900, ncm: '19053100' },
-    { categoryId: complementos!.id, name: 'Copinho 120ml', code: '000102', priceCents: 1200, ncm: '21050010' },
-    { categoryId: complementos!.id, name: 'Granola', code: '000103', priceCents: 300, ncm: '19041000' },
-    { categoryId: complementos!.id, name: 'Calda de chocolate', code: '000104', priceCents: 400, ncm: '18069000' },
-    { categoryId: complementos!.id, name: 'Whey no copo', code: '000105', priceCents: 1200, ncm: '22029900' },
-    { categoryId: bebidas!.id, name: 'Água mineral 500ml', code: '000201', priceCents: 500, ncm: '22011000' },
-    { categoryId: bebidas!.id, name: 'Refrigerante lata', code: '000202', priceCents: 700, ncm: '22021000' },
+    { categoryId: complementos!.id, name: 'Casquinha', code: '000101', priceCents: 900, ncm: '19053100', cest: null },
+    { categoryId: complementos!.id, name: 'Copinho 120ml', code: '000102', priceCents: 1200, ncm: '21050010', cest: '2300100' },
+    { categoryId: complementos!.id, name: 'Granola', code: '000103', priceCents: 300, ncm: '19041000', cest: null },
+    { categoryId: complementos!.id, name: 'Calda de chocolate', code: '000104', priceCents: 400, ncm: '18069000', cest: null },
+    { categoryId: complementos!.id, name: 'Whey no copo', code: '000105', priceCents: 1200, ncm: '22029900', cest: null },
+    // Bebidas frias também são ST no Espírito Santo (item 5 da lista da SEFAZ-ES).
+    { categoryId: bebidas!.id, name: 'Água mineral 500ml', code: '000201', priceCents: 500, ncm: '22011000', cest: '0300600' },
+    { categoryId: bebidas!.id, name: 'Refrigerante lata', code: '000202', priceCents: 700, ncm: '22021000', cest: '0301002' },
   ];
 
   for (const item of avulsos) {
@@ -299,7 +312,8 @@ async function createCatalog(tenantId: string, stores: Array<{ id: string }>) {
         name: item.name,
         unit: 'UN',
         ncm: item.ncm,
-        cfop: '5102',
+        cest: item.cest,
+        cfop: item.cest ? '5405' : '5102',
       },
     });
     skus.push(

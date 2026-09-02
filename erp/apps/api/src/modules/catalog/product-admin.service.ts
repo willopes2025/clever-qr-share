@@ -8,6 +8,9 @@ export interface ProductListItem {
   name: string;
   categoryName: string | null;
   ncm: string | null;
+  cest: string | null;
+  cfop: string | null;
+  origin: number;
   active: boolean;
   skus: Array<{
     id: string;
@@ -23,7 +26,13 @@ export interface SaveProductInput {
   name: string;
   categoryId?: string | null;
   ncm?: string | null;
+  /**
+   * CEST. Preenchê-lo é o que diz ao fiscal que o produto está em substituição
+   * tributária — e é o campo cuja ausência mais rejeita NFC-e de sorveteria.
+   */
+  cest?: string | null;
   cfop?: string | null;
+  origin?: number | null;
   active?: boolean;
   skus: Array<{
     id?: string;
@@ -84,6 +93,9 @@ export class ProductAdminService {
       name: product.name,
       categoryName: product.category?.name ?? null,
       ncm: product.ncm,
+      cest: product.cest,
+      cfop: product.cfop,
+      origin: product.origin,
       active: product.active,
       skus: product.skus.map((sku) => ({
         id: sku.id,
@@ -114,7 +126,11 @@ export class ProductAdminService {
           name: input.name,
           categoryId: input.categoryId ?? null,
           ncm: input.ncm ?? null,
-          cfop: input.cfop ?? '5102',
+          cest: normalizeDigits(input.cest, 7),
+          // Sem CFOP informado, o padrão segue o CEST: produto em substituição
+          // tributária vende com 5405, os demais com 5102.
+          cfop: input.cfop ?? defaultCfop(input.cest),
+          origin: input.origin ?? 0,
           unit: 'UN',
           kind: input.skus.length > 1 ? 'grid' : 'simple',
         },
@@ -144,7 +160,9 @@ export class ProductAdminService {
           name: input.name,
           categoryId: input.categoryId ?? null,
           ncm: input.ncm ?? null,
-          cfop: input.cfop ?? '5102',
+          cest: normalizeDigits(input.cest, 7),
+          cfop: input.cfop ?? defaultCfop(input.cest),
+          origin: input.origin ?? 0,
           active: input.active ?? true,
         },
       });
@@ -269,4 +287,15 @@ export class ProductAdminService {
       });
     }
   }
+}
+
+/** Guarda o código só com dígitos, no tamanho exato, ou nada. */
+function normalizeDigits(value: string | null | undefined, length: number): string | null {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, '');
+  return digits.length === length ? digits : null;
+}
+
+function defaultCfop(cest: string | null | undefined): string {
+  return normalizeDigits(cest, 7) ? '5405' : '5102';
 }

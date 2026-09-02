@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { FocusNfeProvider } from './focus-nfe.provider';
 import type { FiscalIssueInput } from '../fiscal-provider';
+import { resolveItemTax } from '../tax-rules';
 
 interface Received {
   method: string;
@@ -59,12 +60,16 @@ function saleInput(documentId: string): FiscalIssueInput {
         code: '10301',
         description: 'Pote 1L Chocolate Belga',
         ncm: '21050010',
-        cfop: '5102',
+        cest: '2300100',
+        cfop: null,
+        origin: 0,
+        gtin: '7896543210012',
         unit: 'UN',
         quantity: 2,
         unitPriceCents: 3490,
         totalCents: 6980,
         discountCents: 0,
+        tax: resolveItemTax({ crt: 1, cest: '2300100', cfop: null, rules: null }),
       },
     ],
     payments: [{ method: 'credit', amountCents: 6980, cardBrand: 'visa' }],

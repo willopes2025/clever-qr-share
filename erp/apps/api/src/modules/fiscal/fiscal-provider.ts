@@ -1,3 +1,5 @@
+import type { ResolvedItemTax } from './tax-rules';
+
 /**
  * Camada anticorrupção do fiscal.
  *
@@ -10,17 +12,28 @@ export interface FiscalIssueItem {
   code: string;
   description: string;
   ncm: string | null;
+  /** CEST. Preenchido = produto na lista de substituição tributária. */
+  cest: string | null;
   cfop: string | null;
+  /** Origem da mercadoria (campo orig do ICMS). 0 = nacional. */
+  origin: number;
+  /** Código de barras EAN/GTIN, quando o produto tem um de verdade. */
+  gtin: string | null;
   unit: string;
   quantity: number;
   unitPriceCents: number;
   totalCents: number;
   discountCents: number;
+  /** Regra tributária resolvida para este item. */
+  tax: ResolvedItemTax;
 }
 
 export interface FiscalIssuePayment {
   method: string;
+  /** Valor entregue pelo cliente. Em dinheiro pode ser maior que a venda. */
   amountCents: number;
+  /** Troco devolvido. Sem ele a soma dos pagamentos não fecha com o total. */
+  changeCents?: number;
   cardBrand?: string;
   installments?: number;
 }

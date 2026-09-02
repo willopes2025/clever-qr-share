@@ -14,6 +14,7 @@ export interface DomainEventMap {
   'cash.session.closed': { tenantId: string; sessionId: string; differenceCents: bigint };
   'fiscal.document.authorized': { tenantId: string; documentId: string; saleId: string | null };
   'fiscal.document.rejected': { tenantId: string; documentId: string; code: string; message: string };
+  'fiscal.document.cancelled': { tenantId: string; documentId: string; reason: string };
 }
 
 type Handler<K extends keyof DomainEventMap> = (payload: DomainEventMap[K]) => void | Promise<void>;

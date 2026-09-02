@@ -1,4 +1,5 @@
 import type { FiscalIssueInput, FiscalIssueResult } from '../fiscal-provider';
+import { isSimplesNacional, normalizeCest } from '../tax-rules';
 
 /**
  * Tradução entre o nosso modelo e o da Focus NFe.
@@ -39,10 +40,16 @@ export interface FocusTaxDefaults {
   naturezaOperacao: string;
 }
 
+/**
+ * Padrões por regime. Continuam existindo para a natureza da operação e como
+ * rede de segurança, mas a tributação de cada item vem resolvida em
+ * `item.tax` — ver `tax-rules.ts`. Um pote de sorvete e uma garrafa de água
+ * saem na mesma nota com CSOSN diferentes, e um padrão único não daria conta.
+ */
 export const SIMPLES_DEFAULTS: FocusTaxDefaults = {
   icmsSituacao: '102', // CSOSN 102 — sem permissão de crédito
-  pisSituacao: '07',
-  cofinsSituacao: '07',
+  pisSituacao: '49',
+  cofinsSituacao: '49',
   cfop: '5102',
   naturezaOperacao: 'Venda de mercadoria',
 };
@@ -60,6 +67,14 @@ export function taxDefaultsFor(crt: number): FocusTaxDefaults {
   return crt === 3 ? REGIME_NORMAL_DEFAULTS : SIMPLES_DEFAULTS;
 }
 
+/**
+ * Texto exigido pela LC 123 para quem é optante pelo Simples Nacional e não
+ * destaca ICMS na nota. Vai no campo de informações complementares.
+ */
+export const OBSERVACAO_SIMPLES =
+  'Documento emitido por ME ou EPP optante pelo Simples Nacional. ' +
+  'Nao gera direito a credito fiscal de ICMS, IPI, PIS e COFINS.';
+
 /** Centavos → número decimal com duas casas, como a Focus espera. */
 export function toAmount(cents: number): number {
   return Number((cents / 100).toFixed(2));
@@ -67,6 +82,12 @@ export function toAmount(cents: number): number {
 
 export function buildNfcePayload(input: FiscalIssueInput): Record<string, unknown> {
   const defaults = taxDefaultsFor(input.issuer.crt);
+  const simples = isSimplesNacional(input.issuer.crt);
+
+  // O que o cliente entregou menos o que voltou de troco. Em dinheiro os dois
+  // são diferentes, e é a diferença — não o valor entregue — que precisa fechar
+  // com o total da nota, senão a SEFAZ rejeita por divergência de pagamento.
+  const trocoCents = input.payments.reduce((total, payment) => total + (payment.changeCents ?? 0), 0);
 
   return {
     natureza_operacao: defaults.naturezaOperacao,
@@ -77,35 +98,58 @@ export function buildNfcePayload(input: FiscalIssueInput): Record<string, unknow
     local_destino: '1',
     cnpj_emitente: input.issuer.cnpj,
     serie: input.series,
-    ...(input.customerDocument ? { cpf_destinatario: input.customerDocument } : {}),
+    ...(input.customerDocument
+      ? {
+          cpf_destinatario: input.customerDocument,
+          // 9 = não contribuinte do ICMS. É o consumidor final do quiosque.
+          indicador_inscricao_estadual_destinatario: '9',
+        }
+      : {}),
+    ...(simples ? { informacoes_adicionais_contribuinte: OBSERVACAO_SIMPLES } : {}),
     valor_produtos: toAmount(input.totalCents + input.discountCents),
     valor_desconto: toAmount(input.discountCents),
     valor_total: toAmount(input.totalCents),
-    items: input.items.map((item) => ({
-      numero_item: item.lineNumber,
-      codigo_produto: item.code,
-      descricao: item.description,
-      codigo_ncm: item.ncm ?? undefined,
-      cfop: item.cfop ?? defaults.cfop,
-      unidade_comercial: item.unit,
-      quantidade_comercial: item.quantity,
-      valor_unitario_comercial: toAmount(item.unitPriceCents),
-      valor_bruto: toAmount(item.totalCents + item.discountCents),
-      valor_desconto: toAmount(item.discountCents),
-      unidade_tributavel: item.unit,
-      quantidade_tributavel: item.quantity,
-      valor_unitario_tributavel: toAmount(item.unitPriceCents),
-      icms_origem: '0',
-      icms_situacao_tributaria: defaults.icmsSituacao,
-      pis_situacao_tributaria: defaults.pisSituacao,
-      cofins_situacao_tributaria: defaults.cofinsSituacao,
-      inclui_no_total: '1',
-    })),
+    ...(trocoCents > 0 ? { valor_troco: toAmount(trocoCents) } : {}),
+    items: input.items.map((item) => {
+      const cest = normalizeCest(item.cest);
+      return {
+        numero_item: item.lineNumber,
+        codigo_produto: item.code,
+        descricao: item.description,
+        codigo_ncm: item.ncm ?? undefined,
+        // A SEFAZ rejeita produto sujeito a substituição tributária sem CEST.
+        ...(cest ? { cest } : {}),
+        cfop: item.tax.cfop,
+        // "SEM GTIN" é o valor que a SEFAZ espera quando o produto não tem
+        // código de barras de verdade; deixar em branco reprova a validação.
+        codigo_barras_comercial: item.gtin ?? 'SEM GTIN',
+        codigo_barras_tributavel: item.gtin ?? 'SEM GTIN',
+        unidade_comercial: item.unit,
+        quantidade_comercial: item.quantity,
+        valor_unitario_comercial: toAmount(item.unitPriceCents),
+        valor_bruto: toAmount(item.totalCents + item.discountCents),
+        valor_desconto: toAmount(item.discountCents),
+        unidade_tributavel: item.unit,
+        quantidade_tributavel: item.quantity,
+        valor_unitario_tributavel: toAmount(item.unitPriceCents),
+        icms_origem: String(item.origin ?? 0),
+        icms_situacao_tributaria: item.tax.icmsSituacao,
+        pis_situacao_tributaria: item.tax.pisSituacao,
+        cofins_situacao_tributaria: item.tax.cofinsSituacao,
+        inclui_no_total: '1',
+      };
+    }),
     formas_pagamento: input.payments.map((payment) => ({
       forma_pagamento: PAYMENT_CODES[payment.method] ?? '99',
-      valor_pagamento: toAmount(payment.amountCents),
+      // O que efetivamente ficou no caixa: entregue menos troco.
+      valor_pagamento: toAmount(payment.amountCents - (payment.changeCents ?? 0)),
+      // 2 = pagamento não integrado ao sistema. O quiosque não tem TEF: o
+      // operador passa na maquineta e lança aqui o que aconteceu.
       ...(payment.cardBrand
-        ? { bandeira_operadora: CARD_BRANDS[payment.cardBrand.toLowerCase()] ?? '99' }
+        ? {
+            bandeira_operadora: CARD_BRANDS[payment.cardBrand.toLowerCase()] ?? '99',
+            tipo_integracao: '2',
+          }
         : {}),
     })),
   };
