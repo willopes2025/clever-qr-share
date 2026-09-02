@@ -1017,15 +1017,20 @@ Deno.serve(async (req: Request) => {
         const pessoa = summary.pessoa as { codigo?: string; nome?: string; codstatus?: number } | null;
         const clienteCodigo = pessoa?.codigo ? String(pessoa.codigo) : '';
 
-        // Pedidos do cliente: feed v3 (últimos 12 meses). O feed é paginado por
-        // bloco — buscar só o bloco 1 devolvia uma fração dos pedidos, então
-        // percorremos os blocos até o fim (com teto de segurança).
+        // Pedidos do cliente: feed v3. O ERP não filtra por cliente, então
+        // baixamos o feed do período e filtramos aqui. A varredura começa no
+        // ÚLTIMO bloco real (pedidos mais recentes) e desce — o teto limita
+        // quantos blocos são lidos, nunca até onde se lê.
+        let scanParcial = false;
         if (clienteCodigo || documento || telTail) {
           try {
+            const diasParam = Number(params.dias);
+            const dias = Number.isFinite(diasParam) && diasParam > 0 ? Math.min(diasParam, 365) : 90;
             const hoje = new Date();
-            const inicio = new Date(hoje.getTime() - 365 * 86400000);
+            const inicio = new Date(hoje.getTime() - dias * 86400000);
             const dtinicio = inicio.toISOString().slice(0, 10);
             const dtfinal = hoje.toISOString().slice(0, 10);
+
 
             const codigoDigits = onlyDigits(clienteCodigo);
             const matches = (p: Record<string, unknown>) => {
@@ -1082,17 +1087,18 @@ Deno.serve(async (req: Request) => {
 
             const first = await fetchBloco(1);
             absorve(first.items);
-            const totalblocos = Math.min(first.totalblocos || 1, MAX_BLOCOS);
+            const totalReal = Math.max(first.totalblocos || 1, 1);
 
-            // Varre os blocos restantes do último para o primeiro: o feed vem em
-            // ordem cronológica crescente, então os pedidos mais novos ficam nos
-            // últimos blocos — varrer ao contrário garante que uma varredura
-            // parcial (limite de tempo) ainda traga as novidades.
-            let parcial = false;
+            // Varre do último bloco REAL (pedidos mais recentes) para trás,
+            // lendo no máximo MAX_BLOCOS blocos. Cortar em min(total, teto)
+            // fazia a varredura ficar presa nos blocos mais antigos.
+            const menorBloco = Math.max(2, totalReal - MAX_BLOCOS + 1);
             const restantes: number[] = [];
-            for (let b = totalblocos; b >= 2; b--) restantes.push(b);
+            for (let b = totalReal; b >= menorBloco; b--) restantes.push(b);
+            if (menorBloco > 2) scanParcial = true;
+
             for (let i = 0; i < restantes.length; i += CONCURRENCY) {
-              if (Date.now() > DEADLINE) { parcial = true; break; }
+              if (Date.now() > DEADLINE) { scanParcial = true; break; }
               const lote = restantes.slice(i, i + CONCURRENCY);
               const pages = await Promise.all(
                 lote.map((b) => fetchBloco(b).catch(() => ({ items: [], totalblocos: 0 }))),
@@ -1100,13 +1106,17 @@ Deno.serve(async (req: Request) => {
               for (const page of pages) absorve(page.items);
             }
 
-            if (parcial) console.warn('[GestaoParts] lead_sync: varredura parcial por limite de tempo');
+            if (scanParcial) {
+              console.warn('[GestaoParts] lead_sync: varredura parcial', JSON.stringify({ totalReal, menorBloco }));
+            }
 
             // Mais novo -> mais antigo
             const dateKey = (p: Record<string, unknown>) =>
               `${String(p.dtemis ?? '').trim()} ${String(p.hremis ?? '').trim()}`;
             encontrados.sort((a, b) => dateKey(b).localeCompare(dateKey(a)));
             summary.pedidos = encontrados;
+            summary.parcial = scanParcial;
+
 
           } catch (e) {
             console.error('[GestaoParts] lead_summary pedidos:', (e as Error).message);
@@ -1146,7 +1156,27 @@ Deno.serve(async (req: Request) => {
         }
 
         if (action === 'lead_sync' && params.contact_id) {
-          const pedidosArr = (summary.pedidos as Array<Record<string, unknown>>) || [];
+          const novos = (summary.pedidos as Array<Record<string, unknown>>) || [];
+
+          // Mescla com o snapshot anterior: uma varredura parcial nunca pode
+          // apagar pedidos que já estavam salvos no cartão.
+          const { data: anterior } = await supabaseAdmin
+            .from('gestao_parts_lead_data')
+            .select('pedidos')
+            .eq('contact_id', String(params.contact_id))
+            .maybeSingle();
+
+          const chaveP = (p: Record<string, unknown>) =>
+            String(p.numpedido ?? p.numero ?? p.id ?? JSON.stringify(p).slice(0, 120));
+          const dateKeyP = (p: Record<string, unknown>) =>
+            `${String(p.dtemis ?? '').trim()} ${String(p.hremis ?? '').trim()}`;
+
+          const mapa = new Map<string, Record<string, unknown>>();
+          for (const p of (anterior?.pedidos as Array<Record<string, unknown>>) || []) mapa.set(chaveP(p), p);
+          for (const p of novos) mapa.set(chaveP(p), p);
+          const pedidosArr = Array.from(mapa.values())
+            .sort((a, b) => dateKeyP(b).localeCompare(dateKeyP(a)));
+
           const total = pedidosArr.reduce((sum, p) => {
             const v = Number(String(p.total ?? 0).replace(',', '.'));
             return sum + (Number.isFinite(v) ? v : 0);
@@ -1177,9 +1207,10 @@ Deno.serve(async (req: Request) => {
             .maybeSingle();
 
           if (saveError) console.error('[GestaoParts] lead_sync save:', saveError.message);
-          result = saved ?? summary;
+          result = saved ? { ...saved, parcial: scanParcial } : { ...summary, parcial: scanParcial };
           break;
         }
+
 
         result = summary;
         break;

@@ -264,7 +264,29 @@ Deno.serve(async (req: Request) => {
             summary.leads_criados++;
           }
 
-          // Snapshot do ERP no cartão do lead
+          // Snapshot do ERP no cartão do lead (mescla com o que já estava salvo,
+          // para a janela curta deste job não apagar o histórico do cartão)
+          const { data: anterior } = await admin
+            .from('gestao_parts_lead_data')
+            .select('pedidos')
+            .eq('contact_id', contactId)
+            .maybeSingle();
+
+          const chaveP = (p: Record<string, unknown>) =>
+            String(p.numpedido ?? p.numero ?? p.id ?? JSON.stringify(p).slice(0, 120));
+          const dateKeyP = (p: Record<string, unknown>) =>
+            `${String(p.dtemis ?? '').trim()} ${String(p.hremis ?? '').trim()}`;
+
+          const mapa = new Map<string, Record<string, unknown>>();
+          for (const p of (anterior?.pedidos as Array<Record<string, unknown>>) || []) mapa.set(chaveP(p), p);
+          for (const p of c.pedidos as Array<Record<string, unknown>>) mapa.set(chaveP(p), p);
+          const pedidosArr = Array.from(mapa.values())
+            .sort((a, b) => dateKeyP(b).localeCompare(dateKeyP(a)));
+          const totalArr = pedidosArr.reduce((s, p) => {
+            const v = Number(String(p.total ?? 0).replace(',', '.'));
+            return s + (Number.isFinite(v) ? v : 0);
+          }, 0);
+
           await admin.from('gestao_parts_lead_data').upsert({
             user_id: ownerId,
             contact_id: contactId,
@@ -273,11 +295,12 @@ Deno.serve(async (req: Request) => {
             lookup_document: c.documento || null,
             erp_codigo: c.codigo || null,
             erp_nome: c.nome || null,
-            pedidos: c.pedidos,
-            pedidos_count: c.pedidos.length,
-            pedidos_total: Number(c.total.toFixed(2)),
+            pedidos: pedidosArr,
+            pedidos_count: pedidosArr.length,
+            pedidos_total: Number(totalArr.toFixed(2)),
             last_synced_at: new Date().toISOString(),
           }, { onConflict: 'contact_id' });
+
         } catch (e) {
           if (summary.erros.length < 20) summary.erros.push((e as Error).message);
         }
