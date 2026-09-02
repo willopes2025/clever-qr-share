@@ -1017,15 +1017,20 @@ Deno.serve(async (req: Request) => {
         const pessoa = summary.pessoa as { codigo?: string; nome?: string; codstatus?: number } | null;
         const clienteCodigo = pessoa?.codigo ? String(pessoa.codigo) : '';
 
-        // Pedidos do cliente: feed v3 (últimos 12 meses). O feed é paginado por
-        // bloco — buscar só o bloco 1 devolvia uma fração dos pedidos, então
-        // percorremos os blocos até o fim (com teto de segurança).
+        // Pedidos do cliente: feed v3. O ERP não filtra por cliente, então
+        // baixamos o feed do período e filtramos aqui. A varredura começa no
+        // ÚLTIMO bloco real (pedidos mais recentes) e desce — o teto limita
+        // quantos blocos são lidos, nunca até onde se lê.
+        let scanParcial = false;
         if (clienteCodigo || documento || telTail) {
           try {
+            const diasParam = Number(params.dias);
+            const dias = Number.isFinite(diasParam) && diasParam > 0 ? Math.min(diasParam, 365) : 90;
             const hoje = new Date();
-            const inicio = new Date(hoje.getTime() - 365 * 86400000);
+            const inicio = new Date(hoje.getTime() - dias * 86400000);
             const dtinicio = inicio.toISOString().slice(0, 10);
             const dtfinal = hoje.toISOString().slice(0, 10);
+
 
             const codigoDigits = onlyDigits(clienteCodigo);
             const matches = (p: Record<string, unknown>) => {
