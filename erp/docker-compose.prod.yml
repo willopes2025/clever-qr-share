@@ -1,0 +1,62 @@
+# Publicação do Soul ERP em soulmuscle.wideic.com.
+#
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# O Caddy cuida do HTTPS sozinho (Let's Encrypt) — o certificado é obrigatório:
+# sem HTTPS o service worker não roda e o PDV deixa de abrir offline.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-soul}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: ${POSTGRES_DB:-soul_erp}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-soul} -d ${POSTGRES_DB:-soul_erp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-soul}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-soul_erp}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_TERMINAL_TTL: ${JWT_TERMINAL_TTL:-24h}
+      FISCAL_PROVIDER: ${FISCAL_PROVIDER:-fake}
+      FISCAL_ENVIRONMENT: ${FISCAL_ENVIRONMENT:-2}
+      FISCAL_BASE_URL: ${FISCAL_BASE_URL:-}
+      FISCAL_API_KEY: ${FISCAL_API_KEY:-}
+      PORT: 3000
+    expose:
+      - "3000"
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-soulmuscle.wideic.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+
+volumes:
+  pgdata:
+  caddydata:
+  caddyconfig:

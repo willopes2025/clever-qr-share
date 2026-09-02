@@ -1,0 +1,21 @@
+# HTTPS automático. O certificado não é opcional: sem ele o navegador recusa o
+# service worker, e o PDV deixa de abrir com a internet caída.
+{$DOMAIN} {
+	encode gzip zstd
+
+	# O service worker precisa ser sempre buscado do servidor, senão o terminal
+	# fica preso numa versão antiga do PDV.
+	@sw path /pdv/sw.js /sw.js
+	header @sw Cache-Control "no-cache, no-store, must-revalidate"
+
+	@assets path /assets/* /pdv/assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	reverse_proxy app:3000
+}

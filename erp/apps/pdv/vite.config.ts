@@ -6,6 +6,8 @@ import { resolve } from 'node:path';
 const APP_VERSION = '1.0.0';
 
 export default defineConfig({
+  // Em produção o PDV vive em /pdv do mesmo domínio da retaguarda.
+  base: process.env.PDV_BASE ?? '/',
   plugins: [
     react(),
     /**
@@ -22,8 +24,8 @@ export default defineConfig({
         short_name: 'Soul PDV',
         description: 'Frente de caixa da Soul Muscle',
         lang: 'pt-BR',
-        start_url: '/',
-        scope: '/',
+        start_url: process.env.PDV_BASE ?? '/',
+        scope: process.env.PDV_BASE ?? '/',
         display: 'standalone',
         orientation: 'landscape',
         background_color: '#241463',
@@ -37,7 +39,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
         // Abrir qualquer rota offline serve o app guardado.
-        navigateFallback: 'index.html',
+        navigateFallback: `${process.env.PDV_BASE ?? '/'}index.html`,
         // A API nunca é cacheada: dado de venda vem do servidor ou da fila local,
         // nunca de uma resposta velha guardada pelo navegador.
         navigateFallbackDenylist: [/^\/v1\//],

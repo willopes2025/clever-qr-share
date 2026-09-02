@@ -27,3 +27,6 @@ dist-ssr
 erp/node_modules/
 erp/**/dist/
 erp/apps/api/.env
+erp/apps/api/public/
+erp/**/*.tsbuildinfo
+erp/backups/
