@@ -1,38 +1,42 @@
-# Inbox: marcar como lida ao abrir e apagar mensagem para todos
+# Cartão do lead (Gestão Parts): só aparecem pedidos antigos
 
-Duas correções pedidas pelo Werllon (Martins).
+## Problema encontrado
 
-## 1. Conversa não fica marcada como lida
+O botão "Atualizar" do cartão do lead chama a ação `lead_sync` da função `gestao-parts-api`. O ERP não filtra pedidos por cliente no feed v3, então a função baixa o feed inteiro dos últimos 365 dias (todos os tipos: ORCAMENTO, CONDICIONAL, PRE-VENDA, E-COMMERCE) e filtra no nosso lado por código/CPF/telefone.
 
-Hoje a conversa só perde o "não lida" quando o usuário clica no botão "Marcar como lida" ou quando envia uma resposta. Abrir a conversa e ler as mensagens não zera o contador — por isso tudo continua aparecendo como não lido (e some da aba "Sem dono" só depois da resposta).
+Essa varredura tem um teto de 60 blocos aplicado da forma errada:
 
-Mudança:
-- Ao abrir uma conversa no Inbox (desktop e mobile), ela é marcada como lida automaticamente assim que as mensagens são exibidas.
-- O contador da lista, o badge do menu lateral e a aba "Sem dono" atualizam na hora, sem precisar recarregar a página.
-- O botão manual "Marcar como lida" continua existindo (útil para marcar sem abrir).
+```text
+totalblocos = min(totalblocos_real, 60)     // ex.: min(400, 60) = 60
+varre blocos 60, 59, ... 2, 1
+```
 
-## 2. Apagar mensagem para todos no WhatsApp
+O comentário do código diz que se varre "do último bloco para o primeiro" para pegar os mais novos, mas o "último" passa a ser o bloco 60 e não o bloco real (ex.: 400). Como o feed vem em ordem cronológica crescente, os blocos 1–60 são justamente os **mais antigos** do período. Resultado: o cartão só recebe pedidos velhos e os recentes nunca entram na varredura.
 
-Hoje não existe nenhuma ação de apagar mensagem nas conversas de cliente.
+Há ainda dois agravantes:
 
-Mudança:
-- No menu de cada mensagem enviada pela equipe, nova ação "Apagar para todos".
-- A mensagem é apagada de fato na conversa do cliente no WhatsApp e, no Inbox, passa a aparecer como "Mensagem apagada" (mantendo o histórico de auditoria).
-- Confirmação antes de apagar.
-- Disponível apenas para mensagens enviadas por número conectado via Evolution API e dentro da janela permitida pelo WhatsApp. Para números oficiais Meta e para mensagens recebidas do cliente, a opção não aparece (o WhatsApp não permite) — nesse caso oferecemos apenas "ocultar no sistema", se você quiser.
+1. Prazo de 35s: mesmo com o intervalo certo, uma varredura de centenas de blocos estoura o tempo e grava um resultado parcial.
+2. O `lead_sync` **substitui** o snapshot salvo (`gestao_parts_lead_data.pedidos`) pelo resultado da varredura. Uma varredura parcial/errada apaga pedidos que já estavam corretos no cartão — inclusive os que o job diário `gestao-parts-sync-leads` (janela de 15 dias, pedidos recentes) havia gravado.
 
-## 3. "Para esse cliente não chega msg"
+## Solução proposta
 
-Sem o número do contato não dá para confirmar a causa. Assim que você passar o telefone (ou o nome exato do cliente), eu verifico os registros de envio daquela conversa e trato como item separado.
+### 1. Varrer do bloco real mais recente para trás
+Em `lead_sync` (`supabase/functions/gestao-parts-api/index.ts`):
+- Guardar `totalReal = first.totalblocos` e iniciar a varredura em `totalReal`, descendo até `max(2, totalReal - MAX_BLOCOS)`.
+- O teto passa a limitar **quantos** blocos são lidos, não **até onde** se lê — sempre priorizando os mais recentes.
+
+### 2. Janela padrão menor + opção de histórico
+- Padrão: últimos 90 dias (traz pedidos/orçamentos atuais com poucos blocos e dentro do tempo).
+- Parâmetro opcional `dias` (até 365) para quem quiser puxar o histórico completo, acionado por um botão secundário no cartão ("Buscar histórico de 12 meses").
+
+### 3. Nunca perder pedidos já salvos
+- Antes de gravar, mesclar os pedidos encontrados com os do snapshot atual, deduplicando por número do pedido, reordenando por data/hora de emissão (mais novo primeiro) e recalculando `pedidos_count` / `pedidos_total`.
+- Se a varredura foi parcial (deadline), devolver `parcial: true` e exibir aviso no cartão em vez de sobrescrever silenciosamente.
+
+### 4. Alinhar o job diário
+- `gestao-parts-sync-leads` também faz upsert do snapshot: aplicar a mesma mesclagem, para o job de 15 dias não apagar o histórico trazido manualmente.
 
 ## Detalhes técnicos
-
-**Marcar como lida**
-- `src/pages/Inbox.tsx`: disparar `markAsRead` num `useEffect` ao trocar `selectedConversation` quando `unread_count > 0` (com guarda para não repetir).
-- `src/hooks/useConversations.ts`: no `onSuccess` do `markAsRead`, além de `['conversations']`, invalidar `['unread-count']` e aplicar update otimista no cache para refletir imediatamente na lista virtualizada de `ConversationList.tsx`.
-
-**Apagar para todos**
-- Migração: coluna `deleted_at timestamptz` (e `deleted_by uuid`) em `inbox_messages`.
-- Nova ação `delete_for_everyone` em `send-inbox-message` (ou função dedicada) chamando `POST {EVOLUTION_URL}/chat/deleteMessageForEveryone/{evolution_instance_name}` com `{ id: whatsapp_message_id, remoteJid, fromMe: true, participant }`; em caso de sucesso grava `deleted_at`.
-- Requer `whatsapp_message_id` preenchido e `sent_via_instance_id` não nulo; sem isso o item de menu fica desabilitado com tooltip explicando.
-- UI: item no menu de contexto da mensagem em `MessageView.tsx` + `AlertDialog` de confirmação; bolha renderiza estado "Mensagem apagada" em itálico quando `deleted_at` estiver preenchido.
+- Arquivos: `supabase/functions/gestao-parts-api/index.ts` (bloco `lead_summary`/`lead_sync`), `supabase/functions/gestao-parts-sync-leads/index.ts`, `src/components/inbox/lead-panel/GestaoPartsLeadTab.tsx`, `src/hooks/useGestaoPartsLeadData.ts`.
+- Sem migração de banco; a coluna `pedidos` (jsonb) continua a mesma.
+- Mesma correção de intervalo de blocos pode ser reaproveitada no scan de orçamentos (`_shared/gestaoPartsOrcamento.ts`), que hoje corta em `min(total, maxBlocos)` a partir do bloco 1.
