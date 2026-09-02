@@ -1087,17 +1087,18 @@ Deno.serve(async (req: Request) => {
 
             const first = await fetchBloco(1);
             absorve(first.items);
-            const totalblocos = Math.min(first.totalblocos || 1, MAX_BLOCOS);
+            const totalReal = Math.max(first.totalblocos || 1, 1);
 
-            // Varre os blocos restantes do último para o primeiro: o feed vem em
-            // ordem cronológica crescente, então os pedidos mais novos ficam nos
-            // últimos blocos — varrer ao contrário garante que uma varredura
-            // parcial (limite de tempo) ainda traga as novidades.
-            let parcial = false;
+            // Varre do último bloco REAL (pedidos mais recentes) para trás,
+            // lendo no máximo MAX_BLOCOS blocos. Cortar em min(total, teto)
+            // fazia a varredura ficar presa nos blocos mais antigos.
+            const menorBloco = Math.max(2, totalReal - MAX_BLOCOS + 1);
             const restantes: number[] = [];
-            for (let b = totalblocos; b >= 2; b--) restantes.push(b);
+            for (let b = totalReal; b >= menorBloco; b--) restantes.push(b);
+            if (menorBloco > 2) scanParcial = true;
+
             for (let i = 0; i < restantes.length; i += CONCURRENCY) {
-              if (Date.now() > DEADLINE) { parcial = true; break; }
+              if (Date.now() > DEADLINE) { scanParcial = true; break; }
               const lote = restantes.slice(i, i + CONCURRENCY);
               const pages = await Promise.all(
                 lote.map((b) => fetchBloco(b).catch(() => ({ items: [], totalblocos: 0 }))),
@@ -1105,13 +1106,17 @@ Deno.serve(async (req: Request) => {
               for (const page of pages) absorve(page.items);
             }
 
-            if (parcial) console.warn('[GestaoParts] lead_sync: varredura parcial por limite de tempo');
+            if (scanParcial) {
+              console.warn('[GestaoParts] lead_sync: varredura parcial', JSON.stringify({ totalReal, menorBloco }));
+            }
 
             // Mais novo -> mais antigo
             const dateKey = (p: Record<string, unknown>) =>
               `${String(p.dtemis ?? '').trim()} ${String(p.hremis ?? '').trim()}`;
             encontrados.sort((a, b) => dateKey(b).localeCompare(dateKey(a)));
             summary.pedidos = encontrados;
+            summary.parcial = scanParcial;
+
 
           } catch (e) {
             console.error('[GestaoParts] lead_summary pedidos:', (e as Error).message);
