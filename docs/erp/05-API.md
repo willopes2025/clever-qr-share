@@ -144,7 +144,7 @@ uma tela de pendências) ou `discard` (duplicata já aceita antes).
 
 | Origem | Rota | Verificação |
 |--------|------|-------------|
-| Gateway fiscal | `POST /webhooks/fiscal/{provider}` | HMAC do provedor + allowlist de IP |
+| Gateway fiscal (Focus NFe) | `POST /webhooks/fiscal/focus?key=…` | Segredo no endereço (`FISCAL_WEBHOOK_SECRET`); a Focus não assina a chamada |
 | PSP Pix | `POST /webhooks/pix/{psp}` | Assinatura + mTLS quando disponível |
 | iFood (F4) | `POST /webhooks/ifood` | Assinatura |
 

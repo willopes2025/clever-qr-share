@@ -7,15 +7,16 @@ import type {
 } from '../fiscal-provider';
 
 /**
- * Adaptador para gateway REST de terceiro (padrão PlugNotas/Focus/Tecnospeed).
+ * Adaptador REST genérico — a reserva, não o provedor em uso.
  *
- * A URL e o formato exato mudam por fornecedor; o que não muda é o contrato
- * daqui para dentro. Ao homologar o provedor escolhido, ajusta-se apenas o
- * mapeamento em `toProviderPayload` e `fromProviderResponse`.
+ * O provedor contratado é a Focus NFe (`FocusNfeProvider`). Este adaptador existe
+ * para o dia em que o fornecedor mudar: a URL e o formato mudam por fornecedor,
+ * o contrato daqui para dentro não. Trocar é ajustar `toProviderPayload` e
+ * `fromProviderResponse` — nada acima desta camada precisa saber.
  */
 @Injectable()
 export class RestFiscalProvider implements FiscalProvider {
-  readonly name = process.env.FISCAL_PROVIDER ?? 'plugnotas';
+  readonly name = process.env.FISCAL_PROVIDER ?? 'rest';
   private readonly logger = new Logger(RestFiscalProvider.name);
   private readonly baseUrl = process.env.FISCAL_BASE_URL ?? '';
   private readonly apiKey = process.env.FISCAL_API_KEY ?? '';

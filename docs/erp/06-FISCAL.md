@@ -2,7 +2,8 @@
 
 > **Decisão do negócio (D3):** a emissão será feita por **API de integração de terceiro**, para que
 > ninguém da equipe precise configurar nada junto à Receita Federal ou à SEFAZ. Este documento define
-> como isso é implementado, quais são os limites reais dessa escolha e qual provedor recomendamos.
+> como isso é implementado, quais são os limites reais dessa escolha e quem é o provedor:
+> a **Focus NFe** (§7).
 
 ## 1. O que o gateway faz por nós — e o que continua sendo nosso
 
@@ -168,7 +169,35 @@ Regras que evitam o pior erro do fiscal:
 - Certificado com validade monitorada: alerta em **30, 15 e 5 dias** antes de vencer, ao cliente e
   à revenda. Certificado vencido para a loja inteira, e sempre vence num sábado.
 
-## 7. Escolha do provedor
+## 7. Provedor escolhido: Focus NFe
+
+**Decisão tomada.** A emissão é feita pela **Focus NFe**. O que segue registra a
+avaliação que levou a ela e o que já está implementado.
+
+### 7.0 O que está no código
+
+| Peça | Onde |
+|------|------|
+| Adaptador HTTP | `apps/api/src/modules/fiscal/providers/focus-nfe.provider.ts` |
+| Mapeamento fiscal (puro, sem rede) | `.../providers/focus-mapping.ts` |
+| Retorno da Focus (gatilho) | `.../fiscal-webhook.controller.ts` → `POST /v1/webhooks/fiscal/focus?key=…` |
+| Configuração | `FISCAL_PROVIDER=focus`, `FOCUS_TOKEN`, `FISCAL_WEBHOOK_SECRET`, `FISCAL_ENVIRONMENT` |
+
+Decisões que o adaptador fixa:
+
+- **Referência = id do nosso documento fiscal.** Reenviar a mesma venda não gera
+  nota duplicada: a Focus reconhece a referência e devolve a nota existente
+  (`422 nfe_autorizada`), que o adaptador trata consultando, não rejeitando.
+- **Autenticação** é HTTP Basic com o token no lugar do usuário e senha vazia.
+- **Chave de acesso** vem prefixada com `NFe` (47 caracteres); guardamos os 44
+  dígitos, que é o que vai no cupom e na consulta do consumidor.
+- **Dois caminhos de conclusão, um garantindo o outro:** o gatilho da Focus e a
+  nossa própria fila reconsultando. Webhook perdido não deixa nota presa.
+- **Indisponibilidade (5xx, timeout, queda de rede) não vira rejeição** — volta
+  para a fila. Erro de cadastro (NCM, CFOP, CSOSN) vai direto para a tela de
+  correção, porque reenviar não resolve.
+- O segredo do gatilho viaja na URL porque a Focus não assina a chamada; é o
+  mecanismo que ela recomenda. Sem `FISCAL_WEBHOOK_SECRET` a rota recusa tudo.
 
 ### 7.1 Critérios de avaliação
 
@@ -183,30 +212,34 @@ Regras que evitam o pior erro do fiscal:
 | ⭐⭐ | Distribuição DF-e (busca automática de XML de compra — habilita RF-06) |
 | ⭐ | NFS-e municipal (necessário só na F5, com a Ordem de Serviço) |
 
-### 7.2 Posicionamento dos candidatos
+### 7.2 Posicionamento dos candidatos avaliados
 
 | Provedor | Perfil | Observação |
 |----------|--------|-----------|
 | **PlugNotas** | Focado em **software houses**, gestão multi-CNPJ, API REST | Melhor encaixe com modelo de revenda |
 | **Tecnospeed** | Tradicional no mercado de software house, com API madura | Alternativa sólida, especialmente para volume alto |
-| **Focus NFe** | API REST simples e documentação direta | Menor curva de implementação; ótimo para o piloto |
+| **Focus NFe** ✅ | API REST simples e documentação direta | **Escolhido** — menor curva de implementação |
 | **NFe.io / eNotas** | Boa cobertura de NFS-e municipal | Ganha peso quando a Ordem de Serviço entrar (F5) |
 
 > **Aviso honesto:** preços, limites e detalhes de produto desses fornecedores mudam com frequência
 > e **precisam ser confirmados diretamente com o comercial de cada um** — não tome os
 > posicionamentos acima como cotação. O que este documento fixa são os **critérios** e o **teste**.
 
-### 7.3 Recomendação
+### 7.3 Por que a Focus
 
-**PlugNotas ou Tecnospeed como provedor principal**, pelo encaixe com revenda multi-CNPJ.
-**Focus NFe** é uma alternativa muito razoável para acelerar o piloto.
+Pesou a curva de implementação: API REST direta, documentação sem ambiguidade e
+homologação que funciona de verdade — o que permitiu fechar o MVP no prazo. O
+encaixe com revenda multi-CNPJ é atendido por um cadastro de empresa (e um token)
+por CNPJ, que é exatamente o recorte do nosso tenant.
 
-Como a decisão está atrás de um adaptador (§2), ela **não trava o cronograma**: o time começa pelo
-`FakeFiscalProvider`, e o adaptador real é uma tarefa de 3–5 dias.
+Isso **não é uma porta fechada**. A decisão continua atrás do adaptador (§2):
+trocar de fornecedor é escrever um `FiscalProvider` novo, sem tocar no PDV nem no
+resto da API. `PlugNotas` e `Tecnospeed` permanecem como alternativas avaliadas
+caso o volume ou o custo por documento mudem a conta.
 
-### 7.4 POC obrigatória antes de assinar (1 semana)
+### 7.4 Checklist de homologação antes de ir para produção
 
-Com cada finalista, em homologação:
+Com o CNPJ cadastrado e o certificado A1 no painel, em `FISCAL_ENVIRONMENT=2`:
 
 1. Cadastrar 2 CNPJs na mesma conta e emitir NFC-e por ambos.
 2. Emitir 200 NFC-e em rajada e medir latência p50/p95 e taxa de erro.
@@ -217,7 +250,9 @@ Com cada finalista, em homologação:
 7. Baixar XML e DANFE de uma nota emitida há mais de 30 dias.
 8. Medir o tempo real de onboarding de um CNPJ novo, do zero até a primeira nota.
 
-Critério de aprovação: p95 < 5s, webhook confiável, onboarding < 1h, erro compreensível.
+Critério de liberação: p95 < 5s, gatilho confiável, onboarding de CNPJ < 1h,
+mensagem de erro acionável pelo operador. Nota de homologação não tem valor
+fiscal — é por isso que ela é o teste seguro antes de virar a chave.
 
 ## 8. Guarda e entrega ao contador
 

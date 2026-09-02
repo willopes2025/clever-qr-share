@@ -3,7 +3,12 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { DomainEventBus } from '../../common/events/domain-events';
 import { UsageService } from '../tenancy/usage.service';
-import { FISCAL_PROVIDER, type FiscalIssueInput, type FiscalProvider } from './fiscal-provider';
+import {
+  FISCAL_PROVIDER,
+  type FiscalIssueInput,
+  type FiscalIssueResult,
+  type FiscalProvider,
+} from './fiscal-provider';
 import { isRetryable, nextAttemptAt } from './retry-policy';
 
 const NFCE_MODEL = 65 as const;
@@ -87,6 +92,21 @@ export class FiscalService {
 
     const input = this.buildIssueInput(document);
     const result = await this.provider.issue(input);
+    await this.applyProviderResult(documentId, result, input as unknown as object);
+  }
+
+  /**
+   * Aplica o desfecho vindo do provedor. Serve tanto à fila quanto ao webhook —
+   * o que chegar primeiro resolve, e o segundo encontra o documento já resolvido.
+   */
+  async applyProviderResult(
+    documentId: string,
+    result: FiscalIssueResult,
+    payload?: object,
+  ): Promise<void> {
+    const document = await this.prisma.fiscalDocument.findUnique({ where: { id: documentId } });
+    if (!document) return;
+    if (document.status === 'authorized' || document.status === 'cancelled') return;
 
     if (result.status === 'authorized') {
       await this.prisma.fiscalDocument.update({
@@ -101,7 +121,8 @@ export class FiscalService {
           danfeUrl: result.danfeUrl,
           qrCode: result.qrCode,
           authorizedAt: new Date(),
-          payload: input as unknown as object,
+          nextAttemptAt: null,
+          ...(payload ? { payload: payload as never } : {}),
         },
       });
       await this.usage.increment(document.tenantId, 'invoices');
@@ -116,7 +137,11 @@ export class FiscalService {
     if (result.status === 'processing') {
       await this.prisma.fiscalDocument.update({
         where: { id: documentId },
-        data: { status: 'queued', providerRef: result.providerRef, nextAttemptAt: nextAttemptAt(document.attempts) },
+        data: {
+          status: 'queued',
+          providerRef: result.providerRef,
+          nextAttemptAt: nextAttemptAt(document.attempts),
+        },
       });
       return;
     }

@@ -85,7 +85,8 @@ instalar e atualizar; suporte precisa diagnosticar o agente (por isso ele report
 **Contexto.** Falar direto com a SEFAZ exige certificado, assinatura XML, 27 UFs, contingência e
 manutenção permanente de layout — meses de trabalho e uma obrigação eterna.
 
-**Decisão.** Provedor externo (PlugNotas/Tecnospeed/Focus NFe) atrás de uma interface `FiscalProvider`.
+**Decisão.** Provedor externo atrás de uma interface `FiscalProvider`. O provedor contratado é a
+**Focus NFe**; PlugNotas e Tecnospeed ficam como alternativas, e trocar é escrever outro adaptador.
 Nenhuma configuração junto à Receita Federal ou SEFAZ pela equipe.
 
 **Alternativas.** *Emissor próprio*: controle total e sem custo por nota, mas custo de construção e

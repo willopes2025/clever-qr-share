@@ -76,20 +76,64 @@ pela retaguarda.
    o endereço da impressora.
 4. Testar: desconectar o cabo de rede e confirmar que o PDV **abre e vende**.
 
-## Trocar o provedor fiscal
+## Ligar a emissão fiscal (Focus NFe)
 
 Enquanto `FISCAL_PROVIDER=fake`, as notas são simuladas — serve para treinar a
-equipe sem emitir nada. Ao contratar o provedor:
+equipe sem emitir nada. A emissão de verdade é feita pela **Focus NFe**: o
+certificado A1 fica custodiado lá, ela assina e transmite à SEFAZ, e nós nunca
+tocamos em certificado nem em configuração da Receita.
+
+### 1. No painel da Focus
+
+1. Cadastre a empresa (**uma por CNPJ** — cada quiosque com CNPJ próprio é um
+   cadastro separado, e cada um tem o seu token).
+2. Suba o **certificado A1** da empresa e informe a senha dele.
+3. Confira **CSC/Token IBPT de NFC-e** (código de segurança do contribuinte),
+   emitido pela SEFAZ do estado. Sem ele a NFC-e não autoriza.
+4. Copie o **token de homologação** e o **token de produção**. São diferentes.
+5. Em *Gatilhos* (webhooks), registre a URL de retorno:
+
+   ```
+   https://soulmuscle.wideic.com/v1/webhooks/fiscal/focus?key=SEU_SEGREDO
+   ```
+
+   O `key` é o mesmo valor de `FISCAL_WEBHOOK_SECRET`. A Focus não assina a
+   chamada — o segredo na URL é a proteção que ela própria recomenda, e a rota
+   recusa (403) qualquer chamada sem ele.
+
+### 2. No servidor
 
 ```env
-FISCAL_PROVIDER=plugnotas       # ou o adaptador contratado
-FISCAL_ENVIRONMENT=2            # 2 homologação, 1 produção
-FISCAL_BASE_URL=https://...
-FISCAL_API_KEY=...
+FISCAL_PROVIDER=focus
+FISCAL_ENVIRONMENT=2                  # 2 homologação, 1 produção
+FOCUS_TOKEN=<token da empresa na Focus>
+FISCAL_WEBHOOK_SECRET=<openssl rand -hex 24>
 ```
 
-Suba o certificado A1 no painel do provedor, emita **uma nota em homologação** e
-só então mude para `FISCAL_ENVIRONMENT=1`.
+`docker compose -f docker-compose.prod.yml up -d app` para aplicar.
+
+### 3. Validar em homologação antes de valer
+
+Com `FISCAL_ENVIRONMENT=2`, faça **uma venda real no PDV** e acompanhe em
+*Retaguarda → Fiscal*:
+
+- a nota sai de `na fila` para `autorizada` em segundos;
+- a chave de acesso tem 44 dígitos e o cupom imprime com QR Code;
+- os links de XML e DANFE abrem.
+
+Nota de homologação **não tem valor fiscal** — é exatamente por isso que ela é o
+teste seguro. Só depois disso troque para `FISCAL_ENVIRONMENT=1` e o
+`FOCUS_TOKEN` para o de produção (os dois juntos, sempre).
+
+### Como se comporta quando algo dá errado
+
+| Situação | O que acontece |
+| --- | --- |
+| Internet ou Focus fora do ar | A venda é concluída e a nota fica na fila; a fila reenvia sozinha com espera crescente. |
+| Rejeição da SEFAZ que passa (108, 109, 110, 539, 999) | Volta para a fila automaticamente. |
+| Erro de cadastro (NCM, CFOP, CSOSN errados) | A nota vai para `rejeitada` com o campo exato na mensagem — precisa de correção, não adianta reenviar. |
+| Gatilho perdido | A fila reconsulta por conta própria; nenhuma nota fica presa por causa de um webhook que não chegou. |
+| Reenvio de uma nota já autorizada | A referência enviada é o id do nosso documento — a Focus reconhece e devolve a nota existente, sem duplicar. |
 
 ## Atualizar
 
