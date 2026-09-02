@@ -53,8 +53,8 @@ export const GestaoPartsLeadTab = ({
   const financeiro = data?.financeiro ?? [];
   const emAberto = financeiro.reduce((sum, f) => sum + (num(pick(f, ["valor", "valorsaldo", "saldo"])) ?? 0), 0);
 
-  const handleSync = () =>
-    sync.mutate({ telefone: contactPhone || "", documento, dealId });
+  const handleSync = (dias?: number) =>
+    sync.mutate({ telefone: contactPhone || "", documento, dealId, dias });
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="px-3 py-2 border-t border-border/50">
@@ -77,15 +77,28 @@ export const GestaoPartsLeadTab = ({
             {documento ? `Doc: ${documento}` : contactPhone ? `Tel: ${contactPhone}` : "Sem telefone/documento"}
             {data?.last_synced_at ? ` · ${formatDateTime(new Date(data.last_synced_at))}` : ""}
           </span>
-          <Button size="sm" className="h-7 px-2 shrink-0" onClick={handleSync} disabled={sync.isPending}>
-            {sync.isPending ? (
-              <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Search className="h-3.5 w-3.5 mr-1.5" />
-            )}
-            {data ? "Atualizar" : "Buscar no ERP"}
-          </Button>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button size="sm" className="h-7 px-2" onClick={() => handleSync()} disabled={sync.isPending}>
+              {sync.isPending ? (
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Search className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              {data ? "Atualizar" : "Buscar no ERP"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => handleSync(365)}
+              disabled={sync.isPending}
+              title="Buscar histórico dos últimos 12 meses"
+            >
+              12 meses
+            </Button>
+          </div>
         </div>
+
 
         {isLoading && <p className="text-[11px] text-muted-foreground">Carregando dados salvos...</p>}
 
