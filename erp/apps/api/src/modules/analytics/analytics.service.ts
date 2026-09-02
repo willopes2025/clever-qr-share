@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { businessDayRange, businessTimezone } from '../../common/time/business-time';
 
 export interface StorePerformance {
   storeId: string;
@@ -46,8 +47,8 @@ export class AnalyticsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async live(tenantIds: string[], reference = new Date()): Promise<LivePerformance> {
-    const today = dayRange(reference);
-    const lastWeek = dayRange(new Date(reference.getTime() - 7 * 86_400_000));
+    const today = businessDayRange(reference);
+    const lastWeek = businessDayRange(new Date(reference.getTime() - 7 * 86_400_000));
 
     const [stores, todaySales, lastWeekTotal] = await Promise.all([
       this.prisma.store.findMany({ where: { tenantId: { in: tenantIds }, active: true } }),
@@ -109,22 +110,36 @@ export class AnalyticsService {
    * tempo corrida responderia outra pergunta.
    */
   async hourlyCurve(tenantIds: string[], from: Date, to: Date, storeId?: string): Promise<HourSlot[]> {
+    const timeZone = businessTimezone();
     const storeFilter = storeId ? Prisma.sql`AND store_id = ${storeId}::uuid` : Prisma.empty;
 
     const rows = await this.prisma.$queryRaw<
       Array<{ slot: string; sales_count: bigint; revenue_cents: bigint; days: bigint }>
     >(
       Prisma.sql`
+        WITH venda AS (
+          SELECT
+            -- occurred_at é timestamp sem fuso, gravado em UTC. Ler a hora crua
+            -- desenhava a venda das 15h às 18h na curva; aqui ela volta para o
+            -- relógio do quiosque antes de virar faixa.
+            (occurred_at AT TIME ZONE 'UTC' AT TIME ZONE ${timeZone}) AS hora_local,
+            total_cents,
+            store_id,
+            tenant_id,
+            status,
+            occurred_at
+          FROM sale
+        )
         SELECT
           to_char(
-            date_trunc('hour', occurred_at)
-              + floor(extract(minute FROM occurred_at) / 30) * interval '30 minutes',
+            date_trunc('hour', hora_local)
+              + floor(extract(minute FROM hora_local) / 30) * interval '30 minutes',
             'HH24:MI'
           )                                  AS slot,
           count(*)                           AS sales_count,
           sum(total_cents)                   AS revenue_cents,
-          count(DISTINCT occurred_at::date)  AS days
-        FROM sale
+          count(DISTINCT hora_local::date)   AS days
+        FROM venda
         WHERE tenant_id = ANY(${tenantIds}::text[])
           AND status = 'completed'
           AND occurred_at >= ${from}
@@ -174,13 +189,6 @@ export class AnalyticsService {
       };
     });
   }
-}
-
-function dayRange(reference: Date): { start: Date; end: Date } {
-  const start = new Date(reference);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start.getTime() + 86_400_000);
-  return { start, end };
 }
 
 function round1(value: number): number {

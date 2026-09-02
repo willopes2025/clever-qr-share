@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useOperationFeed } from '../lib/use-operation-feed';
 import { formatMoney } from '@soul/ui';
 import { api, type HourSlot, type LivePerformance, type MixEntry, type TerminalHealth as Terminal } from '../lib/api';
 import { KpiTile } from '../components/KpiTile';
@@ -7,18 +8,33 @@ import { HourlyCurve } from '../components/HourlyCurve';
 import { MixList } from '../components/MixList';
 import { TerminalHealth } from '../components/TerminalHealth';
 import { FiscalPanel } from '../components/FiscalPanel';
+import { LiveIndicator } from '../components/LiveIndicator';
 
-const LIVE_REFRESH_MS = 30_000;
+/**
+ * Rede de segurança, não o caminho principal. O painel é atualizado pelo fluxo
+ * de eventos assim que a venda entra; esta consulta periódica só cobre o caso
+ * de o fluxo ter caído sem o navegador perceber.
+ */
+const LIVE_REFRESH_MS = 60_000;
 
 /** Painel que o dono deixa aberto: números do dia, movimento, mix e saúde da operação. */
 export function DashboardScreen() {
+  const feed = useOperationFeed();
   const live = useQuery({
     queryKey: ['live'],
     queryFn: () => api<LivePerformance>('/analytics/live'),
     refetchInterval: LIVE_REFRESH_MS,
   });
-  const hourly = useQuery({ queryKey: ['hourly'], queryFn: () => api<HourSlot[]>('/analytics/hourly') });
-  const mix = useQuery({ queryKey: ['mix'], queryFn: () => api<MixEntry[]>('/analytics/mix') });
+  const hourly = useQuery({
+    queryKey: ['hourly'],
+    queryFn: () => api<HourSlot[]>('/analytics/hourly'),
+    refetchInterval: LIVE_REFRESH_MS,
+  });
+  const mix = useQuery({
+    queryKey: ['mix'],
+    queryFn: () => api<MixEntry[]>('/analytics/mix'),
+    refetchInterval: LIVE_REFRESH_MS,
+  });
   const terminals = useQuery({
     queryKey: ['terminals'],
     queryFn: () => api<Terminal[]>('/telemetry/terminals'),
@@ -34,6 +50,8 @@ export function DashboardScreen() {
 
   return (
     <div className="space-y-4">
+        <LiveIndicator feed={feed} />
+
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiTile
             label="Faturamento hoje"
