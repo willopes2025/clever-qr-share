@@ -406,16 +406,20 @@ export async function fetchOrcamentos(
 
   const first = await load(1);
   const out: Row[] = [...first.items];
-  const total = Math.min(first.totalblocos || 1, maxBlocos);
+  const totalReal = Math.max(first.totalblocos || 1, 1);
+  // Varre do último bloco real (mais recentes) para trás; o teto limita
+  // quantos blocos são lidos, não até onde se lê.
+  const menorBloco = Math.max(2, totalReal - maxBlocos + 1);
 
   const CONCURRENCY = 5;
-  for (let start = 2; start <= total; start += CONCURRENCY) {
+  for (let start = totalReal; start >= menorBloco; start -= CONCURRENCY) {
     const blocos: number[] = [];
-    for (let b = start; b < start + CONCURRENCY && b <= total; b++) blocos.push(b);
+    for (let b = start; b > start - CONCURRENCY && b >= menorBloco; b--) blocos.push(b);
     const pages = await Promise.all(blocos.map((b) => load(b).catch(() => ({ items: [] as Row[], totalblocos: 0 }))));
     // Blocos vazios no meio não interrompem a varredura (o ERP pode ter lacunas)
     for (const p of pages) out.push(...p.items);
   }
+
 
   // Dedupe por empresa|numero
   const seen = new Set<string>();
