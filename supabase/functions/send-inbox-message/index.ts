@@ -503,6 +503,7 @@ Deno.serve(async (req) => {
           })
           .eq('id', conversationId);
 
+        await autoAssignOnReply(supabase, conversationId, conversation.user_id, contactData.id, senderUserId);
         await handleAIHandoff(supabase, conversationId, conversation.user_id, senderUserId, displayContent, instanceId);
 
         return new Response(
@@ -596,6 +597,7 @@ Deno.serve(async (req) => {
         .eq('id', conversationId);
 
       // Handle AI handoff
+      await autoAssignOnReply(supabase, conversationId, conversation.user_id, contactData.id, senderUserId);
       await handleAIHandoff(supabase, conversationId, conversation.user_id, senderUserId, content, instanceId);
 
       return new Response(
@@ -729,6 +731,7 @@ Deno.serve(async (req) => {
         })
         .eq('id', conversationId);
 
+      await autoAssignOnReply(supabase, conversationId, conversation.user_id, contactData.id, senderUserId);
       await handleAIHandoff(supabase, conversationId, conversation.user_id, senderUserId, content, instanceId);
 
       return new Response(
