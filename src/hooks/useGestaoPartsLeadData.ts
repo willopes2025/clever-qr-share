@@ -18,6 +18,7 @@ export interface GestaoPartsLeadData {
   pedidos_count: number;
   pedidos_total: number;
   last_synced_at: string;
+  parcial?: boolean;
 }
 
 /** Snapshot do ERP salvo no cartão do lead (leitura local, sem chamar o ERP) */
@@ -40,20 +41,26 @@ export const useGestaoPartsLeadData = (contactId?: string) => {
   });
 
   const sync = useMutation({
-    mutationFn: async (vars: { telefone?: string; documento?: string; dealId?: string | null }) => {
+    mutationFn: async (vars: { telefone?: string; documento?: string; dealId?: string | null; dias?: number }) => {
       return callGestaoParts<GestaoPartsLeadData>("lead_sync", {
         contact_id: contactId,
         deal_id: vars.dealId ?? null,
         telefone: vars.telefone || "",
         documento: vars.documento || "",
+        ...(vars.dias ? { dias: vars.dias } : {}),
       });
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["gestao-parts-lead-data", contactId], data);
       queryClient.invalidateQueries({ queryKey: ["gestao-parts-lead-data", contactId] });
       const count = data?.pedidos_count ?? 0;
+      if (data?.parcial) {
+        toast.warning(`Resultado parcial do ERP: ${count} pedido(s). Tente novamente para completar.`);
+        return;
+      }
       toast.success(count > 0 ? `${count} pedido(s) encontrados no ERP` : "Consulta concluída: nenhum pedido encontrado");
     },
+
     onError: (error: Error) => {
       toast.error("Erro ao consultar ERP: " + error.message);
     },
