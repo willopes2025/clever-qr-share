@@ -120,7 +120,7 @@ export function buildMessage(row: Row, template?: string | null): string {
   if (itens.length > 25) linhas.push(`• ... e mais ${itens.length - 25} item(ns)`);
 
   const vendedor = vendedorNome(row);
-  const vendedorTxt = vendedor ? `Vendedor: ${titleCase(vendedor)}\n` : '';
+  const vendedorTxt = vendedor ? `Vendedor: *${titleCase(vendedor)}*\n` : '';
 
   const nome = pick(row, ['despessoa', 'cliente', 'nome']);
   const emitido = orcamentoEmitidoEm(row);
