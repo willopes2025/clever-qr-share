@@ -1208,6 +1208,40 @@ Deno.serve(async (req: Request) => {
             .maybeSingle();
 
           if (saveError) console.error('[GestaoParts] lead_sync save:', saveError.message);
+
+          // Carteira: o vendedor do pedido mais recente vira responsável pela
+          // conversa do contato — apenas quando ela ainda está sem dono.
+          try {
+            for (const pedido of pedidosArr.slice(0, 5)) {
+              const nomeVendedor = vendedorNome(pedido);
+              if (!nomeVendedor) continue;
+              const vendedorUserId = await resolveVendedorUser(supabaseAdmin, nomeVendedor);
+              if (!vendedorUserId) continue;
+
+              const { data: assigned } = await supabaseAdmin
+                .from('conversations')
+                .update({ assigned_to: vendedorUserId })
+                .eq('contact_id', String(params.contact_id))
+                .is('assigned_to', null)
+                .select('id');
+
+              if (assigned?.length) {
+                console.log('[GestaoParts] carteira: contato', params.contact_id, '->', vendedorUserId, `(${nomeVendedor})`);
+                await supabaseAdmin.from('contact_activity_log').insert({
+                  contact_id: String(params.contact_id),
+                  conversation_id: assigned[0].id,
+                  user_id: vendedorUserId,
+                  activity_type: 'auto_assign',
+                  description: `Lead atribuído ao vendedor ${nomeVendedor} (vínculo do ERP)`,
+                  metadata: { origem: 'erp', vendedor: nomeVendedor },
+                });
+              }
+              break;
+            }
+          } catch (e) {
+            console.error('[GestaoParts] carteira lead_sync:', (e as Error).message);
+          }
+
           result = saved ? { ...saved, parcial: scanParcial } : { ...summary, parcial: scanParcial };
           break;
         }
