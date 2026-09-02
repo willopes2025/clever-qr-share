@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { gpCall, normalizePaged, onlyDigits, parseEndpoint, PEDIDO_TIPOS, type GpCreds } from "./erp.ts";
 import { normalizePhone } from "../_shared/phone.ts";
+import { resolveVendedorUser, vendedorNome } from "../_shared/gestaoPartsOrcamento.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -300,6 +301,39 @@ Deno.serve(async (req: Request) => {
             pedidos_total: Number(totalArr.toFixed(2)),
             last_synced_at: new Date().toISOString(),
           }, { onConflict: 'contact_id' });
+
+          // Carteira: vendedor do pedido mais recente assume a conversa sem dono
+          try {
+            for (const pedido of pedidosArr.slice(0, 5)) {
+              const nomeVendedor = vendedorNome(pedido);
+              if (!nomeVendedor) continue;
+              const vendedorUserId = await resolveVendedorUser(admin, nomeVendedor);
+              if (!vendedorUserId) continue;
+
+              const { data: assigned } = await admin
+                .from('conversations')
+                .update({ assigned_to: vendedorUserId })
+                .eq('contact_id', contactId)
+                .is('assigned_to', null)
+                .select('id');
+
+              if (assigned?.length) {
+                await admin.from('contact_activity_log').insert({
+                  contact_id: contactId,
+                  conversation_id: assigned[0].id,
+                  user_id: vendedorUserId,
+                  activity_type: 'auto_assign',
+                  description: `Lead atribuído ao vendedor ${nomeVendedor} (vínculo do ERP)`,
+                  metadata: { origem: 'erp', vendedor: nomeVendedor },
+                });
+              }
+              break;
+            }
+          } catch (e) {
+            console.error('[GestaoPartsSyncLeads] carteira:', (e as Error).message);
+          }
+
+
 
         } catch (e) {
           if (summary.erros.length < 20) summary.erros.push((e as Error).message);

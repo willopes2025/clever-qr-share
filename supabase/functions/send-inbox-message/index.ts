@@ -54,6 +54,59 @@ async function getOrganizationMemberIds(supabase: any, userId: string): Promise<
   }
 }
 
+/**
+ * Carteira de clientes (Gestão Parts): quem responde primeiro assume o lead.
+ * Só age quando a conversa está sem responsável e a organização usa o módulo.
+ */
+async function autoAssignOnReply(
+  supabase: any,
+  conversationId: string,
+  conversationUserId: string,
+  contactId: string | null,
+  senderUserId: string | null,
+) {
+  try {
+    if (!senderUserId) return;
+
+    const { data: integration } = await supabase
+      .from('integrations')
+      .select('user_id')
+      .eq('provider', 'gestao_parts')
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+    if (!integration?.user_id) return;
+
+    const scope = await getOrganizationMemberIds(supabase, integration.user_id);
+    if (!scope.includes(conversationUserId)) return;
+
+    const { data: updated } = await supabase
+      .from('conversations')
+      .update({ assigned_to: senderUserId })
+      .eq('id', conversationId)
+      .is('assigned_to', null)
+      .select('id')
+      .maybeSingle();
+
+    if (!updated) return;
+
+    console.log(`[SEND] Conversa ${conversationId} atribuída a ${senderUserId} (respondeu primeiro)`);
+
+    if (contactId) {
+      await supabase.from('contact_activity_log').insert({
+        contact_id: contactId,
+        conversation_id: conversationId,
+        user_id: senderUserId,
+        activity_type: 'auto_assign',
+        description: 'Lead assumido automaticamente ao responder a conversa',
+        metadata: { origem: 'resposta' },
+      });
+    }
+  } catch (error) {
+    console.error('[SEND] autoAssignOnReply:', (error as Error).message);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -450,6 +503,7 @@ Deno.serve(async (req) => {
           })
           .eq('id', conversationId);
 
+        await autoAssignOnReply(supabase, conversationId, conversation.user_id, contactData.id, senderUserId);
         await handleAIHandoff(supabase, conversationId, conversation.user_id, senderUserId, displayContent, instanceId);
 
         return new Response(
@@ -543,6 +597,7 @@ Deno.serve(async (req) => {
         .eq('id', conversationId);
 
       // Handle AI handoff
+      await autoAssignOnReply(supabase, conversationId, conversation.user_id, contactData.id, senderUserId);
       await handleAIHandoff(supabase, conversationId, conversation.user_id, senderUserId, content, instanceId);
 
       return new Response(
@@ -676,6 +731,7 @@ Deno.serve(async (req) => {
         })
         .eq('id', conversationId);
 
+      await autoAssignOnReply(supabase, conversationId, conversation.user_id, contactData.id, senderUserId);
       await handleAIHandoff(supabase, conversationId, conversation.user_id, senderUserId, content, instanceId);
 
       return new Response(
