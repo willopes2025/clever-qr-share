@@ -1,12 +1,15 @@
-import { Pen, Type, Square, ArrowUpRight, Crop, RotateCw } from 'lucide-react';
+import { Pen, Type, Square, Circle, Minus, ArrowUpRight, Crop, RotateCw, Shapes, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { EDITOR_COLORS, type EditorTool } from './types';
+import { EDITOR_COLORS, type EditorTool, type ShapeKind } from './types';
 
 interface Props {
   tool: EditorTool;
   onToolChange: (t: EditorTool) => void;
+  shape: ShapeKind;
+  onShapeChange: (s: ShapeKind) => void;
   color: string;
   onColorChange: (c: string) => void;
   width: number;
@@ -16,17 +19,18 @@ interface Props {
   onRotate: () => void;
 }
 
-const TOOLS: { id: EditorTool; icon: React.ElementType; label: string }[] = [
-  { id: 'pen', icon: Pen, label: 'Desenho livre' },
-  { id: 'text', icon: Type, label: 'Texto' },
+const SHAPES: { id: ShapeKind; icon: React.ElementType; label: string }[] = [
   { id: 'rect', icon: Square, label: 'Retângulo' },
+  { id: 'ellipse', icon: Circle, label: 'Círculo' },
+  { id: 'line', icon: Minus, label: 'Linha' },
   { id: 'arrow', icon: ArrowUpRight, label: 'Seta' },
-  { id: 'crop', icon: Crop, label: 'Cortar' },
 ];
 
 export const EditorToolbar = ({
   tool,
   onToolChange,
+  shape,
+  onShapeChange,
   color,
   onColorChange,
   width,
@@ -35,27 +39,106 @@ export const EditorToolbar = ({
   onFontSizeChange,
   onRotate,
 }: Props) => {
+  const ActiveShapeIcon = SHAPES.find((s) => s.id === shape)?.icon ?? Shapes;
+
+  const btn = (active: boolean) =>
+    cn(
+      'h-10 w-10 text-neutral-200 hover:bg-neutral-800 hover:text-neutral-50',
+      active && 'bg-neutral-700 text-neutral-50',
+    );
+
   return (
     <div className="flex flex-col gap-3 px-4 py-3">
       <div className="flex flex-wrap items-center justify-center gap-1">
-        {TOOLS.map(({ id, icon: Icon, label }) => (
-          <Button
-            key={id}
-            type="button"
-            variant="ghost"
-            size="icon"
-            title={label}
-            aria-label={label}
-            aria-pressed={tool === id}
-            onClick={() => onToolChange(id)}
-            className={cn(
-              'h-10 w-10 text-neutral-200 hover:bg-neutral-800 hover:text-neutral-50',
-              tool === id && 'bg-neutral-700 text-neutral-50',
-            )}
-          >
-            <Icon className="h-5 w-5" />
-          </Button>
-        ))}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          title="Desenho livre"
+          aria-label="Desenho livre"
+          aria-pressed={tool === 'pen'}
+          onClick={() => onToolChange('pen')}
+          className={btn(tool === 'pen')}
+        >
+          <Pen className="h-5 w-5" />
+        </Button>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          title="Texto"
+          aria-label="Texto"
+          aria-pressed={tool === 'text'}
+          onClick={() => onToolChange('text')}
+          className={btn(tool === 'text')}
+        >
+          <Type className="h-5 w-5" />
+        </Button>
+
+        {/* Unified shapes button */}
+        <Popover>
+          <div className={cn('flex items-center rounded-md', tool === 'shape' && 'bg-neutral-700')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title="Formas"
+              aria-label="Formas"
+              aria-pressed={tool === 'shape'}
+              onClick={() => onToolChange('shape')}
+              className={cn('h-10 w-10 text-neutral-200 hover:bg-neutral-800 hover:text-neutral-50', tool === 'shape' && 'text-neutral-50')}
+            >
+              <ActiveShapeIcon className="h-5 w-5" />
+            </Button>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                title="Escolher forma"
+                aria-label="Escolher forma"
+                className="h-10 w-5 text-neutral-300 hover:bg-neutral-800 hover:text-neutral-50"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+          </div>
+          <PopoverContent side="top" align="center" className="w-auto p-1 flex gap-1 bg-neutral-900 border-neutral-700">
+            {SHAPES.map(({ id, icon: Icon, label }) => (
+              <Button
+                key={id}
+                type="button"
+                variant="ghost"
+                size="icon"
+                title={label}
+                aria-label={label}
+                aria-pressed={shape === id}
+                onClick={() => {
+                  onShapeChange(id);
+                  onToolChange('shape');
+                }}
+                className={btn(shape === id && tool === 'shape')}
+              >
+                <Icon className="h-5 w-5" />
+              </Button>
+            ))}
+          </PopoverContent>
+        </Popover>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          title="Cortar"
+          aria-label="Cortar"
+          aria-pressed={tool === 'crop'}
+          onClick={() => onToolChange('crop')}
+          className={btn(tool === 'crop')}
+        >
+          <Crop className="h-5 w-5" />
+        </Button>
+
         <Button
           type="button"
           variant="ghost"
