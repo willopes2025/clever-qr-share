@@ -539,42 +539,42 @@ export const ConversationList = ({
         {/* Filters */}
         <ConversationFiltersComponent filters={filters} onFiltersChange={setFilters} />
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FilterTab)}>
-          <TabsList className={cn("grid w-full h-9", hasGestaoParts ? "grid-cols-4" : "grid-cols-3")}>
-            <TabsTrigger value="all" className="text-xs gap-1.5">
-              <Inbox className="h-3.5 w-3.5" />
-              Todas
+          <TabsList className={cn("grid w-full gap-0.5", hasGestaoParts ? "grid-cols-2 h-auto p-1" : "grid-cols-3 h-9")}>
+            <TabsTrigger value="all" className="text-xs gap-1.5 px-2 py-1.5 min-w-0">
+              <Inbox className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Todas</span>
             </TabsTrigger>
-            <TabsTrigger value="unread" className="text-xs gap-1.5 relative">
-              <MessageCircle className="h-3.5 w-3.5" />
-              Não lidas
+            <TabsTrigger value="unread" className="text-xs gap-1.5 px-2 py-1.5 min-w-0">
+              <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Não lidas</span>
               {unreadCount > 0 && (
-                <Badge 
-                  variant="default" 
-                  className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px] bg-primary"
+                <Badge
+                  variant="default"
+                  className="h-4 min-w-4 px-1 text-[10px] bg-primary shrink-0"
                 >
                   {unreadCount}
                 </Badge>
               )}
             </TabsTrigger>
             {hasGestaoParts && (
-              <TabsTrigger value="unassigned" className="text-xs gap-1.5 relative">
-                <UserPlus className="h-3.5 w-3.5" />
-                Sem dono
+              <TabsTrigger value="unassigned" className="text-xs gap-1.5 px-2 py-1.5 min-w-0">
+                <span className="truncate">Sem dono</span>
                 {unassignedCount > 0 && (
                   <Badge
                     variant="secondary"
-                    className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px]"
+                    className="h-4 min-w-4 px-1 text-[10px] shrink-0"
                   >
                     {unassignedCount}
                   </Badge>
                 )}
               </TabsTrigger>
             )}
-            <TabsTrigger value="archived" className="text-xs gap-1.5">
-              <Archive className="h-3.5 w-3.5" />
-              Arquivadas
+            <TabsTrigger value="archived" className="text-xs gap-1.5 px-2 py-1.5 min-w-0">
+              <Archive className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Arquivadas</span>
             </TabsTrigger>
           </TabsList>
+
         </Tabs>
       </div>
 
