@@ -325,7 +325,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
     : null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex flex-col bg-neutral-950/97">
+    <div className="fixed inset-0 z-[100] flex flex-col bg-neutral-950">
       {/* top bar */}
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-neutral-800">
         <Button
