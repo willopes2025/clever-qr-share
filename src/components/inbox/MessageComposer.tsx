@@ -28,6 +28,7 @@ interface MessageComposerProps {
   onSlashConfirm: () => void;
   onSlashEscape: () => void;
   onPasteFiles?: (files: File[]) => void;
+  allowEmpty?: boolean;
 }
 
 export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposerProps>(({
