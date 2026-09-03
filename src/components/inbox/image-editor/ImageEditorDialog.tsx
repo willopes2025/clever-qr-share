@@ -313,13 +313,13 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
   return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col bg-neutral-950/97">
       {/* top bar */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-background/10">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-neutral-800">
         <Button
           variant="ghost"
           size="icon"
           onClick={onCancel}
           title="Cancelar edição"
-          className="text-background/80 hover:bg-background/15 hover:text-background"
+          className="text-neutral-200 hover:bg-neutral-800 hover:text-neutral-50"
         >
           <X className="h-5 w-5" />
         </Button>
@@ -331,7 +331,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
             onClick={undo}
             disabled={ops.length === 0}
             title="Desfazer"
-            className="text-background/80 hover:bg-background/15 hover:text-background disabled:opacity-30"
+            className="text-neutral-200 hover:bg-neutral-800 hover:text-neutral-50 disabled:opacity-30"
           >
             <Undo2 className="h-5 w-5" />
           </Button>
@@ -341,7 +341,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
             onClick={redoAction}
             disabled={redo.length === 0}
             title="Refazer"
-            className="text-background/80 hover:bg-background/15 hover:text-background disabled:opacity-30"
+            className="text-neutral-200 hover:bg-neutral-800 hover:text-neutral-50 disabled:opacity-30"
           >
             <Redo2 className="h-5 w-5" />
           </Button>
@@ -356,7 +356,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
       {/* canvas area */}
       <div ref={containerRef} className="flex-1 min-h-0 flex items-center justify-center p-4 overflow-hidden">
         {loading ? (
-          <Loader2 className="h-6 w-6 animate-spin text-background/70" />
+          <Loader2 className="h-6 w-6 animate-spin text-neutral-300" />
         ) : (
           <div className="relative" style={{ width: display.w || undefined, height: display.h || undefined }}>
             <canvas
@@ -387,7 +387,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
                   color,
                   fontSize: Math.max(12, fontSize * (display.scale || 1)),
                 }}
-                className="absolute bg-transparent border border-dashed border-background/60 outline-none px-1 min-w-[80px] font-semibold"
+                className="absolute bg-transparent border border-dashed border-neutral-300 outline-none px-1 min-w-[80px] font-semibold"
               />
             )}
           </div>
@@ -397,7 +397,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
       {/* crop confirmation */}
       {tool === 'crop' && (
         <div className="flex items-center justify-center gap-2 pb-1">
-          <span className="text-xs text-background/60 mr-2">Arraste sobre a imagem para selecionar a área</span>
+          <span className="text-xs text-neutral-400 mr-2">Arraste sobre a imagem para selecionar a área</span>
           <Button size="sm" variant="secondary" onClick={() => setCropRect(null)} disabled={!cropRect}>
             Limpar
           </Button>
@@ -408,7 +408,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
       )}
 
       {/* toolbar */}
-      <div className="border-t border-background/10">
+      <div className="border-t border-neutral-800">
         <EditorToolbar
           tool={tool}
           onToolChange={(t) => {

@@ -49,8 +49,8 @@ export const EditorToolbar = ({
             aria-pressed={tool === id}
             onClick={() => onToolChange(id)}
             className={cn(
-              'h-10 w-10 text-background/80 hover:bg-background/15 hover:text-background',
-              tool === id && 'bg-background/20 text-background',
+              'h-10 w-10 text-neutral-200 hover:bg-neutral-800 hover:text-neutral-50',
+              tool === id && 'bg-neutral-700 text-neutral-50',
             )}
           >
             <Icon className="h-5 w-5" />
@@ -63,7 +63,7 @@ export const EditorToolbar = ({
           title="Girar 90°"
           aria-label="Girar 90°"
           onClick={onRotate}
-          className="h-10 w-10 text-background/80 hover:bg-background/15 hover:text-background"
+          className="h-10 w-10 text-neutral-200 hover:bg-neutral-800 hover:text-neutral-50"
         >
           <RotateCw className="h-5 w-5" />
         </Button>
@@ -81,15 +81,15 @@ export const EditorToolbar = ({
                 onClick={() => onColorChange(c)}
                 style={{ backgroundColor: c }}
                 className={cn(
-                  'h-6 w-6 rounded-full border border-background/40 transition-transform',
-                  color === c && 'scale-125 ring-2 ring-background',
+                  'h-6 w-6 rounded-full border border-neutral-500 transition-transform',
+                  color === c && 'scale-125 ring-2 ring-neutral-100',
                 )}
               />
             ))}
           </div>
 
           <div className="flex items-center gap-2 min-w-[160px]">
-            <span className="text-xs text-background/70 whitespace-nowrap">
+            <span className="text-xs text-neutral-300 whitespace-nowrap">
               {tool === 'text' ? 'Tamanho' : 'Espessura'}
             </span>
             {tool === 'text' ? (
