@@ -5,6 +5,7 @@ import { cartTotal, findByBarcode, searchCatalog } from '../lib/cart';
 import type { CachedCatalogItem } from '../lib/db';
 import { PaymentDialog } from './PaymentDialog';
 import { CashDialog } from './CashDialog';
+import { HistoryDialog } from './HistoryDialog';
 
 /**
  * Tela de venda.
@@ -14,10 +15,12 @@ import { CashDialog } from './CashDialog';
  * atendente tem uma mão no leitor e outra no teclado, e nenhuma no mouse.
  */
 export function SaleScreen() {
-  const { catalog, cart, addItem, setLineQuantity, removeLine, clearCart, finalizeSale, printSale } = usePos();
+  const { catalog, cart, addItem, setLineQuantity, removeLine, clearCart, finalizeSale, printSale, quarantinedCount } =
+    usePos();
   const [term, setTerm] = useState('');
   const [paying, setPaying] = useState(false);
   const [cashOpen, setCashOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -33,6 +36,11 @@ export function SaleScreen() {
       if (event.key === 'F4') {
         event.preventDefault();
         searchRef.current?.focus();
+      }
+      if (event.key === 'F10') {
+        event.preventDefault();
+        setHistoryOpen(true);
+        return;
       }
       if (event.key === 'F9' && cart.length === 0) {
         // Só com o carrinho vazio: ninguém abre o caixa no meio de um atendimento.
@@ -190,6 +198,19 @@ export function SaleScreen() {
           >
             Caixa · sangria e fechamento (F9)
           </button>
+          {/* Reimpressão e vendas recusadas: sempre alcançável, inclusive com
+              carrinho aberto — cliente pedindo segunda via não espera. */}
+          <button
+            className="mt-2 w-full font-mono text-[11px] uppercase tracking-widest text-slate hover:text-violet"
+            onClick={() => setHistoryOpen(true)}
+          >
+            Últimas vendas · reimprimir (F10)
+            {quarantinedCount > 0 && (
+              <span className="ml-2 rounded-pill bg-danger px-2 py-0.5 text-white">
+                {quarantinedCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {message && (
@@ -205,12 +226,14 @@ export function SaleScreen() {
             <li>F4 — voltar à busca</li>
             <li>ESC — limpar busca</li>
             <li>F9 — caixa</li>
+            <li>F10 — últimas vendas</li>
           </ul>
         </div>
       </aside>
 
       {paying && <PaymentDialog totalCents={total} onCancel={() => setPaying(false)} onConfirm={onPaid} />}
       {cashOpen && <CashDialog onClose={() => setCashOpen(false)} />}
+      {historyOpen && <HistoryDialog onClose={() => setHistoryOpen(false)} />}
     </div>
   );
 }

@@ -4,11 +4,14 @@ import { request } from '../lib/api';
 import {
   countPending,
   countQuarantined,
+  listRecentSales,
+  rememberSale,
   db,
   readSetting,
   replaceCatalog,
   writeSetting,
   type CachedCatalogItem,
+  type RecentSale,
 } from '../lib/db';
 import { Outbox } from '../lib/outbox';
 import { addToCart, cartTotal, changeQuantity, renumber, type CartLine } from '../lib/cart';
@@ -77,6 +80,10 @@ interface PosState {
   clearCart: () => void;
   finalizeSale: (payments: SalePaymentInput[], customerDocument?: string) => Promise<SaleInput>;
   printSale: (sale: SaleInput) => Promise<void>;
+  reprintSale: (saleId: string) => Promise<void>;
+  recentSales: () => Promise<RecentSale[]>;
+  retryQuarantined: (saleId: string) => Promise<void>;
+  discardQuarantined: (saleId: string) => Promise<void>;
   loadCashSummary: () => Promise<CashSessionSummary>;
   registerCashMovement: (input: { kind: CashMovement['kind']; amountCents: number; reason: string }) => Promise<void>;
   closeCashSession: (counted: Record<string, number>, notes?: string) => Promise<CashClosingResult>;
@@ -294,7 +301,7 @@ export const usePos = create<PosState>((set, get) => ({
     const { bootstrap, operator } = get();
     if (!bootstrap) return;
 
-    await printReceipt({
+    const receipt = {
       store: bootstrap.store.name,
       cnpj: bootstrap.tenant.cnpj,
       terminal: bootstrap.terminal.code,
@@ -315,11 +322,64 @@ export const usePos = create<PosState>((set, get) => ({
         cardBrand: payment.cardBrand,
       })),
       customerDocument: sale.customerDocument,
+    };
+
+    // Guarda antes de imprimir: se a impressora falhar, é justamente o cupom
+    // guardado que permite tentar de novo sem refazer a venda.
+    await rememberSale({
+      saleId: sale.id,
+      number: null,
+      totalCents: sale.totalCents,
+      itemCount: sale.items.length,
+      operatorName: operator?.name ?? null,
+      occurredAt: sale.occurredAt,
+      receipt,
     });
+
+    await printReceipt(receipt);
 
     if (sale.payments.some((payment) => payment.method === 'cash')) {
       await openDrawer();
     }
+  },
+
+  /**
+   * Reimprime um cupom já emitido.
+   *
+   * Sai do que está guardado no terminal, não do servidor: impressora travada
+   * costuma coincidir com rede caída, e o cliente está no balcão esperando.
+   */
+  async reprintSale(saleId) {
+    const stored = await db.recentSales.get(saleId);
+    if (!stored) throw new Error('Cupom não está mais guardado neste terminal');
+    await printReceipt(stored.receipt as Parameters<typeof printReceipt>[0]);
+  },
+
+  recentSales() {
+    return listRecentSales();
+  },
+
+  /**
+   * Devolve à fila uma venda que o servidor recusou.
+   *
+   * Faz sentido depois que alguém arrumou a causa — cadastrar a entrada de
+   * estoque que faltava, por exemplo. Zera as tentativas para ela não herdar
+   * a espera longa da anterior.
+   */
+  async retryQuarantined(saleId) {
+    await db.outbox.update(saleId, { status: 'pending', attempts: 0, lastError: undefined });
+    set({ pendingCount: await countPending(), quarantinedCount: await countQuarantined() });
+  },
+
+  /**
+   * Descarta de vez uma venda recusada.
+   *
+   * É perda de registro, e por isso a tela confirma antes: a venda não vai
+   * existir no faturamento nem gerar nota.
+   */
+  async discardQuarantined(saleId) {
+    await db.outbox.delete(saleId);
+    set({ pendingCount: await countPending(), quarantinedCount: await countQuarantined() });
   },
 
   async loadCashSummary() {

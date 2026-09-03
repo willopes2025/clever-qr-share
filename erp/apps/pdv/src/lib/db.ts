@@ -28,6 +28,24 @@ export interface OutboxEntry {
   queuedAt: string;
 }
 
+/**
+ * Cupom guardado para reimpressão.
+ *
+ * Fica no próprio terminal, não no servidor: impressora travada é problema
+ * local, e acontece exatamente quando a rede também caiu. Reimprimir não pode
+ * depender de estar online.
+ */
+export interface RecentSale {
+  saleId: string;
+  number: number | null;
+  totalCents: number;
+  itemCount: number;
+  operatorName: string | null;
+  occurredAt: string;
+  /** O cupom pronto, como foi impresso da primeira vez. */
+  receipt: unknown;
+}
+
 export interface LocalSetting {
   key: string;
   value: unknown;
@@ -37,6 +55,7 @@ class PdvDatabase extends Dexie {
   catalog!: Table<CachedCatalogItem, string>;
   outbox!: Table<OutboxEntry, string>;
   settings!: Table<LocalSetting, string>;
+  recentSales!: Table<RecentSale, string>;
 
   constructor() {
     super('soul-pdv');
@@ -44,6 +63,11 @@ class PdvDatabase extends Dexie {
       catalog: 'skuId, code, description, *barcodes',
       outbox: 'saleId, status, queuedAt',
       settings: 'key',
+    });
+    // Versão 2 acrescenta os cupons para reimpressão. Dexie migra sozinho, sem
+    // apagar o que já está no terminal — e o que está lá é venda de verdade.
+    this.version(2).stores({
+      recentSales: 'saleId, occurredAt',
     });
   }
 }
@@ -91,4 +115,25 @@ export async function listQuarantined(): Promise<
     lastError: entry.lastError,
     queuedAt: entry.queuedAt,
   }));
+}
+
+/** Quantos cupons ficam guardados. Um turno de quiosque cabe folgado. */
+const RECENT_SALES_LIMIT = 200;
+
+export async function rememberSale(sale: RecentSale): Promise<void> {
+  await db.recentSales.put(sale);
+
+  // Poda os mais antigos: o terminal do quiosque não é arquivo morto.
+  const total = await db.recentSales.count();
+  if (total <= RECENT_SALES_LIMIT) return;
+
+  const excedente = await db.recentSales
+    .orderBy('occurredAt')
+    .limit(total - RECENT_SALES_LIMIT)
+    .primaryKeys();
+  await db.recentSales.bulkDelete(excedente);
+}
+
+export async function listRecentSales(limit = 30): Promise<RecentSale[]> {
+  return db.recentSales.orderBy('occurredAt').reverse().limit(limit).toArray();
 }
