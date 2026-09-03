@@ -16,6 +16,7 @@ export interface ProductListItem {
     id: string;
     code: string;
     description: string;
+    unit: string;
     priceCents: number | null;
     barcode: string | null;
     active: boolean;
@@ -38,6 +39,8 @@ export interface SaveProductInput {
     id?: string;
     code: string;
     description: string;
+    /** Unidade do estoque: UN, KG, G, L, ML. Calda em litro, granel em quilo. */
+    unit?: string;
     priceCents: number;
     barcode?: string | null;
     active?: boolean;
@@ -101,6 +104,7 @@ export class ProductAdminService {
         id: sku.id,
         code: sku.code,
         description: sku.description,
+        unit: sku.unit,
         priceCents: sku.prices[0] ? Number(sku.prices[0].priceCents) : null,
         barcode: sku.barcodes[0]?.code ?? null,
         active: sku.active,
@@ -199,6 +203,7 @@ export class ProductAdminService {
         productId,
         code: input.code,
         description: input.description,
+        unit: input.unit ?? 'UN',
         active: input.active ?? true,
       },
     });
@@ -223,7 +228,11 @@ export class ProductAdminService {
 
     await tx.sku.update({
       where: { id: skuId },
-      data: { description: input.description, active: input.active ?? true },
+      data: {
+        description: input.description,
+        unit: input.unit ?? 'UN',
+        active: input.active ?? true,
+      },
     });
 
     const currentPrice = current.prices[0] ? Number(current.prices[0].priceCents) : null;

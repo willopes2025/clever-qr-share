@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { ConflictError } from '../../common/errors/domain-error';
 import { allocateAvailable, type LotBalance } from './fefo';
 import { weightedAverageCost } from './average-cost';
+import { explodeRecipe, producedUnitCostCents, yieldRatio, type Recipe as BomRecipe } from './bom';
 
 export interface StockConsumption {
   skuId: string;
@@ -58,6 +59,33 @@ export interface CountDifference {
   difference: number;
 }
 
+export interface ProduceInput {
+  tenantId: string;
+  storeId: string;
+  userId: string;
+  outputSkuId: string;
+  /** O que foi medido na saída — não o que a ficha prometia. */
+  producedQuantity: number;
+  /** Insumos realmente usados. Vazio: a ficha decide, pelo número de bateladas. */
+  inputs?: Array<{ skuId: string; quantity: number }>;
+  /**
+   * Quantas vezes a receita foi executada. Serve a quem não quer digitar
+   * insumo: "rodei duas bateladas e saiu isto".
+   */
+  batches?: number;
+  notes?: string | null;
+}
+
+export interface ProductionResult {
+  orderId: string;
+  producedQuantity: number;
+  expectedQuantity: number;
+  /** 1 = saiu o previsto; 0,95 = 5% de perda. Nulo quando não há ficha. */
+  yieldRatio: number | null;
+  inputCostCents: number;
+  unitCostCents: number;
+}
+
 export interface ConsumeSaleInput {
   tenantId: string;
   storeId: string;
@@ -89,8 +117,11 @@ export class InventoryService {
 
   async consumeForSale(tx: TransactionClient, input: ConsumeSaleInput): Promise<StockShortfall[]> {
     const shortfalls: StockShortfall[] = [];
+    // O que sai do estoque não é o que foi vendido: um pote de sorvete tira do
+    // granel e da embalagem, e nenhum dos dois é o pote.
+    const items = await this.resolveComponents(tx, input.tenantId, input.items);
 
-    for (const item of input.items) {
+    for (const item of items) {
       const balances = await this.loadBalances(tx, input.tenantId, input.storeId, item.skuId);
       const { allocations, shortfall } = allocateAvailable(balances, item.quantity, {
         now: input.occurredAt,
@@ -146,6 +177,75 @@ export class InventoryService {
   }
 
   /**
+   * Troca o que foi vendido pelo que sai do estoque, seguindo a ficha técnica.
+   *
+   * Carrega só as fichas de montagem (`assembly`): as de produção têm baixa
+   * própria, no apontamento, e explodir uma delas aqui faria a calda sair duas
+   * vezes — uma na produção e outra na venda.
+   *
+   * Sem nenhuma ficha cadastrada, nada muda: cada item vendido baixa a si
+   * mesmo, que é o comportamento de quem revende produto pronto.
+   */
+  private async resolveComponents(
+    tx: TransactionClient,
+    tenantId: string,
+    items: StockConsumption[],
+  ): Promise<StockConsumption[]> {
+    const recipes = await this.loadAssemblyRecipes(tx, tenantId);
+    if (recipes.size === 0) return items;
+
+    const merged = new Map<string, StockConsumption>();
+    for (const item of items) {
+      for (const component of explodeRecipe(item.skuId, item.quantity, recipes)) {
+        const current = merged.get(component.skuId);
+        merged.set(component.skuId, {
+          skuId: component.skuId,
+          quantity: (current?.quantity ?? 0) + component.quantity,
+          // O custo congelado da venda é do item vendido; o insumo tem o seu.
+          unitCostCents: current?.unitCostCents ?? 0n,
+        });
+      }
+    }
+
+    // O custo de cada insumo é o custo médio dele, não o do item vendido.
+    const costs = await tx.sku.findMany({
+      where: { tenantId, id: { in: [...merged.keys()] } },
+      select: { id: true, avgCostCents: true },
+    });
+    for (const cost of costs) {
+      const line = merged.get(cost.id);
+      if (line) line.unitCostCents = cost.avgCostCents;
+    }
+
+    return [...merged.values()];
+  }
+
+  /** Fichas de montagem do tenant, no formato que a explosão entende. */
+  private async loadAssemblyRecipes(
+    tx: TransactionClient,
+    tenantId: string,
+  ): Promise<Map<string, BomRecipe>> {
+    const rows = await tx.recipe.findMany({
+      where: { tenantId, active: true, kind: 'assembly' },
+      include: { items: true },
+    });
+
+    return new Map(
+      rows.map((row) => [
+        row.outputSkuId,
+        {
+          outputSkuId: row.outputSkuId,
+          outputQuantity: Number(row.outputQuantity),
+          components: row.items.map((item) => ({
+            skuId: item.skuId,
+            quantity: Number(item.quantity),
+          })),
+        },
+      ]),
+    );
+  }
+
+  /**
    * Entrada de mercadoria.
    *
    * É a porta que faltava: sem ela o estoque só sabia descer, e o saldo de
@@ -193,6 +293,197 @@ export class InventoryService {
     });
 
     return { items: input.items.length, totalCostCents: Math.round(totalCostCents) };
+  }
+
+  /**
+   * Apontamento de produção.
+   *
+   * Consome os insumos e cria o produzido, num movimento só. O que importa
+   * aqui é a diferença entre o que a ficha prometia e o que saiu de verdade:
+   * 6 L de calda deveriam render 7,2 kg de sorvete, e a máquina daquele dia
+   * deu 6,84. Essa diferença é onde o dinheiro vaza em food service, e ela só
+   * existe se alguém medir a saída em vez de confiar na receita.
+   *
+   * O custo dos insumos vai inteiro para o que saiu, perda incluída — sorvete
+   * que ficou no fundo do tanque foi pago, e quem paga é o pote vendido.
+   */
+  async produce(input: ProduceInput): Promise<ProductionResult> {
+    if (input.producedQuantity <= 0) {
+      throw new ConflictError('INVALID_QUANTITY', 'A quantidade produzida deve ser positiva');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const recipe = await tx.recipe.findFirst({
+        where: { tenantId: input.tenantId, outputSkuId: input.outputSkuId, active: true },
+        include: { items: true },
+      });
+
+      // Escalar a receita pelo produzido seria circular: o previsto sairia igual
+      // ao produzido e o rendimento daria sempre 100%, apagando justamente a
+      // medição que a produção existe para fazer. Quem não informa insumo
+      // informa bateladas — e uma é o padrão.
+      const consumed = input.inputs?.length
+        ? input.inputs
+        : this.inputsFromRecipe(recipe, input.batches ?? 1);
+
+      if (consumed.length === 0) {
+        throw new ConflictError(
+          'NO_RECIPE',
+          'Sem ficha técnica, informe os insumos consumidos na produção',
+          { outputSkuId: input.outputSkuId },
+        );
+      }
+
+      // O previsto vem da ficha aplicada aos insumos que foram mesmo usados —
+      // é o que torna a comparação honesta quando alguém põe 5 L em vez de 6.
+      const expectedQuantity = this.expectedOutput(recipe, consumed, input.producedQuantity);
+      const occurredAt = new Date();
+      let inputCostCents = 0;
+
+      const order = await tx.productionOrder.create({
+        data: {
+          tenantId: input.tenantId,
+          storeId: input.storeId,
+          outputSkuId: input.outputSkuId,
+          recipeId: recipe?.id ?? null,
+          expectedQuantity: new Prisma.Decimal(expectedQuantity),
+          producedQuantity: new Prisma.Decimal(input.producedQuantity),
+          notes: input.notes ?? null,
+          userId: input.userId,
+          occurredAt,
+        },
+        select: { id: true },
+      });
+
+      for (const item of consumed) {
+        if (item.quantity <= 0) {
+          throw new ConflictError('INVALID_QUANTITY', 'Consumo de insumo deve ser positivo', {
+            skuId: item.skuId,
+          });
+        }
+
+        const sku = await tx.sku.findFirst({
+          where: { id: item.skuId, tenantId: input.tenantId },
+          select: { avgCostCents: true },
+        });
+        if (!sku) {
+          throw new ConflictError('SKU_NOT_FOUND', 'Insumo não encontrado', { skuId: item.skuId });
+        }
+
+        const unitCost = Number(sku.avgCostCents);
+        inputCostCents += unitCost * item.quantity;
+
+        await tx.productionOrderItem.create({
+          data: {
+            tenantId: input.tenantId,
+            orderId: order.id,
+            skuId: item.skuId,
+            quantity: new Prisma.Decimal(item.quantity),
+            unitCostCents: BigInt(Math.round(unitCost)),
+          },
+        });
+
+        // A baixa do insumo não recusa por falta, como a da venda: a produção
+        // já aconteceu na máquina, e negar o registro não desfaz nada.
+        const balances = await this.loadBalances(tx, input.tenantId, input.storeId, item.skuId);
+        const { allocations, shortfall } = allocateAvailable(balances, item.quantity, {
+          now: occurredAt,
+        });
+        if (shortfall > 0) allocations.push({ lotId: null, quantity: shortfall });
+
+        for (const allocation of allocations) {
+          await this.applyMovement(tx, {
+            tenantId: input.tenantId,
+            storeId: input.storeId,
+            skuId: item.skuId,
+            lotId: allocation.lotId,
+            quantity: -allocation.quantity,
+            unitCostCents: BigInt(Math.round(unitCost)),
+            kind: 'production_out',
+            refType: 'production',
+            refId: order.id,
+            reason: 'Consumo de produção',
+            userId: input.userId,
+            occurredAt,
+          });
+        }
+      }
+
+      inputCostCents = Math.round(inputCostCents);
+      const unitCostCents = producedUnitCostCents(inputCostCents, input.producedQuantity);
+
+      await this.applyMovement(tx, {
+        tenantId: input.tenantId,
+        storeId: input.storeId,
+        skuId: input.outputSkuId,
+        lotId: null,
+        quantity: input.producedQuantity,
+        unitCostCents: BigInt(unitCostCents),
+        kind: 'production_in',
+        refType: 'production',
+        refId: order.id,
+        reason: 'Produção',
+        userId: input.userId,
+        occurredAt,
+      });
+
+      await this.updateAverageCost(tx, input.tenantId, {
+        skuId: input.outputSkuId,
+        quantity: input.producedQuantity,
+        unitCostCents,
+      });
+
+      await tx.productionOrder.update({
+        where: { id: order.id },
+        data: { inputCostCents: BigInt(inputCostCents) },
+      });
+
+      return {
+        orderId: order.id,
+        producedQuantity: input.producedQuantity,
+        expectedQuantity,
+        yieldRatio: yieldRatio(input.producedQuantity, expectedQuantity),
+        inputCostCents,
+        unitCostCents,
+      };
+    });
+  }
+
+  /** Insumos de N execuções da receita, do jeito que ela está cadastrada. */
+  private inputsFromRecipe(
+    recipe: { outputQuantity: Prisma.Decimal; items: Array<{ skuId: string; quantity: Prisma.Decimal }> } | null,
+    batches: number,
+  ): Array<{ skuId: string; quantity: number }> {
+    if (!recipe || recipe.items.length === 0) return [];
+    return recipe.items.map((item) => ({
+      skuId: item.skuId,
+      quantity: round4(Number(item.quantity) * batches),
+    }));
+  }
+
+  /**
+   * Quanto a ficha esperaria dos insumos que foram realmente usados.
+   *
+   * Usa o insumo mais restritivo — quem produz sorvete com metade da calda não
+   * deveria ver o rendimento como se tivesse usado a receita inteira.
+   */
+  private expectedOutput(
+    recipe: { outputQuantity: Prisma.Decimal; items: Array<{ skuId: string; quantity: Prisma.Decimal }> } | null,
+    consumed: Array<{ skuId: string; quantity: number }>,
+    fallback: number,
+  ): number {
+    if (!recipe || recipe.items.length === 0) return fallback;
+
+    const ratios = recipe.items
+      .map((item) => {
+        const used = consumed.find((line) => line.skuId === item.skuId);
+        const planned = Number(item.quantity);
+        return used && planned > 0 ? used.quantity / planned : null;
+      })
+      .filter((ratio): ratio is number => ratio !== null);
+
+    if (ratios.length === 0) return fallback;
+    return round4(Math.min(...ratios) * Number(recipe.outputQuantity));
   }
 
   /**
@@ -365,6 +656,124 @@ export class InventoryService {
       lotCode: row.lot?.lotCode ?? null,
       occurredAt: row.occurredAt.toISOString(),
     }));
+  }
+
+  /** Ficha técnica de um item, para a tela de cadastro. */
+  async recipeFor(tenantId: string, outputSkuId: string) {
+    const recipe = await this.prisma.recipe.findFirst({
+      where: { tenantId, outputSkuId },
+      include: { items: { include: { sku: { select: { code: true, description: true, unit: true } } } } },
+    });
+    if (!recipe) return null;
+
+    return {
+      id: recipe.id,
+      outputSkuId: recipe.outputSkuId,
+      kind: recipe.kind,
+      outputQuantity: Number(recipe.outputQuantity),
+      notes: recipe.notes,
+      active: recipe.active,
+      items: recipe.items.map((item) => ({
+        skuId: item.skuId,
+        code: item.sku.code,
+        description: item.sku.description,
+        unit: item.sku.unit,
+        quantity: Number(item.quantity),
+      })),
+    };
+  }
+
+  /**
+   * Grava a ficha inteira de uma vez.
+   *
+   * Substituir os insumos em bloco evita o estado meio-editado que apareceria
+   * numa edição item a item — ficha pela metade produz baixa errada.
+   */
+  async saveRecipe(input: {
+    tenantId: string;
+    outputSkuId: string;
+    kind: 'assembly' | 'production';
+    outputQuantity: number;
+    notes?: string | null;
+    items: Array<{ skuId: string; quantity: number }>;
+  }): Promise<void> {
+    if (input.outputQuantity <= 0) {
+      throw new ConflictError('INVALID_QUANTITY', 'O rendimento da ficha deve ser positivo');
+    }
+    if (input.items.some((item) => item.skuId === input.outputSkuId)) {
+      throw new ConflictError('RECIPE_CYCLE', 'Um item não pode ser insumo de si mesmo');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const recipe = await tx.recipe.upsert({
+        where: { outputSkuId: input.outputSkuId },
+        create: {
+          tenantId: input.tenantId,
+          outputSkuId: input.outputSkuId,
+          kind: input.kind,
+          outputQuantity: new Prisma.Decimal(input.outputQuantity),
+          notes: input.notes ?? null,
+        },
+        update: {
+          kind: input.kind,
+          outputQuantity: new Prisma.Decimal(input.outputQuantity),
+          notes: input.notes ?? null,
+          active: true,
+        },
+        select: { id: true },
+      });
+
+      await tx.recipeItem.deleteMany({ where: { recipeId: recipe.id } });
+      for (const item of input.items) {
+        await tx.recipeItem.create({
+          data: {
+            tenantId: input.tenantId,
+            recipeId: recipe.id,
+            skuId: item.skuId,
+            quantity: new Prisma.Decimal(item.quantity),
+          },
+        });
+      }
+    });
+  }
+
+  async removeRecipe(tenantId: string, outputSkuId: string): Promise<void> {
+    await this.prisma.recipe.deleteMany({ where: { tenantId, outputSkuId } });
+  }
+
+  /** Histórico de produção da loja, com o rendimento de cada apontamento. */
+  async productions(tenantId: string, storeId: string, limit = 50) {
+    const orders = await this.prisma.productionOrder.findMany({
+      where: { tenantId, storeId },
+      orderBy: { occurredAt: 'desc' },
+      take: Math.min(limit, 200),
+      include: {
+        outputSku: { select: { description: true, unit: true } },
+        items: { include: { sku: { select: { description: true, unit: true } } } },
+      },
+    });
+
+    return orders.map((order) => {
+      const produced = Number(order.producedQuantity);
+      const expected = Number(order.expectedQuantity);
+      return {
+        id: order.id,
+        outputDescription: order.outputSku.description,
+        outputUnit: order.outputSku.unit,
+        producedQuantity: produced,
+        expectedQuantity: expected,
+        yieldRatio: yieldRatio(produced, expected),
+        inputCostCents: Number(order.inputCostCents),
+        unitCostCents: producedUnitCostCents(Number(order.inputCostCents), produced),
+        notes: order.notes,
+        occurredAt: order.occurredAt.toISOString(),
+        inputs: order.items.map((item) => ({
+          description: item.sku.description,
+          unit: item.sku.unit,
+          quantity: Number(item.quantity),
+        })),
+      };
+    });
   }
 
   /** Acha ou cria o lote da entrada. Sem código de lote, o saldo é o sem-lote. */

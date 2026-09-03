@@ -46,20 +46,20 @@ enum TenantStatus {
 }
 
 model Tenant {
-  id              String        @id @default(uuid())
-  economicGroupId String?       @map("economic_group_id")
-  planId          String        @map("plan_id")
-  legalName       String        @map("legal_name")
-  tradeName       String        @map("trade_name")
-  cnpj            String        @unique @db.Char(14)
+  id              String       @id @default(uuid())
+  economicGroupId String?      @map("economic_group_id")
+  planId          String       @map("plan_id")
+  legalName       String       @map("legal_name")
+  tradeName       String       @map("trade_name")
+  cnpj            String       @unique @db.Char(14)
   ie              String?
-  taxRegime       String        @map("tax_regime") // simples | presumido | real
+  taxRegime       String       @map("tax_regime") // simples | presumido | real
   crt             Int
   address         Json
-  status          TenantStatus  @default(trial)
-  graceUntil      DateTime?     @map("grace_until")
-  timezone        String        @default("America/Sao_Paulo")
-  createdAt       DateTime      @default(now()) @map("created_at")
+  status          TenantStatus @default(trial)
+  graceUntil      DateTime?    @map("grace_until")
+  timezone        String       @default("America/Sao_Paulo")
+  createdAt       DateTime     @default(now()) @map("created_at")
 
   economicGroup EconomicGroup?      @relation(fields: [economicGroupId], references: [id])
   plan          Plan                @relation(fields: [planId], references: [id])
@@ -109,14 +109,15 @@ model Store {
   closesAt String? @map("closes_at")
   active   Boolean @default(true)
 
-  tenant     Tenant      @relation(fields: [tenantId], references: [id])
-  terminals  Terminal[]
-  prices     Price[]
-  balances   StockBalance[]
-  sales      Sale[]
-  movements  StockMovement[]
-  sessions   CashSession[]
-  documents  FiscalDocument[]
+  tenant      Tenant            @relation(fields: [tenantId], references: [id])
+  terminals   Terminal[]
+  prices      Price[]
+  balances    StockBalance[]
+  sales       Sale[]
+  movements   StockMovement[]
+  sessions    CashSession[]
+  documents   FiscalDocument[]
+  productions ProductionOrder[]
 
   @@unique([tenantId, code])
   @@map("store")
@@ -156,10 +157,10 @@ model AppUser {
   lastLoginAt  DateTime? @map("last_login_at")
   createdAt    DateTime  @default(now()) @map("created_at")
 
-  tenant    Tenant        @relation(fields: [tenantId], references: [id])
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
   roles     UserRole[]
-  sessions  CashSession[] @relation("SessionOperator")
-  sales     Sale[]        @relation("SaleOperator")
+  sessions  CashSession[]  @relation("SessionOperator")
+  sales     Sale[]         @relation("SaleOperator")
   movements CashMovement[]
 
   @@unique([tenantId, email])
@@ -212,11 +213,11 @@ model AuditLog {
 // ---------------------------------------------------------------- catálogo
 
 model Category {
-  id       String    @id @default(uuid())
-  tenantId String    @map("tenant_id")
-  name     String
-  sortOrder Int      @default(0) @map("sort_order")
-  products Product[]
+  id        String    @id @default(uuid())
+  tenantId  String    @map("tenant_id")
+  name      String
+  sortOrder Int       @default(0) @map("sort_order")
+  products  Product[]
 
   @@unique([tenantId, name])
   @@map("category")
@@ -277,20 +278,28 @@ model Sku {
   axis1ValueId String? @map("axis1_value_id")
   axis2ValueId String? @map("axis2_value_id")
   description  String
+  /// Unidade do estoque deste item: UN, KG, G, L, ML. A calda é comprada em
+  /// litro, o sorvete a granel pesado em quilo e o pote vendido por unidade —
+  /// cada um estoca na sua.
+  unit         String  @default("UN")
   avgCostCents BigInt  @default(0) @map("avg_cost_cents")
   trackLot     Boolean @default(false) @map("track_lot")
   minStock     Decimal @default(0) @map("min_stock") @db.Decimal(14, 4)
   active       Boolean @default(true)
 
-  product   Product         @relation(fields: [productId], references: [id])
-  axis1     VariantValue?   @relation("SkuAxis1", fields: [axis1ValueId], references: [id])
-  axis2     VariantValue?   @relation("SkuAxis2", fields: [axis2ValueId], references: [id])
-  barcodes  Barcode[]
-  prices    Price[]
-  balances  StockBalance[]
-  lots      StockLot[]
-  movements StockMovement[]
-  saleItems SaleItem[]
+  product         Product               @relation(fields: [productId], references: [id])
+  axis1           VariantValue?         @relation("SkuAxis1", fields: [axis1ValueId], references: [id])
+  axis2           VariantValue?         @relation("SkuAxis2", fields: [axis2ValueId], references: [id])
+  barcodes        Barcode[]
+  prices          Price[]
+  balances        StockBalance[]
+  lots            StockLot[]
+  movements       StockMovement[]
+  saleItems       SaleItem[]
+  recipe          Recipe?               @relation("RecipeOutput")
+  recipeUsages    RecipeItem[]
+  productions     ProductionOrder[]
+  productionUsage ProductionOrderItem[]
 
   @@unique([tenantId, code])
   @@unique([productId, axis1ValueId, axis2ValueId])
@@ -400,6 +409,88 @@ model StockMovement {
 
 // ------------------------------------------------------------ caixa e venda
 
+/// Ficha técnica: o que um item consome para existir.
+///
+/// Serve aos dois casos que aparecem em qualquer operação de alimentação:
+/// o que é montado na hora da venda (um pote de sorvete tira do granel e da
+/// embalagem) e o que é produzido antes (a calda vira sorvete na máquina).
+/// A diferença é só o momento em que a baixa acontece — a forma é a mesma.
+model Recipe {
+  id             String  @id @default(uuid())
+  tenantId       String  @map("tenant_id")
+  outputSkuId    String  @unique @map("output_sku_id")
+  /// assembly = baixa na venda · production = precisa de apontamento
+  kind           String  @default("assembly")
+  /// Quanto a ficha rende de uma execução. Os insumos são para esta quantidade:
+  /// 6 L de calda para 7,2 kg de sorvete.
+  outputQuantity Decimal @default(1) @map("output_quantity") @db.Decimal(14, 4)
+  notes          String?
+  active         Boolean @default(true)
+
+  outputSku Sku          @relation("RecipeOutput", fields: [outputSkuId], references: [id], onDelete: Cascade)
+  items     RecipeItem[]
+
+  @@index([tenantId, active])
+  @@map("recipe")
+}
+
+model RecipeItem {
+  id       String  @id @default(uuid())
+  tenantId String  @map("tenant_id")
+  recipeId String  @map("recipe_id")
+  skuId    String  @map("sku_id")
+  quantity Decimal @db.Decimal(14, 4)
+
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  sku    Sku    @relation(fields: [skuId], references: [id])
+
+  @@unique([recipeId, skuId])
+  @@map("recipe_item")
+}
+
+/// Apontamento de produção.
+///
+/// Guarda o que a ficha prometia e o que saiu de verdade, porque os dois
+/// divergem: máquina mal regulada, calda que fica no fundo, dia quente. É essa
+/// diferença que mostra onde o dinheiro vaza, e ela só existe se alguém medir.
+model ProductionOrder {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  storeId          String   @map("store_id")
+  outputSkuId      String   @map("output_sku_id")
+  recipeId         String?  @map("recipe_id")
+  /// O que a ficha previa para os insumos informados.
+  expectedQuantity Decimal  @map("expected_quantity") @db.Decimal(14, 4)
+  /// O que foi medido na saída.
+  producedQuantity Decimal  @map("produced_quantity") @db.Decimal(14, 4)
+  /// Custo dos insumos consumidos, congelado no momento da produção.
+  inputCostCents   BigInt   @default(0) @map("input_cost_cents")
+  notes            String?
+  userId           String?  @map("user_id")
+  occurredAt       DateTime @default(now()) @map("occurred_at")
+
+  store     Store                 @relation(fields: [storeId], references: [id])
+  outputSku Sku                   @relation(fields: [outputSkuId], references: [id])
+  items     ProductionOrderItem[]
+
+  @@index([tenantId, storeId, occurredAt])
+  @@map("production_order")
+}
+
+model ProductionOrderItem {
+  id            String  @id @default(uuid())
+  tenantId      String  @map("tenant_id")
+  orderId       String  @map("order_id")
+  skuId         String  @map("sku_id")
+  quantity      Decimal @db.Decimal(14, 4)
+  unitCostCents BigInt  @default(0) @map("unit_cost_cents")
+
+  order ProductionOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sku   Sku             @relation(fields: [skuId], references: [id])
+
+  @@map("production_order_item")
+}
+
 model CashSession {
   id                String    @id @default(uuid())
   tenantId          String    @map("tenant_id")
@@ -472,10 +563,10 @@ model Sale {
   receivedAt       DateTime   @default(now()) @map("received_at")
   clockSkewMs      Int?       @map("clock_skew_ms")
 
-  store     Store           @relation(fields: [storeId], references: [id])
-  terminal  Terminal        @relation(fields: [terminalId], references: [id])
-  session   CashSession     @relation(fields: [sessionId], references: [id])
-  operator  AppUser         @relation("SaleOperator", fields: [operatorId], references: [id])
+  store     Store            @relation(fields: [storeId], references: [id])
+  terminal  Terminal         @relation(fields: [terminalId], references: [id])
+  session   CashSession      @relation(fields: [sessionId], references: [id])
+  operator  AppUser          @relation("SaleOperator", fields: [operatorId], references: [id])
   items     SaleItem[]
   payments  SalePayment[]
   documents FiscalDocument[]
@@ -512,19 +603,19 @@ model SaleItem {
 }
 
 model SalePayment {
-  id                String  @id @default(uuid())
-  tenantId          String  @map("tenant_id")
-  saleId            String  @map("sale_id")
-  method            String
-  amountCents       BigInt  @map("amount_cents")
-  changeCents       BigInt  @default(0) @map("change_cents")
+  id           String  @id @default(uuid())
+  tenantId     String  @map("tenant_id")
+  saleId       String  @map("sale_id")
+  method       String
+  amountCents  BigInt  @map("amount_cents")
+  changeCents  BigInt  @default(0) @map("change_cents")
   /// Pagamento é feito fora do sistema (dinheiro, Pix ou maquineta) e lançado
   /// aqui pelo operador. Bandeira e NSU entram quando a loja quer conciliar
   /// o extrato da adquirente depois.
-  acquirer          String?
-  cardBrand         String? @map("card_brand")
-  installments      Int     @default(1)
-  nsu               String?
+  acquirer     String?
+  cardBrand    String? @map("card_brand")
+  installments Int     @default(1)
+  nsu          String?
 
   sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
@@ -580,15 +671,15 @@ model FiscalDocument {
 // -------------------------------------------------------------- telemetria
 
 model TerminalHeartbeat {
-  id            String   @id @default(uuid())
-  tenantId      String   @map("tenant_id")
-  terminalId    String   @map("terminal_id")
-  at            DateTime @default(now())
-  appVersion    String?  @map("app_version")
-  bridgeVersion String?  @map("bridge_version")
-  pendingSales  Int      @default(0) @map("pending_sales")
-  fiscalQueue   Int      @default(0) @map("fiscal_queue")
-  printerOk     Boolean? @map("printer_ok")
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id")
+  terminalId    String    @map("terminal_id")
+  at            DateTime  @default(now())
+  appVersion    String?   @map("app_version")
+  bridgeVersion String?   @map("bridge_version")
+  pendingSales  Int       @default(0) @map("pending_sales")
+  fiscalQueue   Int       @default(0) @map("fiscal_queue")
+  printerOk     Boolean?  @map("printer_ok")
   lastSaleAt    DateTime? @map("last_sale_at")
 
   terminal Terminal @relation(fields: [terminalId], references: [id], onDelete: Cascade)

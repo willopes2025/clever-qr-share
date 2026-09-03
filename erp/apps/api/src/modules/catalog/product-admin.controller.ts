@@ -9,6 +9,9 @@ const skuSchema = z.object({
   id: z.string().uuid().optional(),
   code: z.string().min(1).max(20),
   description: z.string().min(2).max(120),
+  // Unidade do estoque. O padrão é a unidade porque a maioria vende peça, mas
+  // insumo pesado ou líquido precisa da sua: KG para o granel, L para a calda.
+  unit: z.enum(['UN', 'KG', 'G', 'L', 'ML', 'CX', 'PC']).optional(),
   priceCents: z.number().int().positive(),
   barcode: z.string().regex(/^\d{8,14}$/, 'código de barras deve ter de 8 a 14 dígitos').nullish(),
   active: z.boolean().optional(),

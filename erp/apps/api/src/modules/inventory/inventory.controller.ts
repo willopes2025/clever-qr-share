@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { Ctx, RequiresPermission } from '../../common/auth/decorators';
 import { ZodValidationPipe } from '../../common/validation/zod-validation.pipe';
@@ -34,7 +34,31 @@ const countSchema = z.object({
     .max(500),
 });
 
+const recipeSchema = z.object({
+  // assembly = baixa na venda (o pote tira do granel) · production = apontamento
+  kind: z.enum(['assembly', 'production']),
+  outputQuantity: z.number().positive().max(1_000_000),
+  notes: z.string().max(240).nullish(),
+  items: z
+    .array(z.object({ skuId: z.string().uuid(), quantity: z.number().positive().max(1_000_000) }))
+    .max(50),
+});
+
+const produceSchema = z.object({
+  storeId: z.string().uuid(),
+  outputSkuId: z.string().uuid(),
+  producedQuantity: z.number().positive().max(1_000_000),
+  batches: z.number().positive().max(1000).optional(),
+  inputs: z
+    .array(z.object({ skuId: z.string().uuid(), quantity: z.number().positive().max(1_000_000) }))
+    .max(50)
+    .optional(),
+  notes: z.string().max(240).nullish(),
+});
+
 type ReceiveBody = z.infer<typeof receiveSchema>;
+type RecipeBody = z.infer<typeof recipeSchema>;
+type ProduceBody = z.infer<typeof produceSchema>;
 type CountBody = z.infer<typeof countSchema>;
 
 /**
@@ -81,6 +105,53 @@ export class InventoryController {
       document: body.document ?? null,
       items: body.items,
     });
+  }
+
+  /** Ficha técnica de um item: o que ele consome para existir. */
+  @Get('recipes/:skuId')
+  @RequiresPermission('product.manage')
+  recipe(@Ctx() ctx: RequestContext, @Param('skuId') skuId: string) {
+    return this.inventory.recipeFor(ctx.tenantId, skuId);
+  }
+
+  @Put('recipes/:skuId')
+  @RequiresPermission('product.manage')
+  async saveRecipe(
+    @Ctx() ctx: RequestContext,
+    @Param('skuId') skuId: string,
+    @Body(new ZodValidationPipe(recipeSchema)) body: RecipeBody,
+  ) {
+    await this.inventory.saveRecipe({ tenantId: ctx.tenantId, outputSkuId: skuId, ...body });
+    return { saved: true };
+  }
+
+  @Delete('recipes/:skuId')
+  @RequiresPermission('product.manage')
+  async removeRecipe(@Ctx() ctx: RequestContext, @Param('skuId') skuId: string) {
+    await this.inventory.removeRecipe(ctx.tenantId, skuId);
+    return { removed: true };
+  }
+
+  /** Apontamento de produção: consome insumo, cria produzido, mede rendimento. */
+  @Post('productions')
+  @RequiresPermission('stock.adjust')
+  produce(@Ctx() ctx: RequestContext, @Body(new ZodValidationPipe(produceSchema)) body: ProduceBody) {
+    return this.inventory.produce({
+      tenantId: ctx.tenantId,
+      storeId: body.storeId,
+      userId: ctx.userId ?? 'sistema',
+      outputSkuId: body.outputSkuId,
+      producedQuantity: body.producedQuantity,
+      batches: body.batches,
+      inputs: body.inputs,
+      notes: body.notes ?? null,
+    });
+  }
+
+  @Get('productions')
+  @RequiresPermission('stock.adjust')
+  productions(@Ctx() ctx: RequestContext, @Query('storeId') storeId: string) {
+    return this.inventory.productions(ctx.tenantId, storeId);
   }
 
   /** Contagem: devolve o que estava errado, que é o dado que interessa. */
