@@ -70,15 +70,6 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, file]);
 
-  // ---- re-render the ops pipeline whenever the op list changes ----
-  useEffect(() => {
-    if (!image || !baseSize.w) return;
-    renderedRef.current = renderOps(image, baseSize.w, baseSize.h, ops);
-    setCropRect(null);
-    paint();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [image, baseSize, ops]);
-
   // ---- fit rendered canvas inside the viewport ----
   const recomputeDisplay = useCallback(() => {
     const rendered = renderedRef.current;
@@ -88,15 +79,38 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
     const maxH = container.clientHeight;
     if (!maxW || !maxH) return;
     const scale = Math.min(maxW / rendered.width, maxH / rendered.height, 1);
-    setDisplay({ w: Math.round(rendered.width * scale), h: Math.round(rendered.height * scale), scale });
+    setDisplay((prev) => {
+      const next = { w: Math.round(rendered.width * scale), h: Math.round(rendered.height * scale), scale };
+      if (prev.w === next.w && prev.h === next.h && prev.scale === next.scale) return prev;
+      return next;
+    });
   }, []);
 
-  useLayoutEffect(() => {
+  // ---- re-render the ops pipeline whenever the op list changes ----
+  useEffect(() => {
+    if (!image || !baseSize.w) return;
+    renderedRef.current = renderOps(image, baseSize.w, baseSize.h, ops);
+    setCropRect(null);
+    // The rendered bitmap may have changed size (rotate/crop): refit before painting.
     recomputeDisplay();
-    const onResize = () => recomputeDisplay();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [recomputeDisplay, ops, image, baseSize, open]);
+    paint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [image, baseSize, ops, recomputeDisplay]);
+
+  // Keep the fit in sync with container resizes (panels, window, orientation).
+  useLayoutEffect(() => {
+    if (!open) return;
+    recomputeDisplay();
+    const container = containerRef.current;
+    const ro = new ResizeObserver(() => recomputeDisplay());
+    if (container) ro.observe(container);
+    window.addEventListener('resize', recomputeDisplay);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', recomputeDisplay);
+    };
+  }, [recomputeDisplay, open, image, baseSize]);
+
 
   // ---- paint visible canvas: rendered result + live draft + crop overlay ----
   const paint = useCallback(() => {
