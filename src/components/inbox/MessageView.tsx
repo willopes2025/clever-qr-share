@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
-import { Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, UserCheck, Cloud, Phone, MailCheck, Paperclip } from "lucide-react";
+import { Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, UserCheck, Cloud, Phone, MailCheck, Paperclip, Pencil } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { ConversationCardHeader } from "./ConversationCard";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ import { ScrollToBottomButton } from "./ScrollToBottomButton";
 import { VoiceRecorder } from "./VoiceRecorder";
 import { MediaUploadButton } from "./MediaUploadButton";
 import { uploadInboxMedia } from "@/lib/inbox-media-upload";
+import { ImageEditorDialog } from "./image-editor/ImageEditorDialog";
 import { AIAssistantButton } from "./AIAssistantButton";
 import { TransferConversationDialog } from "./TransferConversationDialog";
 import { NotesTab } from "./NotesTab";
@@ -418,11 +419,41 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   }, [optimisticMessages.length]);
 
-  // Pending attachment awaiting caption / confirmation before sending
-  const [pendingMedia, setPendingMedia] = useState<{ url: string; type: 'image' | 'document' | 'video'; name?: string } | null>(null);
+  // Pending attachment kept in memory (File + object URL) until the user hits send
+  const [pendingMedia, setPendingMedia] = useState<{ file: File; previewUrl: string; type: 'image' | 'document' | 'video'; name: string } | null>(null);
   const [pastingMedia, setPastingMedia] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
 
-  // Paste an image/file from the clipboard: uploads and stages it for review
+  const stagePendingFile = (file: File, type: 'image' | 'document' | 'video', displayName?: string) => {
+    setPendingMedia((prev) => {
+      if (prev) URL.revokeObjectURL(prev.previewUrl);
+      return {
+        file,
+        previewUrl: URL.createObjectURL(file),
+        type,
+        name: displayName || file.name || 'anexo',
+      };
+    });
+  };
+
+  const clearPendingMedia = () => {
+    setPendingMedia((prev) => {
+      if (prev) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+  };
+
+  // Revoke the object URL when the view unmounts
+  useEffect(() => {
+    return () => {
+      setPendingMedia((prev) => {
+        if (prev) URL.revokeObjectURL(prev.previewUrl);
+        return null;
+      });
+    };
+  }, []);
+
+  // Paste an image/file from the clipboard: stages it locally for review
   const handlePasteFiles = async (files: File[]) => {
     const file = files[0];
     if (!file) return;
@@ -434,21 +465,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       toast.error(`Arquivo muito grande. Máximo ${type === 'video' ? '200MB' : '10MB'}.`);
       return;
     }
-    setPastingMedia(true);
-    try {
-      const url = await uploadInboxMedia(file);
-      const name = file.name && file.name !== 'image.png'
-        ? file.name
-        : `colado-${Date.now()}.${(file.type.split('/')[1] || 'png').split(';')[0]}`;
-      setPendingMedia({ url, type, name });
-      toast.success('Anexo pronto — escreva uma legenda ou envie');
-    } catch (error: any) {
-      const detail = error?.message || 'erro desconhecido';
-      console.error('Paste upload error:', detail, error);
-      toast.error(`Erro ao enviar arquivo: ${detail}`);
-    } finally {
-      setPastingMedia(false);
-    }
+    const name = file.name && file.name !== 'image.png'
+      ? file.name
+      : `colado-${Date.now()}.${(file.type.split('/')[1] || 'png').split(';')[0]}`;
+    stagePendingFile(file, type, name);
+    toast.success('Anexo pronto — edite, escreva uma legenda ou envie');
   };
 
   // Helper: determine effective sender (Meta or Evolution) for any conversation
@@ -459,16 +480,28 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
     const textToSend = (messageText ?? composerRef.current?.getValue() ?? "").trim();
 
-    // If there's a pending attachment, send it (with the typed text as caption)
+    // If there's a pending attachment, upload it now and send (typed text = caption)
     if (pendingMedia && hasValidSender) {
       const attachment = pendingMedia;
       setPendingMedia(null);
       composerRef.current?.clear();
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
-      await handleSendMedia(attachment.url, attachment.type, attachment.name, textToSend || undefined);
+      setPastingMedia(true);
+      try {
+        const url = await uploadInboxMedia(attachment.file);
+        URL.revokeObjectURL(attachment.previewUrl);
+        await handleSendMedia(url, attachment.type, attachment.name, textToSend || undefined);
+      } catch (error: any) {
+        console.error('Media upload error:', error);
+        toast.error(`Erro ao enviar arquivo: ${error?.message || 'erro desconhecido'}`);
+        setPendingMedia(attachment);
+      } finally {
+        setPastingMedia(false);
+      }
       composerRef.current?.focus();
       return;
     }
+
 
     if (!textToSend || !hasValidSender) return;
 
@@ -1760,30 +1793,45 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         {pastingMedia && !pendingMedia && (
           <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Enviando imagem colada...
+            Enviando anexo...
           </div>
         )}
 
         {pendingMedia && (
           <div className="flex items-center gap-3 mb-2 p-2 rounded-lg bg-muted/50 border border-border max-w-3xl mx-auto">
             {pendingMedia.type === 'image' ? (
-              <img src={pendingMedia.url} alt={pendingMedia.name || 'anexo'} className="h-14 w-14 object-cover rounded-md shrink-0" />
+              <img src={pendingMedia.previewUrl} alt={pendingMedia.name} className="h-14 w-14 object-cover rounded-md shrink-0" />
             ) : pendingMedia.type === 'video' ? (
-              <video src={pendingMedia.url} className="h-14 w-14 object-cover rounded-md bg-black shrink-0" />
+              <video src={pendingMedia.previewUrl} className="h-14 w-14 object-cover rounded-md bg-black shrink-0" />
             ) : (
               <div className="h-14 w-14 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
                 <Paperclip className="h-5 w-5 text-primary" />
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{pendingMedia.name || 'Anexo'}</p>
-              <p className="text-xs text-muted-foreground">Escreva uma legenda (opcional) e envie</p>
+              <p className="text-sm font-medium truncate">{pendingMedia.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {pendingMedia.type === 'image'
+                  ? 'Edite a imagem, escreva uma legenda (opcional) e envie'
+                  : 'Escreva uma legenda (opcional) e envie'}
+              </p>
             </div>
+            {pendingMedia.type === 'image' && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={() => setEditorOpen(true)}
+                title="Editar imagem"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
               className="h-7 w-7 shrink-0"
-              onClick={() => setPendingMedia(null)}
+              onClick={clearPendingMedia}
               title="Remover anexo"
             >
               <X className="h-4 w-4" />
@@ -1792,19 +1840,31 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
               size="sm"
               className="shrink-0"
               onClick={() => handleSend()}
+              disabled={pastingMedia}
             >
               Enviar
             </Button>
           </div>
         )}
 
+        <ImageEditorDialog
+          open={editorOpen && pendingMedia?.type === 'image'}
+          file={pendingMedia?.type === 'image' ? pendingMedia.file : null}
+          onCancel={() => setEditorOpen(false)}
+          onDone={(edited) => {
+            stagePendingFile(edited, 'image', pendingMedia?.name || edited.name);
+            setEditorOpen(false);
+          }}
+        />
+
         <div className="flex gap-2 max-w-3xl mx-auto items-end">
           {!isMobile && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
           
           <MediaUploadButton 
-            onUpload={(url, type, name) => setPendingMedia({ url, type, name })} 
+            onSelect={(file, type) => stagePendingFile(file, type)} 
             disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
           />
+
 
 
           <FormLinkButton
