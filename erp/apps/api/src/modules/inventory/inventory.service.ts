@@ -594,6 +594,8 @@ export class InventoryService {
       skuId: string;
       code: string;
       description: string;
+      /// Sem a unidade, "6" pode ser seis litros ou seis potes.
+      unit: string;
       quantity: number;
       minStock: number;
       avgCostCents: number;
@@ -634,6 +636,7 @@ export class InventoryService {
           skuId: sku.id,
           code: sku.code,
           description: sku.description,
+          unit: sku.unit,
           quantity,
           minStock,
           avgCostCents: Number(sku.avgCostCents),

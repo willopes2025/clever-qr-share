@@ -10,6 +10,7 @@ import {
   type Store,
 } from '../lib/api';
 import { EmptyState, ErrorNote, Field, Modal, PageHeader, Pill } from '../components/ui';
+import { ProductionDialog } from './ProductionDialog';
 
 /**
  * Estoque da loja.
@@ -22,7 +23,7 @@ import { EmptyState, ErrorNote, Field, Modal, PageHeader, Pill } from '../compon
 export function StockScreen() {
   const [storeId, setStoreId] = useState('');
   const [search, setSearch] = useState('');
-  const [dialog, setDialog] = useState<'receipt' | 'count' | null>(null);
+  const [dialog, setDialog] = useState<'receipt' | 'count' | 'production' | null>(null);
   const [extract, setExtract] = useState<StockBalance | null>(null);
 
   const stores = useQuery({ queryKey: ['stores'], queryFn: () => api<Store[]>('/stores') });
@@ -53,6 +54,9 @@ export function StockScreen() {
         subtitle="O que tem em cada quiosque, o que está faltando e o que já ficou negativo."
         action={
           <div className="flex gap-2">
+            <button className="btn-ghost px-4 py-2 text-xs" onClick={() => setDialog('production')}>
+              Produção
+            </button>
             <button className="btn-ghost px-4 py-2 text-xs" onClick={() => setDialog('count')}>
               Fazer contagem
             </button>
@@ -111,6 +115,7 @@ export function StockScreen() {
                   <td className="px-4 py-3 text-right">
                     <span className={line.negative ? 'font-semibold text-danger' : 'text-indigo'}>
                       {line.quantity}
+                      <span className="ml-1 font-mono text-[10px] text-slate">{line.unit}</span>
                     </span>
                     {line.negative && (
                       <span className="ml-2">
@@ -146,6 +151,7 @@ export function StockScreen() {
       {dialog === 'receipt' && (
         <ReceiptForm storeId={storeId} onClose={() => setDialog(null)} />
       )}
+      {dialog === 'production' && <ProductionDialog storeId={storeId} onClose={() => setDialog(null)} />}
       {dialog === 'count' && (
         <CountForm storeId={storeId} balances={balances.data ?? []} onClose={() => setDialog(null)} />
       )}

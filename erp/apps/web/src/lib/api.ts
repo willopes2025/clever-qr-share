@@ -88,6 +88,8 @@ export interface ProductSku {
   id?: string;
   code: string;
   description: string;
+  /** Unidade do estoque: UN, KG, G, L, ML. */
+  unit?: string;
   priceCents: number | null;
   barcode: string | null;
   active?: boolean;
@@ -142,6 +144,7 @@ export interface StockBalance {
   skuId: string;
   code: string;
   description: string;
+  unit: string;
   quantity: number;
   minStock: number;
   avgCostCents: number;
@@ -217,4 +220,36 @@ export interface SaleDetail {
     danfeUrl: string | null;
     rejectionMsg: string | null;
   } | null;
+}
+
+export interface RecipeItemRow {
+  skuId: string;
+  code: string;
+  description: string;
+  unit: string;
+  quantity: number;
+}
+
+export interface RecipeDetail {
+  id: string;
+  outputSkuId: string;
+  kind: 'assembly' | 'production';
+  outputQuantity: number;
+  notes: string | null;
+  active: boolean;
+  items: RecipeItemRow[];
+}
+
+export interface ProductionRow {
+  id: string;
+  outputDescription: string;
+  outputUnit: string;
+  producedQuantity: number;
+  expectedQuantity: number;
+  yieldRatio: number | null;
+  inputCostCents: number;
+  unitCostCents: number;
+  notes: string | null;
+  occurredAt: string;
+  inputs: Array<{ description: string; unit: string; quantity: number }>;
 }

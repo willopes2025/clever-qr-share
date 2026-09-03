@@ -3,11 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatMoney } from '@soul/ui';
 import { api, ApiError, type Product, type ProductSku } from '../lib/api';
 import { EmptyState, ErrorNote, Field, Modal, PageHeader, Pill } from '../components/ui';
+import { RecipeDialog } from './RecipeDialog';
 
 /** Cadastro de produto e suas variações — sabor e tamanho viram um SKU cada. */
 export function ProductsScreen() {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
+  const [recipeFor, setRecipeFor] = useState<{ skuId: string; description: string } | null>(null);
 
   const products = useQuery({
     queryKey: ['products', search],
@@ -64,6 +66,7 @@ export function ProductsScreen() {
                       <th className="pb-1">Código</th>
                       <th className="pb-1">Código de barras</th>
                       <th className="pb-1 text-right">Preço</th>
+                      <th className="pb-1"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -78,6 +81,20 @@ export function ProductsScreen() {
                         <td className="py-2 text-right font-mono tabular-nums text-indigo">
                           {sku.priceCents === null ? 'sem preço' : formatMoney(sku.priceCents)}
                         </td>
+                        <td className="py-2 pl-3 text-right">
+                          {/* A ficha é por variação, não por produto: o pote P e o
+                              pote G tiram quantidades diferentes do mesmo granel. */}
+                          {sku.id && (
+                            <button
+                              className="font-mono text-[10px] uppercase tracking-widest text-slate hover:text-violet"
+                              onClick={() =>
+                                setRecipeFor({ skuId: sku.id!, description: sku.description })
+                              }
+                            >
+                              ficha
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -89,6 +106,13 @@ export function ProductsScreen() {
       )}
 
       {editing && <ProductForm product={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+      {recipeFor && (
+        <RecipeDialog
+          skuId={recipeFor.skuId}
+          description={recipeFor.description}
+          onClose={() => setRecipeFor(null)}
+        />
+      )}
     </>
   );
 }
@@ -124,6 +148,7 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
         skus: skus.map((sku) => ({
           id: sku.id,
           code: sku.code.trim(),
+          unit: sku.unit ?? 'UN',
           description: sku.description.trim(),
           barcode: sku.barcode?.trim() || null,
           priceCents: toCentsOrZero(sku.price),
@@ -228,11 +253,24 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
               onChange={(event) => updateSku(index, { code: event.target.value })}
             />
             <input
-              className="field font-mono sm:col-span-3"
-              placeholder="Código de barras"
+              className="field font-mono sm:col-span-2"
+              placeholder="Cód. barras"
               value={sku.barcode ?? ''}
               onChange={(event) => updateSku(index, { barcode: event.target.value.replace(/\D/g, '') })}
             />
+            {/* Insumo pesado ou líquido precisa da unidade dele: a calda é
+                comprada em litro e o granel pesado em quilo. */}
+            <select
+              className="field font-mono sm:col-span-1"
+              value={sku.unit ?? 'UN'}
+              onChange={(event) => updateSku(index, { unit: event.target.value })}
+            >
+              {['UN', 'KG', 'G', 'L', 'ML', 'CX', 'PC'].map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
             <input
               className="field text-right tabular-nums sm:col-span-2"
               placeholder="0,00"
