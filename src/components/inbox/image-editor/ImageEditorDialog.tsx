@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { EditorToolbar } from './EditorToolbar';
 import { canvasToFile, drawOp, fitWithinMaxEdge, loadImageFromFile, renderOps } from './draw';
-import type { EditorOp, EditorTool, Point } from './types';
+import type { EditorOp, EditorTool, Point, ShapeKind } from './types';
 
 interface Props {
   open: boolean;
@@ -25,6 +25,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
   const [ops, setOps] = useState<EditorOp[]>([]);
   const [redo, setRedo] = useState<EditorOp[]>([]);
   const [tool, setTool] = useState<EditorTool>('pen');
+  const [shape, setShape] = useState<ShapeKind>('rect');
   const [color, setColor] = useState('#ef4444');
   const [width, setWidth] = useState(6);
   const [fontSize, setFontSize] = useState(36);
@@ -133,10 +134,8 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
     }
     if (shapeRef.current) {
       const { start, current } = shapeRef.current;
-      if (tool === 'rect') {
-        drawOp(ctx, { type: 'rect', x0: start.x, y0: start.y, x1: current.x, y1: current.y, color, width });
-      } else if (tool === 'arrow') {
-        drawOp(ctx, { type: 'arrow', x0: start.x, y0: start.y, x1: current.x, y1: current.y, color, width });
+      if (tool === 'shape') {
+        drawOp(ctx, { type: shape, x0: start.x, y0: start.y, x1: current.x, y1: current.y, color, width });
       }
     }
 
@@ -152,7 +151,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
       ctx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
       ctx.restore();
     }
-  }, [display, color, width, tool, cropRect]);
+  }, [display, color, width, tool, shape, cropRect]);
 
   useEffect(() => {
     paint();
@@ -237,10 +236,8 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
       paint();
       return;
     }
-    if (tool === 'rect') {
-      pushOp({ type: 'rect', x0: start.x, y0: start.y, x1: current.x, y1: current.y, color, width });
-    } else if (tool === 'arrow') {
-      pushOp({ type: 'arrow', x0: start.x, y0: start.y, x1: current.x, y1: current.y, color, width });
+    if (tool === 'shape') {
+      pushOp({ type: shape, x0: start.x, y0: start.y, x1: current.x, y1: current.y, color, width });
     }
   };
 
@@ -425,6 +422,8 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
       <div className="border-t border-neutral-800">
         <EditorToolbar
           tool={tool}
+          shape={shape}
+          onShapeChange={setShape}
           onToolChange={(t) => {
             commitText();
             setTool(t);
