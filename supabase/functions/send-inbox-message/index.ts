@@ -273,6 +273,8 @@ Deno.serve(async (req) => {
         provider,
         meta_phone_number_id,
         instance_id,
+        addressing_mode,
+        remote_jid,
         contact:contacts(id, phone, name, label_id)
       `)
       .eq('id', conversationId)
