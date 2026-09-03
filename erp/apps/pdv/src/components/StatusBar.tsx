@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { usePos } from '../store/pos-store';
 import { SoulLogo } from './SoulLogo';
+import { ExitDialog } from '../screens/ExitDialog';
 
 /**
  * Barra de estado do terminal. Offline não é tela de erro — é um selo discreto,
@@ -7,6 +9,7 @@ import { SoulLogo } from './SoulLogo';
  */
 export function StatusBar() {
   const { bootstrap, operator, online, pendingCount, quarantinedCount, devices } = usePos();
+  const [saindo, setSaindo] = useState(false);
 
   return (
     <header className="flex items-center gap-4 bg-indigo px-5 py-3 text-white">
@@ -29,7 +32,20 @@ export function StatusBar() {
           <Badge tone="danger" label={`${quarantinedCount} venda(s) recusada(s)`} />
         )}
         <DeviceBadge label="impressora" ok={devices.printerOk} />
+
+        {/* Sem isto o operador ficava preso na tela até fechar o caixa, e a
+            gaveta seguia aberta no nome de quem já tinha ido embora. */}
+        {operator && (
+          <button
+            className="rounded-pill bg-white/15 px-4 py-1 font-mono text-[10px] uppercase tracking-widest text-white hover:bg-white/25"
+            onClick={() => setSaindo(true)}
+          >
+            sair
+          </button>
+        )}
       </div>
+
+      {saindo && <ExitDialog onClose={() => setSaindo(false)} />}
     </header>
   );
 }

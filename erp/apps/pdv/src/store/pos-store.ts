@@ -68,6 +68,8 @@ interface PosState {
   pairTerminal: (deviceToken: string) => Promise<void>;
   restore: () => Promise<void>;
   selectOperator: (operator: { id: string; name: string }) => void;
+  signOutOperator: () => void;
+  unpairTerminal: () => Promise<void>;
   openCashSession: (openingFloatCents: number) => Promise<void>;
   addItem: (item: CachedCatalogItem, quantity?: number) => void;
   setLineQuantity: (lineNumber: number, quantity: number) => void;
@@ -169,6 +171,39 @@ export const usePos = create<PosState>((set, get) => ({
   selectOperator(operator) {
     void writeSetting(OPERATOR_KEY, operator);
     set({ operator });
+  },
+
+  /**
+   * Sai do operador sem fechar o caixa.
+   *
+   * Troca de turno no meio do expediente é o caso comum: uma pessoa sai para o
+   * almoço, outra assume a mesma gaveta. O caixa continua aberto — quem fecha é
+   * o fechamento — e o carrinho é descartado, porque venda pela metade não pode
+   * mudar de dono no meio.
+   *
+   * As vendas já sincronizadas ou na fila não são tocadas: elas pertencem ao
+   * terminal, não a quem estava na tela.
+   */
+  signOutOperator() {
+    void writeSetting(OPERATOR_KEY, null);
+    set({ operator: null, cart: [] });
+  },
+
+  /**
+   * Desconecta o terminal desta máquina.
+   *
+   * É a saída de verdade: o código de ativação deixa de valer aqui e o PDV volta
+   * à tela de pareamento. Só faz sentido ao aposentar o computador ou trocar o
+   * terminal de quiosque — por isso fica atrás de confirmação, e a tela avisa
+   * quando ainda há venda na fila, que se perderia junto.
+   */
+  async unpairTerminal() {
+    await writeSetting(TOKEN_KEY, null);
+    await writeSetting(OPERATOR_KEY, null);
+    // Sem limpar o bootstrap guardado, um terminal repareado noutro quiosque
+    // mostraria o nome da loja antiga se a primeira carga cair sem rede.
+    await writeSetting('bootstrap', null);
+    set({ token: null, bootstrap: null, operator: null, sessionId: null, cart: [] });
   },
 
   async openCashSession(openingFloatCents) {
