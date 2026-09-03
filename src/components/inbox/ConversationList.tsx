@@ -558,7 +558,6 @@ export const ConversationList = ({
             </TabsTrigger>
             {hasGestaoParts && (
               <TabsTrigger value="unassigned" className="text-xs gap-1.5 px-2 py-1.5 min-w-0">
-                <UserPlus className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">Sem dono</span>
                 {unassignedCount > 0 && (
                   <Badge
