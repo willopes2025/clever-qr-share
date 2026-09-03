@@ -13,6 +13,7 @@ async function fetchWithRetry(
   url: string,
   init: RequestInit,
   maxAttempts = 3,
+  retryServerErrors = true,
 ): Promise<{ response: Response; attempts: number; lastTransientError?: string }> {
   const backoffMs = [500, 1500, 3000];
   let lastTransientError: string | undefined;
@@ -21,7 +22,7 @@ async function fetchWithRetry(
     try {
       const response = await fetch(url, init);
       // Retry only on transient server errors
-      if (response.status >= 500 && response.status <= 599 && attempt < maxAttempts) {
+      if (retryServerErrors && response.status >= 500 && response.status <= 599 && attempt < maxAttempts) {
         const bodyPreview = await response.clone().text().catch(() => '');
         lastTransientError = `HTTP ${response.status}: ${bodyPreview.slice(0, 200)}`;
         console.warn(`[SEND] Transient error on attempt ${attempt}: ${lastTransientError}. Retrying in ${backoffMs[attempt - 1]}ms...`);
