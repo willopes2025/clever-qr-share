@@ -1792,30 +1792,45 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         {pastingMedia && !pendingMedia && (
           <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Enviando imagem colada...
+            Enviando anexo...
           </div>
         )}
 
         {pendingMedia && (
           <div className="flex items-center gap-3 mb-2 p-2 rounded-lg bg-muted/50 border border-border max-w-3xl mx-auto">
             {pendingMedia.type === 'image' ? (
-              <img src={pendingMedia.url} alt={pendingMedia.name || 'anexo'} className="h-14 w-14 object-cover rounded-md shrink-0" />
+              <img src={pendingMedia.previewUrl} alt={pendingMedia.name} className="h-14 w-14 object-cover rounded-md shrink-0" />
             ) : pendingMedia.type === 'video' ? (
-              <video src={pendingMedia.url} className="h-14 w-14 object-cover rounded-md bg-black shrink-0" />
+              <video src={pendingMedia.previewUrl} className="h-14 w-14 object-cover rounded-md bg-black shrink-0" />
             ) : (
               <div className="h-14 w-14 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
                 <Paperclip className="h-5 w-5 text-primary" />
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{pendingMedia.name || 'Anexo'}</p>
-              <p className="text-xs text-muted-foreground">Escreva uma legenda (opcional) e envie</p>
+              <p className="text-sm font-medium truncate">{pendingMedia.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {pendingMedia.type === 'image'
+                  ? 'Edite a imagem, escreva uma legenda (opcional) e envie'
+                  : 'Escreva uma legenda (opcional) e envie'}
+              </p>
             </div>
+            {pendingMedia.type === 'image' && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={() => setEditorOpen(true)}
+                title="Editar imagem"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
               className="h-7 w-7 shrink-0"
-              onClick={() => setPendingMedia(null)}
+              onClick={clearPendingMedia}
               title="Remover anexo"
             >
               <X className="h-4 w-4" />
@@ -1824,19 +1839,31 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
               size="sm"
               className="shrink-0"
               onClick={() => handleSend()}
+              disabled={pastingMedia}
             >
               Enviar
             </Button>
           </div>
         )}
 
+        <ImageEditorDialog
+          open={editorOpen && pendingMedia?.type === 'image'}
+          file={pendingMedia?.type === 'image' ? pendingMedia.file : null}
+          onCancel={() => setEditorOpen(false)}
+          onDone={(edited) => {
+            stagePendingFile(edited, 'image', pendingMedia?.name || edited.name);
+            setEditorOpen(false);
+          }}
+        />
+
         <div className="flex gap-2 max-w-3xl mx-auto items-end">
           {!isMobile && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
           
           <MediaUploadButton 
-            onUpload={(url, type, name) => setPendingMedia({ url, type, name })} 
+            onSelect={(file, type) => stagePendingFile(file, type)} 
             disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
           />
+
 
 
           <FormLinkButton
