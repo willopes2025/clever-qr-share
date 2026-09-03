@@ -1924,6 +1924,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
             onSlashConfirm={handleSlashConfirm}
             onSlashEscape={handleSlashEscape}
             onPasteFiles={handlePasteFiles}
+            allowEmpty={!!pendingMedia}
           />
 
           {!isMobile && (
