@@ -33,6 +33,7 @@ interface MergeConversationsBody {
   keepConversationId: string;
   mergeConversationId: string;
   contactUpdates?: Record<string, unknown>;
+  deleteMerged?: boolean;
 }
 
 type Body = MergeDealsBody | MergeConversationsBody;
@@ -133,6 +134,9 @@ Deno.serve(async (req) => {
       }
 
       await mergeConversationInto(admin, body.keepConversationId, body.mergeConversationId);
+      if (body.deleteMerged) {
+        await admin.from('conversations').delete().eq('id', body.mergeConversationId);
+      }
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
