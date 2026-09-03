@@ -540,12 +540,12 @@ export const ConversationList = ({
         <ConversationFiltersComponent filters={filters} onFiltersChange={setFilters} />
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FilterTab)}>
           <TabsList className={cn("grid w-full gap-0.5", hasGestaoParts ? "grid-cols-2 h-auto p-1" : "grid-cols-3 h-9")}>
-            <TabsTrigger value="all" className="text-[11px] gap-1 px-1 min-w-0">
-              {!hasGestaoParts && <Inbox className="h-3.5 w-3.5 shrink-0" />}
+            <TabsTrigger value="all" className="text-xs gap-1.5 px-2 py-1.5 min-w-0">
+              <Inbox className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">Todas</span>
             </TabsTrigger>
-            <TabsTrigger value="unread" className="text-[11px] gap-1 px-1 min-w-0">
-              {!hasGestaoParts && <MessageCircle className="h-3.5 w-3.5 shrink-0" />}
+            <TabsTrigger value="unread" className="text-xs gap-1.5 px-2 py-1.5 min-w-0">
+              <MessageCircle className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">Não lidas</span>
               {unreadCount > 0 && (
                 <Badge
@@ -557,7 +557,8 @@ export const ConversationList = ({
               )}
             </TabsTrigger>
             {hasGestaoParts && (
-              <TabsTrigger value="unassigned" className="text-[11px] gap-1 px-1 min-w-0">
+              <TabsTrigger value="unassigned" className="text-xs gap-1.5 px-2 py-1.5 min-w-0">
+                <UserPlus className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">Sem dono</span>
                 {unassignedCount > 0 && (
                   <Badge
@@ -569,8 +570,8 @@ export const ConversationList = ({
                 )}
               </TabsTrigger>
             )}
-            <TabsTrigger value="archived" className="text-[11px] gap-1 px-1 min-w-0">
-              {!hasGestaoParts && <Archive className="h-3.5 w-3.5 shrink-0" />}
+            <TabsTrigger value="archived" className="text-xs gap-1.5 px-2 py-1.5 min-w-0">
+              <Archive className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">Arquivadas</span>
             </TabsTrigger>
           </TabsList>
