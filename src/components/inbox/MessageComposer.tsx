@@ -46,6 +46,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   onSlashConfirm,
   onSlashEscape,
   onPasteFiles,
+  allowEmpty = false,
 }, ref) => {
   const [value, setValue] = useState("");
   const valueRef = useRef("");
