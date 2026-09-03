@@ -137,3 +137,33 @@ export interface AppUser {
   hasPassword: boolean;
   roles: Array<{ code: string; name: string; storeId: string | null }>;
 }
+
+export interface StockBalance {
+  skuId: string;
+  code: string;
+  description: string;
+  quantity: number;
+  minStock: number;
+  avgCostCents: number;
+  belowMinimum: boolean;
+  negative: boolean;
+  nextExpiry: string | null;
+}
+
+export interface StockMovement {
+  id: string;
+  kind: string;
+  quantity: number;
+  unitCostCents: number;
+  reason: string | null;
+  lotCode: string | null;
+  occurredAt: string;
+}
+
+export interface CountDifference {
+  skuId: string;
+  description: string;
+  expected: number;
+  counted: number;
+  difference: number;
+}

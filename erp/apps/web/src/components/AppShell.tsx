@@ -5,6 +5,7 @@ import { SoulLogo } from './SoulLogo';
 const SECTIONS = [
   { to: '/', label: 'Desempenho', end: true },
   { to: '/produtos', label: 'Produtos' },
+  { to: '/estoque', label: 'Estoque' },
   { to: '/fiscal', label: 'Fiscal' },
   { to: '/lojas', label: 'Lojas e terminais' },
   { to: '/usuarios', label: 'Usuários' },
