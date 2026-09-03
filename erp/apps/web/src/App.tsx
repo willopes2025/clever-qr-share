@@ -10,6 +10,7 @@ import { StoresScreen } from './screens/StoresScreen';
 import { UsersScreen } from './screens/UsersScreen';
 import { FiscalScreen } from './screens/FiscalScreen';
 import { StockScreen } from './screens/StockScreen';
+import { SalesScreen } from './screens/SalesScreen';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -33,6 +34,7 @@ export default function App() {
           <Route element={<AppShell onSignOut={() => setSignedIn(false)} />}>
             <Route index element={<DashboardScreen />} />
             <Route path="produtos" element={<ProductsScreen />} />
+            <Route path="vendas" element={<SalesScreen />} />
             <Route path="estoque" element={<StockScreen />} />
             <Route path="fiscal" element={<FiscalScreen />} />
             <Route path="lojas" element={<StoresScreen />} />

@@ -11,6 +11,7 @@ export interface SaleFinalizedEvent {
 
 export interface DomainEventMap {
   'sale.finalized': SaleFinalizedEvent;
+  'sale.cancelled': { tenantId: string; storeId: string; saleId: string; reason: string };
   'cash.session.closed': { tenantId: string; sessionId: string; differenceCents: bigint };
   'fiscal.document.authorized': { tenantId: string; documentId: string; saleId: string | null };
   'fiscal.document.rejected': { tenantId: string; documentId: string; code: string; message: string };

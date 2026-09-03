@@ -559,6 +559,10 @@ model Sale {
   costCents        BigInt     @default(0) @map("cost_cents")
   channel          String     @default("pos")
   originalSaleId   String?    @map("original_sale_id")
+  /// Cancelamento deixa rastro: sem motivo e hora, some a diferença entre
+  /// erro de digitação e dinheiro saindo pela porta.
+  cancelReason     String?    @map("cancel_reason")
+  cancelledAt      DateTime?  @map("cancelled_at")
   occurredAt       DateTime   @map("occurred_at")
   receivedAt       DateTime   @default(now()) @map("received_at")
   clockSkewMs      Int?       @map("clock_skew_ms")

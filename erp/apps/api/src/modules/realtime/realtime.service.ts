@@ -35,6 +35,12 @@ export class RealtimeService implements OnModuleInit {
       totalCents: Number(payload.totalCents),
       occurredAt: payload.occurredAt.toISOString(),
     }));
+    // Cancelamento muda faturamento e estoque: o painel precisa saber na hora.
+    this.relay('sale.cancelled', (payload) => ({
+      saleId: payload.saleId,
+      storeId: payload.storeId,
+      reason: payload.reason,
+    }));
     this.relay('cash.session.closed', (payload) => ({
       sessionId: payload.sessionId,
       differenceCents: Number(payload.differenceCents),

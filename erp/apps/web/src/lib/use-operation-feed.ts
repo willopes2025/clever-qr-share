@@ -5,6 +5,7 @@ import { listenToOperation, type RealtimeMessage } from './realtime';
 /** O que cada evento manda recarregar. */
 const AFFECTED: Record<string, string[]> = {
   'sale.finalized': ['live', 'hourly', 'mix', 'terminals'],
+  'sale.cancelled': ['live', 'hourly', 'mix', 'sales'],
   'cash.session.closed': ['live', 'terminals'],
   'fiscal.document.authorized': ['fiscal', 'fiscal-documents'],
   'fiscal.document.rejected': ['fiscal', 'fiscal-documents'],

@@ -154,12 +154,23 @@ export class InventoryService {
     return shortfalls;
   }
 
-  /** Devolução: o estoque volta para o mesmo lote de onde saiu. */
+  /**
+   * Devolução: desfaz a baixa da venda.
+   *
+   * Passa pela mesma ficha técnica da saída — senão cancelar a venda de um pote
+   * devolveria "pote" ao estoque, criando do nada um item que nunca existiu e
+   * deixando o granel e a embalagem a menos para sempre.
+   *
+   * Volta para o saldo sem lote: de qual lote saiu cada grama não é rastreado,
+   * e devolver a um lote específico seria inventar dado.
+   */
   async returnToStock(
     tx: TransactionClient,
     input: ConsumeSaleInput & { originalSaleId: string },
   ): Promise<void> {
-    for (const item of input.items) {
+    const items = await this.resolveComponents(tx, input.tenantId, input.items);
+
+    for (const item of items) {
       await this.applyMovement(tx, {
         tenantId: input.tenantId,
         storeId: input.storeId,
@@ -170,6 +181,7 @@ export class InventoryService {
         kind: 'return',
         refType: 'sale',
         refId: input.originalSaleId,
+        reason: 'Estorno de venda cancelada',
         userId: input.userId,
         occurredAt: input.occurredAt,
       });

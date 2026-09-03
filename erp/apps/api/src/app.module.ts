@@ -13,6 +13,7 @@ import { FiscalModule } from './modules/fiscal/fiscal.module';
 import { IamModule } from './modules/iam/iam.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { PosModule } from './modules/pos/pos.module';
+import { SalesModule } from './modules/sales/sales.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { TelemetryModule } from './modules/telemetry/telemetry.module';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
@@ -32,6 +33,7 @@ import { HealthController } from './health.controller';
     PosModule,
     AnalyticsModule,
     TelemetryModule,
+    SalesModule,
     RealtimeModule,
   ],
   controllers: [HealthController],

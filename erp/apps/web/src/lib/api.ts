@@ -167,3 +167,54 @@ export interface CountDifference {
   counted: number;
   difference: number;
 }
+
+export interface SaleRow {
+  id: string;
+  number: number;
+  storeName: string;
+  terminalCode: string | null;
+  status: string;
+  totalCents: number;
+  occurredAt: string;
+  methods: string[];
+  fiscal: { status: string; number: number | null; accessKey: string | null } | null;
+}
+
+export interface SaleDetail {
+  id: string;
+  number: number;
+  status: string;
+  storeName: string;
+  terminalCode: string | null;
+  operatorName: string | null;
+  customerDocument: string | null;
+  occurredAt: string;
+  grossCents: number;
+  discountCents: number;
+  totalCents: number;
+  items: Array<{
+    lineNumber: number;
+    description: string;
+    quantity: number;
+    unit: string;
+    unitPriceCents: number;
+    discountCents: number;
+    totalCents: number;
+  }>;
+  payments: Array<{
+    method: string;
+    amountCents: number;
+    changeCents: number;
+    cardBrand: string | null;
+    installments: number;
+  }>;
+  fiscal: {
+    id: string;
+    status: string;
+    number: number | null;
+    accessKey: string | null;
+    qrCode: string | null;
+    danfeUrl: string | null;
+    rejectionMsg: string | null;
+  } | null;
+}
