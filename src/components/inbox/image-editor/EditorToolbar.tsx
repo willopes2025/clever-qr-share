@@ -104,7 +104,7 @@ export const EditorToolbar = ({
               </Button>
             </PopoverTrigger>
           </div>
-          <PopoverContent side="top" align="center" className="w-auto p-1 flex gap-1 bg-neutral-900 border-neutral-700">
+          <PopoverContent side="top" align="center" className="z-[200] w-auto p-1 flex gap-1 bg-neutral-900 border-neutral-700">
             {SHAPES.map(({ id, icon: Icon, label }) => (
               <Button
                 key={id}
