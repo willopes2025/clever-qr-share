@@ -28,13 +28,28 @@ interface MessageBubbleProps {
   instancePhoneNumber?: string | null;
   onReact?: (messageId: string, emoji: string) => void;
   onReply?: (message: InboxMessage) => void;
+  onResend?: (message: InboxMessage) => void;
 }
 
-const MessageBubbleComponent = ({ message, isOptimistic, instancePhoneNumber, onReact, onReply }: MessageBubbleProps) => {
+// Após esse tempo sem confirmação de entrega, tratamos a mensagem como
+// "não confirmada" — normalmente o aparelho do cliente não conseguiu
+// descriptografar e exibe "Aguardando mensagem".
+const UNCONFIRMED_AFTER_MS = 10 * 60 * 1000;
+
+const MessageBubbleComponent = ({ message, isOptimistic, instancePhoneNumber, onReact, onReply, onResend }: MessageBubbleProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const isOutbound = message.direction === "outbound";
   const isFailed = message.status === "failed";
-  
+
+  const isUnconfirmed =
+    isOutbound &&
+    !isOptimistic &&
+    !isFailed &&
+    !message.delivered_at &&
+    !message.read_at &&
+    !!message.sent_at &&
+    Date.now() - new Date(message.sent_at).getTime() > UNCONFIRMED_AFTER_MS;
+
   const getStatusIcon = () => {
     if (isOptimistic || message.status === "sending") {
       return <Loader2 className="h-3 w-3 animate-spin text-[#667781] dark:text-[#8696a0]" />;
@@ -70,11 +85,46 @@ const MessageBubbleComponent = ({ message, isOptimistic, instancePhoneNumber, on
     if (message.delivered_at) {
       return <CheckCheck className="h-3 w-3 text-[#667781] dark:text-[#8696a0]" />;
     }
+    if (isUnconfirmed) {
+      return (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="inline-flex items-center hover:scale-125 transition-transform cursor-pointer" title="Entrega não confirmada">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="top" align="end" className="w-72 p-0">
+            <div className="p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                <span className="text-sm font-medium text-amber-600 dark:text-amber-400">Entrega não confirmada</span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                O WhatsApp aceitou o envio, mas o aparelho do cliente ainda não confirmou o recebimento.
+                Em alguns casos o cliente vê "Aguardando mensagem". Você pode reenviar.
+              </p>
+              {onResend && (
+                <button
+                  className="w-full rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+                  onClick={() => onResend(message)}
+                >
+                  Reenviar mensagem
+                </button>
+              )}
+              <p className="text-[10px] text-muted-foreground/70">
+                {formatFullDateTimeBR(message.created_at)}
+              </p>
+            </div>
+          </PopoverContent>
+        </Popover>
+      );
+    }
     if (message.sent_at) {
       return <Check className="h-3 w-3 text-[#667781] dark:text-[#8696a0]" />;
     }
     return <Clock className="h-3 w-3 text-[#667781] dark:text-[#8696a0]" />;
   };
+
 
   const senderName = message.sent_by_user?.full_name;
   const isAIMessage = message.is_ai_generated || !!message.sent_by_ai_agent_id;
