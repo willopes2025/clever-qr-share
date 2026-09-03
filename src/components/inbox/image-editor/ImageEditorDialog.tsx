@@ -227,11 +227,11 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
       if (points.length) pushOp({ type: 'stroke', points, color, width });
       return;
     }
-    const shape = shapeRef.current;
+    const draft = shapeRef.current;
     shapeRef.current = null;
-    if (!shape) return;
+    if (!draft) return;
     if (tool === 'crop') return; // waits for explicit confirmation
-    const { start, current } = shape;
+    const { start, current } = draft;
     if (Math.hypot(current.x - start.x, current.y - start.y) < 4) {
       paint();
       return;
