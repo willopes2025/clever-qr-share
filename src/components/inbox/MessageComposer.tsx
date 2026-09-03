@@ -28,6 +28,7 @@ interface MessageComposerProps {
   onSlashConfirm: () => void;
   onSlashEscape: () => void;
   onPasteFiles?: (files: File[]) => void;
+  allowEmpty?: boolean;
 }
 
 export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposerProps>(({
@@ -45,6 +46,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   onSlashConfirm,
   onSlashEscape,
   onPasteFiles,
+  allowEmpty = false,
 }, ref) => {
   const [value, setValue] = useState("");
   const valueRef = useRef("");
@@ -140,7 +142,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     }
   };
 
-  const canSend = value.trim().length > 0 && !disabled && !isAutoCorrect;
+  const canSend = (value.trim().length > 0 || allowEmpty) && !disabled && !isAutoCorrect;
 
   return (
     <>
