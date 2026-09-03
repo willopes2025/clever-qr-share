@@ -140,7 +140,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     }
   };
 
-  const canSend = value.trim().length > 0 && !disabled && !isAutoCorrect;
+  const canSend = (value.trim().length > 0 || allowEmpty) && !disabled && !isAutoCorrect;
 
   return (
     <>
