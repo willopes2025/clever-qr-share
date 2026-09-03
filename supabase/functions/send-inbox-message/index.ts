@@ -718,13 +718,19 @@ Deno.serve(async (req) => {
       };
     }
 
+    // Envio NÃO é idempotente: um 5xx pode significar que a Evolution já
+    // processou/criptografou a mensagem. Reenviar nesse caso dessincroniza a
+    // sessão do WhatsApp e provoca "Aguardando mensagem" no cliente.
+    // Só repetimos quando a requisição comprovadamente não chegou (erro de rede).
     const { response, attempts, lastTransientError } = await fetchWithRetry(
       `${evolutionApiUrl}/message/sendText/${evolutionName}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
         body: JSON.stringify(sendPayload),
-      }
+      },
+      3,
+      false,
     );
 
     let result: any;
