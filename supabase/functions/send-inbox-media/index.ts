@@ -418,6 +418,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Responder pelo mesmo endereçamento da conversa (LID x telefone) para evitar
+    // que a mídia chegue como "Aguardando mensagem" no aparelho do cliente.
+    const conversationJid: string | null = (conversation as any).remote_jid || null;
+    const conversationMode: string | null = (conversation as any).addressing_mode || null;
+    if (!targetPhone && conversationMode === 'lid' && conversationJid?.endsWith('@lid') && phone !== conversationJid) {
+      console.log(`[SEND-MEDIA] Ajustando endereçamento para LID da conversa: ${phone} -> ${conversationJid}`);
+      phone = conversationJid;
+    }
+
     // Create message record first
     const { data: message, error: msgError } = await supabase
       .from('inbox_messages')
@@ -432,6 +441,7 @@ Deno.serve(async (req) => {
         sent_at: new Date().toISOString(),
         sent_by_user_id: senderUserId,
         sent_via_instance_id: instanceId,
+        sent_to_jid: phone.includes('@') ? phone : `${phone}@s.whatsapp.net`,
       })
       .select()
       .single();
