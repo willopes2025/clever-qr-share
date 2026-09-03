@@ -469,7 +469,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       ? file.name
       : `colado-${Date.now()}.${(file.type.split('/')[1] || 'png').split(';')[0]}`;
     stagePendingFile(file, type, name);
-    toast.success('Anexo pronto — edite, escreva uma legenda ou envie');
+
   };
 
   // Helper: determine effective sender (Meta or Evolution) for any conversation
