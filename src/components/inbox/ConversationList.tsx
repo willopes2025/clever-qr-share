@@ -539,7 +539,7 @@ export const ConversationList = ({
         {/* Filters */}
         <ConversationFiltersComponent filters={filters} onFiltersChange={setFilters} />
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FilterTab)}>
-          <TabsList className={cn("grid w-full h-9 gap-0.5", hasGestaoParts ? "grid-cols-4" : "grid-cols-3")}>
+          <TabsList className={cn("grid w-full gap-0.5", hasGestaoParts ? "grid-cols-2 h-auto p-1" : "grid-cols-3 h-9")}>
             <TabsTrigger value="all" className="text-[11px] gap-1 px-1 min-w-0">
               {!hasGestaoParts && <Inbox className="h-3.5 w-3.5 shrink-0" />}
               <span className="truncate">Todas</span>
