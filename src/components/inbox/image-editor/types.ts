@@ -1,4 +1,6 @@
-export type EditorTool = 'pen' | 'text' | 'rect' | 'arrow' | 'crop';
+export type EditorTool = 'pen' | 'text' | 'shape' | 'crop';
+
+export type ShapeKind = 'rect' | 'ellipse' | 'line' | 'arrow';
 
 export interface Point {
   x: number;
@@ -32,6 +34,26 @@ export interface ArrowOp {
   width: number;
 }
 
+export interface EllipseOp {
+  type: 'ellipse';
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  color: string;
+  width: number;
+}
+
+export interface LineOp {
+  type: 'line';
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  color: string;
+  width: number;
+}
+
 export interface TextOp {
   type: 'text';
   x: number;
@@ -53,7 +75,7 @@ export interface CropOp {
   h: number;
 }
 
-export type EditorOp = StrokeOp | RectOp | ArrowOp | TextOp | RotateOp | CropOp;
+export type EditorOp = StrokeOp | RectOp | EllipseOp | LineOp | ArrowOp | TextOp | RotateOp | CropOp;
 
 export const EDITOR_COLORS = [
   '#ffffff',

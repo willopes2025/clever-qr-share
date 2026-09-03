@@ -1,4 +1,4 @@
-import type { EditorOp, StrokeOp, RectOp, ArrowOp, TextOp } from './types';
+import type { EditorOp, StrokeOp, RectOp, EllipseOp, LineOp, ArrowOp, TextOp } from './types';
 
 export const MAX_EDGE = 4096;
 
@@ -53,6 +53,32 @@ function drawRect(ctx: CanvasRenderingContext2D, op: RectOp) {
   ctx.restore();
 }
 
+function drawEllipse(ctx: CanvasRenderingContext2D, op: EllipseOp) {
+  ctx.save();
+  ctx.strokeStyle = op.color;
+  ctx.lineWidth = op.width;
+  const cx = (op.x0 + op.x1) / 2;
+  const cy = (op.y0 + op.y1) / 2;
+  const rx = Math.abs(op.x1 - op.x0) / 2;
+  const ry = Math.abs(op.y1 - op.y0) / 2;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, Math.max(rx, 0.5), Math.max(ry, 0.5), 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawLine(ctx: CanvasRenderingContext2D, op: LineOp) {
+  ctx.save();
+  ctx.strokeStyle = op.color;
+  ctx.lineWidth = op.width;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(op.x0, op.y0);
+  ctx.lineTo(op.x1, op.y1);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawArrow(ctx: CanvasRenderingContext2D, op: ArrowOp) {
   ctx.save();
   ctx.strokeStyle = op.color;
@@ -99,6 +125,10 @@ export function drawOp(ctx: CanvasRenderingContext2D, op: EditorOp) {
       return drawStroke(ctx, op);
     case 'rect':
       return drawRect(ctx, op);
+    case 'ellipse':
+      return drawEllipse(ctx, op);
+    case 'line':
+      return drawLine(ctx, op);
     case 'arrow':
       return drawArrow(ctx, op);
     case 'text':
