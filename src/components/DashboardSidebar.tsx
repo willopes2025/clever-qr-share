@@ -266,19 +266,23 @@ export const DashboardSidebar = () => {
       >
         {/* Logo and Toggle */}
         <div className={cn(
-          "h-16 flex items-center border-b border-sidebar-border/30",
-          isCollapsed ? "justify-center px-2" : "justify-between px-4"
+          "h-16 shrink-0 flex items-center gap-2 overflow-hidden border-b border-sidebar-border/30",
+          isCollapsed ? "justify-center px-2" : "justify-between px-3"
         )}>
           {!isCollapsed && (
-            <img src={wideLogo} alt="Widezap" className="h-10 w-auto" />
+            <img src={wideLogo} alt="Widezap" className="h-8 w-auto max-w-[104px] object-contain shrink-0" />
           )}
-          <div className="flex items-center gap-2">
-            {!isCollapsed && <SessionStatusBadge />}
+          <div className="flex items-center gap-1 min-w-0">
+            {!isCollapsed && (
+              <div className="min-w-0 [&_button]:max-w-full [&_button]:truncate">
+                <SessionStatusBadge />
+              </div>
+            )}
             <Button
               variant="ghost"
               size="icon"
               onClick={toggle}
-              className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+              className="h-8 w-8 shrink-0 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
             >
               {isCollapsed ? (
                 <PanelLeft className="h-4 w-4" />
@@ -291,9 +295,10 @@ export const DashboardSidebar = () => {
 
         {/* Navigation */}
         <nav className={cn(
-          "flex-1 py-4 overflow-y-auto",
+          "flex-1 min-h-0 py-4 overflow-y-auto",
           isCollapsed ? "px-2" : "px-3"
         )}>
+
           {dynamicNavGroups.map((group, groupIndex) => {
             const visibleItems = filterItems(group.items);
             if (visibleItems.length === 0) return null;
