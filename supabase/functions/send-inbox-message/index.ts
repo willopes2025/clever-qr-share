@@ -13,6 +13,7 @@ async function fetchWithRetry(
   url: string,
   init: RequestInit,
   maxAttempts = 3,
+  retryServerErrors = true,
 ): Promise<{ response: Response; attempts: number; lastTransientError?: string }> {
   const backoffMs = [500, 1500, 3000];
   let lastTransientError: string | undefined;
@@ -21,7 +22,7 @@ async function fetchWithRetry(
     try {
       const response = await fetch(url, init);
       // Retry only on transient server errors
-      if (response.status >= 500 && response.status <= 599 && attempt < maxAttempts) {
+      if (retryServerErrors && response.status >= 500 && response.status <= 599 && attempt < maxAttempts) {
         const bodyPreview = await response.clone().text().catch(() => '');
         lastTransientError = `HTTP ${response.status}: ${bodyPreview.slice(0, 200)}`;
         console.warn(`[SEND] Transient error on attempt ${attempt}: ${lastTransientError}. Retrying in ${backoffMs[attempt - 1]}ms...`);
@@ -273,6 +274,8 @@ Deno.serve(async (req) => {
         provider,
         meta_phone_number_id,
         instance_id,
+        addressing_mode,
+        remote_jid,
         contact:contacts(id, phone, name, label_id)
       `)
       .eq('id', conversationId)
@@ -635,9 +638,9 @@ Deno.serve(async (req) => {
     const rawPhone = targetPhone || contactData.phone || '';
     let phone = rawPhone.replace(/\D/g, '');
     let remoteJid: string;
-    
+
     const isLabelIdContact = rawPhone.startsWith('LID_') || (!!contactData.label_id && (!phone || phone.length > 13));
-    
+
     if (isLabelIdContact) {
       const labelId = contactData.label_id || phone;
       if (!labelId) throw new Error('LID não encontrado para o contato');
@@ -648,6 +651,24 @@ Deno.serve(async (req) => {
       if (phone.length < 12 || phone.length > 13) throw new Error('Número inválido: formato incorreto');
       remoteJid = `${phone}@s.whatsapp.net`;
     }
+
+    // Alinhamento de endereçamento: se o cliente fala com a gente em modo LID,
+    // precisamos responder para o MESMO JID em que a sessão de criptografia foi
+    // criada. Responder pelo telefone nesse caso faz o aparelho do cliente
+    // exibir "Aguardando mensagem" (pacote não descriptografável).
+    const conversationJid: string | null = (conversation as any).remote_jid || null;
+    const conversationMode: string | null = (conversation as any).addressing_mode || null;
+    if (
+      !targetPhone &&
+      conversationMode === 'lid' &&
+      conversationJid?.endsWith('@lid')
+    ) {
+      if (remoteJid !== conversationJid) {
+        console.log(`[SEND] Ajustando endereçamento para LID da conversa: ${remoteJid} -> ${conversationJid}`);
+      }
+      remoteJid = conversationJid;
+    }
+
 
     const evolutionName = instance.evolution_instance_name || instance.instance_name;
 
@@ -664,6 +685,7 @@ Deno.serve(async (req) => {
         sent_at: new Date().toISOString(),
         sent_by_user_id: senderUserId,
         sent_via_instance_id: instanceId,
+        sent_to_jid: remoteJid,
         quoted_message: quotedMessage ? {
           whatsapp_message_id: quotedMessage.whatsapp_message_id,
           content: quotedMessage.content,
@@ -696,13 +718,19 @@ Deno.serve(async (req) => {
       };
     }
 
+    // Envio NÃO é idempotente: um 5xx pode significar que a Evolution já
+    // processou/criptografou a mensagem. Reenviar nesse caso dessincroniza a
+    // sessão do WhatsApp e provoca "Aguardando mensagem" no cliente.
+    // Só repetimos quando a requisição comprovadamente não chegou (erro de rede).
     const { response, attempts, lastTransientError } = await fetchWithRetry(
       `${evolutionApiUrl}/message/sendText/${evolutionName}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
         body: JSON.stringify(sendPayload),
-      }
+      },
+      3,
+      false,
     );
 
     let result: any;

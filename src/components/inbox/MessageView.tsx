@@ -166,6 +166,19 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     setTimeout(() => composerRef.current?.focus(), 50);
   }, []);
 
+  // Reenvio de mensagem sem confirmação de entrega ("Aguardando mensagem" no cliente)
+  const sendMessageRef = useRef(sendMessage);
+  sendMessageRef.current = sendMessage;
+  const handleBubbleResend = useCallback((msg: InboxMessage) => {
+    if (!msg.content) return;
+    sendMessageRef.current.mutate({
+      content: msg.content,
+      conversationId: conversationIdRef.current,
+      instanceId: selectedInstanceIdRef.current,
+    });
+  }, []);
+
+
   const instancePhoneNumberForBubble = useMemo(
     () => connectedInstances.find(i => i.id === selectedInstanceId)?.phone_number,
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1611,6 +1624,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                       instancePhoneNumber={instancePhoneNumberForBubble}
                       onReact={handleBubbleReact}
                       onReply={handleBubbleReply}
+                      onResend={handleBubbleResend}
                     />
                   </Fragment>
                 );
