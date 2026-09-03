@@ -1414,6 +1414,13 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         console.log('[LEAD-DISTRIBUTION] No distribution settings or not enabled:', distError);
       }
       
+      // Endereçamento técnico usado pelo cliente nesta conversa (LID x telefone).
+      // Precisamos responder pelo MESMO endereço, senão o aparelho do cliente
+      // não consegue descriptografar e mostra "Aguardando mensagem".
+      const inboundAddressingMode: string = key.addressingMode
+        || (remoteJid.includes('@lid') ? 'lid' : 'pn');
+      const inboundRemoteJid: string = remoteJid;
+
       // Create new conversation - using UPSERT to handle race conditions
       const { data: newConversation, error: convError } = await supabase
         .from('conversations')
@@ -1427,6 +1434,8 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
           last_message_preview: preview,
           last_message_direction: isFromMe ? 'outbound' : 'inbound',
           assigned_to: assignedTo,
+          addressing_mode: inboundAddressingMode,
+          remote_jid: inboundRemoteJid,
         }, { 
           onConflict: 'user_id,contact_id' 
         })
