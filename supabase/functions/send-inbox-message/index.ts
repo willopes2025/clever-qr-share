@@ -637,9 +637,9 @@ Deno.serve(async (req) => {
     const rawPhone = targetPhone || contactData.phone || '';
     let phone = rawPhone.replace(/\D/g, '');
     let remoteJid: string;
-    
+
     const isLabelIdContact = rawPhone.startsWith('LID_') || (!!contactData.label_id && (!phone || phone.length > 13));
-    
+
     if (isLabelIdContact) {
       const labelId = contactData.label_id || phone;
       if (!labelId) throw new Error('LID não encontrado para o contato');
@@ -650,6 +650,24 @@ Deno.serve(async (req) => {
       if (phone.length < 12 || phone.length > 13) throw new Error('Número inválido: formato incorreto');
       remoteJid = `${phone}@s.whatsapp.net`;
     }
+
+    // Alinhamento de endereçamento: se o cliente fala com a gente em modo LID,
+    // precisamos responder para o MESMO JID em que a sessão de criptografia foi
+    // criada. Responder pelo telefone nesse caso faz o aparelho do cliente
+    // exibir "Aguardando mensagem" (pacote não descriptografável).
+    const conversationJid: string | null = (conversation as any).remote_jid || null;
+    const conversationMode: string | null = (conversation as any).addressing_mode || null;
+    if (
+      !targetPhone &&
+      conversationMode === 'lid' &&
+      conversationJid?.endsWith('@lid')
+    ) {
+      if (remoteJid !== conversationJid) {
+        console.log(`[SEND] Ajustando endereçamento para LID da conversa: ${remoteJid} -> ${conversationJid}`);
+      }
+      remoteJid = conversationJid;
+    }
+
 
     const evolutionName = instance.evolution_instance_name || instance.instance_name;
 
