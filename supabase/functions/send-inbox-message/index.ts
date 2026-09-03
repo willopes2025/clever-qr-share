@@ -684,6 +684,7 @@ Deno.serve(async (req) => {
         sent_at: new Date().toISOString(),
         sent_by_user_id: senderUserId,
         sent_via_instance_id: instanceId,
+        sent_to_jid: remoteJid,
         quoted_message: quotedMessage ? {
           whatsapp_message_id: quotedMessage.whatsapp_message_id,
           content: quotedMessage.content,
