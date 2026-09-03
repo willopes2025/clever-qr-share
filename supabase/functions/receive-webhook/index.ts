@@ -1503,7 +1503,10 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         last_message_preview: preview,
         last_message_direction: isFromMe ? 'outbound' : 'inbound',
         instance_id: instanceId,
+        addressing_mode: key.addressingMode || (remoteJid.includes('@lid') ? 'lid' : 'pn'),
+        remote_jid: remoteJid,
       };
+
 
       // Reopen archived conversations when inbound message arrives
       if (!isFromMe && conversation.status === 'archived') {
