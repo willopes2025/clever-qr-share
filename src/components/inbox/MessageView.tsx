@@ -418,11 +418,41 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   }, [optimisticMessages.length]);
 
-  // Pending attachment awaiting caption / confirmation before sending
-  const [pendingMedia, setPendingMedia] = useState<{ url: string; type: 'image' | 'document' | 'video'; name?: string } | null>(null);
+  // Pending attachment kept in memory (File + object URL) until the user hits send
+  const [pendingMedia, setPendingMedia] = useState<{ file: File; previewUrl: string; type: 'image' | 'document' | 'video'; name: string } | null>(null);
   const [pastingMedia, setPastingMedia] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
 
-  // Paste an image/file from the clipboard: uploads and stages it for review
+  const stagePendingFile = (file: File, type: 'image' | 'document' | 'video', displayName?: string) => {
+    setPendingMedia((prev) => {
+      if (prev) URL.revokeObjectURL(prev.previewUrl);
+      return {
+        file,
+        previewUrl: URL.createObjectURL(file),
+        type,
+        name: displayName || file.name || 'anexo',
+      };
+    });
+  };
+
+  const clearPendingMedia = () => {
+    setPendingMedia((prev) => {
+      if (prev) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+  };
+
+  // Revoke the object URL when the view unmounts
+  useEffect(() => {
+    return () => {
+      setPendingMedia((prev) => {
+        if (prev) URL.revokeObjectURL(prev.previewUrl);
+        return null;
+      });
+    };
+  }, []);
+
+  // Paste an image/file from the clipboard: stages it locally for review
   const handlePasteFiles = async (files: File[]) => {
     const file = files[0];
     if (!file) return;
@@ -434,21 +464,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       toast.error(`Arquivo muito grande. Máximo ${type === 'video' ? '200MB' : '10MB'}.`);
       return;
     }
-    setPastingMedia(true);
-    try {
-      const url = await uploadInboxMedia(file);
-      const name = file.name && file.name !== 'image.png'
-        ? file.name
-        : `colado-${Date.now()}.${(file.type.split('/')[1] || 'png').split(';')[0]}`;
-      setPendingMedia({ url, type, name });
-      toast.success('Anexo pronto — escreva uma legenda ou envie');
-    } catch (error: any) {
-      const detail = error?.message || 'erro desconhecido';
-      console.error('Paste upload error:', detail, error);
-      toast.error(`Erro ao enviar arquivo: ${detail}`);
-    } finally {
-      setPastingMedia(false);
-    }
+    const name = file.name && file.name !== 'image.png'
+      ? file.name
+      : `colado-${Date.now()}.${(file.type.split('/')[1] || 'png').split(';')[0]}`;
+    stagePendingFile(file, type, name);
+    toast.success('Anexo pronto — edite, escreva uma legenda ou envie');
   };
 
   // Helper: determine effective sender (Meta or Evolution) for any conversation
@@ -459,16 +479,28 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
     const textToSend = (messageText ?? composerRef.current?.getValue() ?? "").trim();
 
-    // If there's a pending attachment, send it (with the typed text as caption)
+    // If there's a pending attachment, upload it now and send (typed text = caption)
     if (pendingMedia && hasValidSender) {
       const attachment = pendingMedia;
       setPendingMedia(null);
       composerRef.current?.clear();
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
-      await handleSendMedia(attachment.url, attachment.type, attachment.name, textToSend || undefined);
+      setPastingMedia(true);
+      try {
+        const url = await uploadInboxMedia(attachment.file);
+        URL.revokeObjectURL(attachment.previewUrl);
+        await handleSendMedia(url, attachment.type, attachment.name, textToSend || undefined);
+      } catch (error: any) {
+        console.error('Media upload error:', error);
+        toast.error(`Erro ao enviar arquivo: ${error?.message || 'erro desconhecido'}`);
+        setPendingMedia(attachment);
+      } finally {
+        setPastingMedia(false);
+      }
       composerRef.current?.focus();
       return;
     }
+
 
     if (!textToSend || !hasValidSender) return;
 
