@@ -414,9 +414,10 @@ export const DashboardSidebar = () => {
 
         {/* Bottom section */}
         <div className={cn(
-          "border-t border-sidebar-border/30 space-y-2",
+          "shrink-0 border-t border-sidebar-border/30 space-y-2",
           isCollapsed ? "p-2" : "p-4"
         )}>
+
           {isCollapsed ? (
             <>
               {/* Avatar quando colapsado */}
