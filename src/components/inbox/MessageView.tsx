@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
-import { Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, UserCheck, Cloud, Phone, MailCheck, Paperclip } from "lucide-react";
+import { Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, UserCheck, Cloud, Phone, MailCheck, Paperclip, Pencil } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { ConversationCardHeader } from "./ConversationCard";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ import { ScrollToBottomButton } from "./ScrollToBottomButton";
 import { VoiceRecorder } from "./VoiceRecorder";
 import { MediaUploadButton } from "./MediaUploadButton";
 import { uploadInboxMedia } from "@/lib/inbox-media-upload";
+import { ImageEditorDialog } from "./image-editor/ImageEditorDialog";
 import { AIAssistantButton } from "./AIAssistantButton";
 import { TransferConversationDialog } from "./TransferConversationDialog";
 import { NotesTab } from "./NotesTab";
