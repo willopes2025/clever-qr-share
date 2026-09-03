@@ -1624,6 +1624,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                       instancePhoneNumber={instancePhoneNumberForBubble}
                       onReact={handleBubbleReact}
                       onReply={handleBubbleReply}
+                      onResend={handleBubbleResend}
                     />
                   </Fragment>
                 );
