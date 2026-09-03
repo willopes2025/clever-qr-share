@@ -70,15 +70,6 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, file]);
 
-  // ---- re-render the ops pipeline whenever the op list changes ----
-  useEffect(() => {
-    if (!image || !baseSize.w) return;
-    renderedRef.current = renderOps(image, baseSize.w, baseSize.h, ops);
-    setCropRect(null);
-    paint();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [image, baseSize, ops]);
-
   // ---- fit rendered canvas inside the viewport ----
   const recomputeDisplay = useCallback(() => {
     const rendered = renderedRef.current;
@@ -88,15 +79,38 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
     const maxH = container.clientHeight;
     if (!maxW || !maxH) return;
     const scale = Math.min(maxW / rendered.width, maxH / rendered.height, 1);
-    setDisplay({ w: Math.round(rendered.width * scale), h: Math.round(rendered.height * scale), scale });
+    setDisplay((prev) => {
+      const next = { w: Math.round(rendered.width * scale), h: Math.round(rendered.height * scale), scale };
+      if (prev.w === next.w && prev.h === next.h && prev.scale === next.scale) return prev;
+      return next;
+    });
   }, []);
 
-  useLayoutEffect(() => {
+  // ---- re-render the ops pipeline whenever the op list changes ----
+  useEffect(() => {
+    if (!image || !baseSize.w) return;
+    renderedRef.current = renderOps(image, baseSize.w, baseSize.h, ops);
+    setCropRect(null);
+    // The rendered bitmap may have changed size (rotate/crop): refit before painting.
     recomputeDisplay();
-    const onResize = () => recomputeDisplay();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [recomputeDisplay, ops, image, baseSize, open]);
+    paint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [image, baseSize, ops, recomputeDisplay]);
+
+  // Keep the fit in sync with container resizes (panels, window, orientation).
+  useLayoutEffect(() => {
+    if (!open) return;
+    recomputeDisplay();
+    const container = containerRef.current;
+    const ro = new ResizeObserver(() => recomputeDisplay());
+    if (container) ro.observe(container);
+    window.addEventListener('resize', recomputeDisplay);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', recomputeDisplay);
+    };
+  }, [recomputeDisplay, open, image, baseSize]);
+
 
   // ---- paint visible canvas: rendered result + live draft + crop overlay ----
   const paint = useCallback(() => {
@@ -311,15 +325,15 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
     : null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex flex-col bg-neutral-950/97">
+    <div className="fixed inset-0 z-[100] flex flex-col bg-neutral-950">
       {/* top bar */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-background/10">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-neutral-800">
         <Button
           variant="ghost"
           size="icon"
           onClick={onCancel}
           title="Cancelar edição"
-          className="text-background/80 hover:bg-background/15 hover:text-background"
+          className="text-neutral-200 hover:bg-neutral-800 hover:text-neutral-50"
         >
           <X className="h-5 w-5" />
         </Button>
@@ -331,7 +345,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
             onClick={undo}
             disabled={ops.length === 0}
             title="Desfazer"
-            className="text-background/80 hover:bg-background/15 hover:text-background disabled:opacity-30"
+            className="text-neutral-200 hover:bg-neutral-800 hover:text-neutral-50 disabled:opacity-30"
           >
             <Undo2 className="h-5 w-5" />
           </Button>
@@ -341,7 +355,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
             onClick={redoAction}
             disabled={redo.length === 0}
             title="Refazer"
-            className="text-background/80 hover:bg-background/15 hover:text-background disabled:opacity-30"
+            className="text-neutral-200 hover:bg-neutral-800 hover:text-neutral-50 disabled:opacity-30"
           >
             <Redo2 className="h-5 w-5" />
           </Button>
@@ -356,7 +370,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
       {/* canvas area */}
       <div ref={containerRef} className="flex-1 min-h-0 flex items-center justify-center p-4 overflow-hidden">
         {loading ? (
-          <Loader2 className="h-6 w-6 animate-spin text-background/70" />
+          <Loader2 className="h-6 w-6 animate-spin text-neutral-300" />
         ) : (
           <div className="relative" style={{ width: display.w || undefined, height: display.h || undefined }}>
             <canvas
@@ -387,7 +401,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
                   color,
                   fontSize: Math.max(12, fontSize * (display.scale || 1)),
                 }}
-                className="absolute bg-transparent border border-dashed border-background/60 outline-none px-1 min-w-[80px] font-semibold"
+                className="absolute bg-transparent border border-dashed border-neutral-300 outline-none px-1 min-w-[80px] font-semibold"
               />
             )}
           </div>
@@ -397,7 +411,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
       {/* crop confirmation */}
       {tool === 'crop' && (
         <div className="flex items-center justify-center gap-2 pb-1">
-          <span className="text-xs text-background/60 mr-2">Arraste sobre a imagem para selecionar a área</span>
+          <span className="text-xs text-neutral-400 mr-2">Arraste sobre a imagem para selecionar a área</span>
           <Button size="sm" variant="secondary" onClick={() => setCropRect(null)} disabled={!cropRect}>
             Limpar
           </Button>
@@ -408,7 +422,7 @@ export const ImageEditorDialog = ({ open, file, onCancel, onDone }: Props) => {
       )}
 
       {/* toolbar */}
-      <div className="border-t border-background/10">
+      <div className="border-t border-neutral-800">
         <EditorToolbar
           tool={tool}
           onToolChange={(t) => {
