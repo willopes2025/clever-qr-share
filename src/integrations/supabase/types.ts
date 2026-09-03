@@ -3023,6 +3023,7 @@ export type Database = {
       }
       conversations: {
         Row: {
+          addressing_mode: string | null
           ai_handled: boolean | null
           ai_handoff_reason: string | null
           ai_handoff_requested: boolean | null
@@ -3043,12 +3044,14 @@ export type Database = {
           meta_phone_number_id: string | null
           preferred_response_format: string | null
           provider: string | null
+          remote_jid: string | null
           status: string
           unread_count: number
           updated_at: string
           user_id: string
         }
         Insert: {
+          addressing_mode?: string | null
           ai_handled?: boolean | null
           ai_handoff_reason?: string | null
           ai_handoff_requested?: boolean | null
@@ -3069,12 +3072,14 @@ export type Database = {
           meta_phone_number_id?: string | null
           preferred_response_format?: string | null
           provider?: string | null
+          remote_jid?: string | null
           status?: string
           unread_count?: number
           updated_at?: string
           user_id: string
         }
         Update: {
+          addressing_mode?: string | null
           ai_handled?: boolean | null
           ai_handoff_reason?: string | null
           ai_handoff_requested?: boolean | null
@@ -3095,6 +3100,7 @@ export type Database = {
           meta_phone_number_id?: string | null
           preferred_response_format?: string | null
           provider?: string | null
+          remote_jid?: string | null
           status?: string
           unread_count?: number
           updated_at?: string
@@ -5545,6 +5551,7 @@ export type Database = {
           sent_at: string | null
           sent_by_ai_agent_id: string | null
           sent_by_user_id: string | null
+          sent_to_jid: string | null
           sent_via_chatbot_flow_id: string | null
           sent_via_instance_id: string | null
           sent_via_meta_number_id: string | null
@@ -5573,6 +5580,7 @@ export type Database = {
           sent_at?: string | null
           sent_by_ai_agent_id?: string | null
           sent_by_user_id?: string | null
+          sent_to_jid?: string | null
           sent_via_chatbot_flow_id?: string | null
           sent_via_instance_id?: string | null
           sent_via_meta_number_id?: string | null
@@ -5601,6 +5609,7 @@ export type Database = {
           sent_at?: string | null
           sent_by_ai_agent_id?: string | null
           sent_by_user_id?: string | null
+          sent_to_jid?: string | null
           sent_via_chatbot_flow_id?: string | null
           sent_via_instance_id?: string | null
           sent_via_meta_number_id?: string | null
