@@ -445,12 +445,37 @@ export const usePos = create<PosState>((set, get) => ({
 
   async refreshStatus() {
     const status = await bridgeStatus();
+    const pendingCount = await countPending();
     set({
-      pendingCount: await countPending(),
+      pendingCount,
       quarantinedCount: await countQuarantined(),
       online: navigator.onLine,
       devices: { printerOk: status?.printerOk ?? null },
     });
+
+    // É este batimento que faz o terminal aparecer como "pareado" na
+    // retaguarda — sem ele o selo fica preso em "aguardando ativação" para
+    // sempre, mesmo com o terminal ativado e vendendo normalmente. Falha
+    // aqui é sempre silenciosa: terminal sem rede não pode travar a venda
+    // por causa disto.
+    const { token, bootstrap, lastSaleAt } = get();
+    if (!token || !bootstrap) return;
+    try {
+      await request('/telemetry/heartbeat', {
+        method: 'POST',
+        token,
+        body: {
+          terminalId: bootstrap.terminal.id,
+          appVersion: __APP_VERSION__,
+          bridgeVersion: status?.version ?? undefined,
+          pendingSales: pendingCount,
+          printerOk: status?.printerOk ?? null,
+          lastSaleAt,
+        },
+      });
+    } catch {
+      // Sem conexão ou servidor fora: a próxima tentativa é em 30s.
+    }
   },
 }));
 
