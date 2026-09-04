@@ -35,6 +35,9 @@ const productSchema = z.object({
 
 type ProductBody = z.infer<typeof productSchema>;
 
+const categorySchema = z.object({ name: z.string().min(2).max(60) });
+type CategoryBody = z.infer<typeof categorySchema>;
+
 @Controller('products')
 export class ProductAdminController {
   constructor(private readonly products: ProductAdminService) {}
@@ -49,6 +52,26 @@ export class ProductAdminController {
   @RequiresPermission('product.manage')
   categories(@Ctx() ctx: RequestContext) {
     return this.products.categories(ctx.tenantId);
+  }
+
+  @Post('categories')
+  @RequiresPermission('product.manage')
+  createCategory(
+    @Ctx() ctx: RequestContext,
+    @Body(new ZodValidationPipe(categorySchema)) body: CategoryBody,
+  ) {
+    return this.products.createCategory(ctx.tenantId, body.name.trim());
+  }
+
+  @Put('categories/:id')
+  @RequiresPermission('product.manage')
+  async renameCategory(
+    @Ctx() ctx: RequestContext,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(categorySchema)) body: CategoryBody,
+  ) {
+    await this.products.renameCategory(ctx.tenantId, id, body.name.trim());
+    return { renamed: true };
   }
 
   @Post()

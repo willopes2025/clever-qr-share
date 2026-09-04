@@ -137,6 +137,26 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
     queryFn: () => api<Array<{ id: string; name: string }>>('/products/categories'),
   });
   const [categoryId, setCategoryId] = useState<string>('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+
+  const createCategory = useMutation({
+    mutationFn: () =>
+      api<{ id: string; name: string }>('/products/categories', {
+        method: 'POST',
+        body: { name: newCategoryName.trim() },
+      }),
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({ queryKey: ['categories'] });
+      setCategoryId(created.id);
+      setCreatingCategory(false);
+      setNewCategoryName('');
+      setCategoryError(null);
+    },
+    onError: (err) =>
+      setCategoryError(err instanceof ApiError ? err.message : 'Não foi possível criar a categoria.'),
+  });
 
   const save = useMutation({
     mutationFn: () => {
@@ -225,14 +245,54 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
 
       <div className="mt-4">
         <Field label="Categoria">
-          <select className="field" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
-            <option value="">sem categoria</option>
-            {categories.data?.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
+          {creatingCategory ? (
+            <div className="flex gap-2">
+              <input
+                className="field"
+                autoFocus
+                placeholder="Nome da categoria"
+                value={newCategoryName}
+                onChange={(event) => setNewCategoryName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && newCategoryName.trim()) createCategory.mutate();
+                  if (event.key === 'Escape') setCreatingCategory(false);
+                }}
+              />
+              <button
+                className="btn-primary px-4"
+                disabled={!newCategoryName.trim() || createCategory.isPending}
+                onClick={() => createCategory.mutate()}
+              >
+                {createCategory.isPending ? 'Criando...' : 'Criar'}
+              </button>
+              <button className="btn-ghost px-4" onClick={() => setCreatingCategory(false)}>
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <select
+              className="field"
+              value={categoryId}
+              onChange={(event) => {
+                // Não é uma categoria de verdade — é o gatilho para criar uma nova,
+                // sem precisar sair do cadastro do produto para achar outra tela.
+                if (event.target.value === '__nova__') {
+                  setCreatingCategory(true);
+                  return;
+                }
+                setCategoryId(event.target.value);
+              }}
+            >
+              <option value="">sem categoria</option>
+              {categories.data?.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+              <option value="__nova__">+ nova categoria...</option>
+            </select>
+          )}
+          {categoryError && <p className="mt-1 text-xs text-danger">{categoryError}</p>}
         </Field>
       </div>
 

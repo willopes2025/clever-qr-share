@@ -120,6 +120,36 @@ export class ProductAdminService {
     });
   }
 
+  /** Cria uma categoria nova. Some entra no fim da lista, por ordem de criação. */
+  async createCategory(tenantId: string, name: string): Promise<{ id: string; name: string }> {
+    const existing = await this.prisma.category.findFirst({ where: { tenantId, name } });
+    if (existing) {
+      throw new ConflictError('CATEGORY_NAME_IN_USE', 'Já existe uma categoria com esse nome', { name });
+    }
+
+    const last = await this.prisma.category.aggregate({ where: { tenantId }, _max: { sortOrder: true } });
+    const category = await this.prisma.category.create({
+      data: { tenantId, name, sortOrder: (last._max.sortOrder ?? 0) + 1 },
+      select: { id: true, name: true },
+    });
+    return category;
+  }
+
+  /** Renomeia uma categoria existente. Produtos continuam apontando para o mesmo id. */
+  async renameCategory(tenantId: string, categoryId: string, name: string): Promise<void> {
+    const category = await this.prisma.category.findFirst({ where: { id: categoryId, tenantId } });
+    if (!category) throw new NotFoundError('Categoria', categoryId);
+
+    const clash = await this.prisma.category.findFirst({
+      where: { tenantId, name, id: { not: categoryId } },
+    });
+    if (clash) {
+      throw new ConflictError('CATEGORY_NAME_IN_USE', 'Já existe uma categoria com esse nome', { name });
+    }
+
+    await this.prisma.category.update({ where: { id: categoryId }, data: { name } });
+  }
+
   async create(tenantId: string, input: SaveProductInput): Promise<{ id: string }> {
     await this.assertCodesAvailable(tenantId, input.skus.map((sku) => sku.code));
 
