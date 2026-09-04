@@ -80,6 +80,30 @@ export function toAmount(cents: number): number {
   return Number((cents / 100).toFixed(2));
 }
 
+/**
+ * A Focus NFe lê `data_emissao` como horário local do emitente — ela não
+ * interpreta o "Z" do ISO 8601. Mandar `occurredAt.toISOString()` manda o
+ * horário em UTC etiquetado como se já fosse local, adiantando o relógio em
+ * 3 horas: a SEFAZ recebe uma nota "emitida no futuro" e rejeita com o
+ * código 703 (Data-Hora de Emissão posterior ao horário de recebimento).
+ * O Brasil aboliu o horário de verão em 2019, então America/Sao_Paulo é
+ * sempre UTC-03:00 — e é onde fica todo cliente do MVP.
+ */
+function toEmissionTimestamp(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((p) => p.type === type)!.value;
+  return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}:${part('second')}-03:00`;
+}
+
 export function buildNfcePayload(input: FiscalIssueInput): Record<string, unknown> {
   const defaults = taxDefaultsFor(input.issuer.crt);
   const simples = isSimplesNacional(input.issuer.crt);
@@ -91,7 +115,7 @@ export function buildNfcePayload(input: FiscalIssueInput): Record<string, unknow
 
   return {
     natureza_operacao: defaults.naturezaOperacao,
-    data_emissao: input.occurredAt.toISOString(),
+    data_emissao: toEmissionTimestamp(input.occurredAt),
     // 1 = operação presencial: o cliente está no balcão.
     presenca_comprador: '1',
     modalidade_frete: '9',

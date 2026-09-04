@@ -311,3 +311,23 @@ describe('destinatário e observação', () => {
     expect(normal.informacoes_adicionais_contribuinte).toBeUndefined();
   });
 });
+
+describe('data_emissao', () => {
+  // Regressão do código 703 da SEFAZ: a Focus lê data_emissao como horário
+  // local, então mandar toISOString() (UTC) adiantava o relógio em 3 horas e
+  // toda nota chegava "emitida no futuro". O payload precisa carregar o
+  // horário de Brasília com o offset -03:00 explícito, não "Z".
+  it('converte o horário para America/Sao_Paulo com offset -03:00, nunca UTC', () => {
+    const meioDiaUtc: FiscalIssueInput = { ...venda, occurredAt: new Date('2026-09-14T12:00:00Z') };
+    const payload = buildNfcePayload(meioDiaUtc) as any;
+    // 12:00 UTC é 09:00 em Brasília (UTC-3, sem horário de verão desde 2019).
+    expect(payload.data_emissao).toBe('2026-09-14T09:00:00-03:00');
+  });
+
+  it('preserva o dia local quando o UTC já virou a madrugada seguinte', () => {
+    const madrugadaUtc: FiscalIssueInput = { ...venda, occurredAt: new Date('2026-09-15T01:30:00Z') };
+    const payload = buildNfcePayload(madrugadaUtc) as any;
+    // 01:30 UTC do dia 15 ainda é 22:30 do dia 14 em Brasília.
+    expect(payload.data_emissao).toBe('2026-09-14T22:30:00-03:00');
+  });
+});
