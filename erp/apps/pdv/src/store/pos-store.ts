@@ -4,6 +4,7 @@ import { request } from '../lib/api';
 import {
   countPending,
   countQuarantined,
+  oldestPendingAt,
   listRecentSales,
   rememberSale,
   db,
@@ -60,6 +61,12 @@ interface PosState {
   sessionId: string | null;
   cart: CartLine[];
   pendingCount: number;
+  /**
+   * Desde quando espera a venda mais antiga da fila. Quantas estão paradas
+   * importa menos que há quanto tempo: é o tempo que decide se a nota ainda
+   * pode ser emitida.
+   */
+  oldestPendingAt: string | null;
   /** Vendas recusadas pelo servidor: não voltam sozinhas, precisam de gente. */
   quarantinedCount: number;
   online: boolean;
@@ -104,6 +111,7 @@ export const usePos = create<PosState>((set, get) => ({
   sessionId: null,
   cart: [],
   pendingCount: 0,
+  oldestPendingAt: null,
   quarantinedCount: 0,
   online: navigator.onLine,
   devices: { printerOk: null },
@@ -171,7 +179,12 @@ export const usePos = create<PosState>((set, get) => ({
       outbox.start();
     }
 
-    set({ booting: false, pendingCount: await countPending(), quarantinedCount: await countQuarantined() });
+    set({
+      booting: false,
+      pendingCount: await countPending(),
+      oldestPendingAt: await oldestPendingAt(),
+      quarantinedCount: await countQuarantined(),
+    });
     void get().refreshStatus();
   },
 
@@ -292,6 +305,7 @@ export const usePos = create<PosState>((set, get) => ({
       cart: [],
       lastSaleAt: sale.occurredAt,
       pendingCount: await countPending(),
+      oldestPendingAt: await oldestPendingAt(),
       quarantinedCount: await countQuarantined(),
     });
     return sale;
@@ -373,7 +387,11 @@ export const usePos = create<PosState>((set, get) => ({
    */
   async retryQuarantined(saleId) {
     await db.outbox.update(saleId, { status: 'pending', attempts: 0, lastError: undefined });
-    set({ pendingCount: await countPending(), quarantinedCount: await countQuarantined() });
+    set({
+      pendingCount: await countPending(),
+      oldestPendingAt: await oldestPendingAt(),
+      quarantinedCount: await countQuarantined(),
+    });
   },
 
   /**
@@ -384,7 +402,11 @@ export const usePos = create<PosState>((set, get) => ({
    */
   async discardQuarantined(saleId) {
     await db.outbox.delete(saleId);
-    set({ pendingCount: await countPending(), quarantinedCount: await countQuarantined() });
+    set({
+      pendingCount: await countPending(),
+      oldestPendingAt: await oldestPendingAt(),
+      quarantinedCount: await countQuarantined(),
+    });
   },
 
   async loadCashSummary() {
@@ -453,6 +475,7 @@ export const usePos = create<PosState>((set, get) => ({
     const pendingCount = await countPending();
     set({
       pendingCount,
+      oldestPendingAt: await oldestPendingAt(),
       quarantinedCount: await countQuarantined(),
       online: navigator.onLine,
       devices: { printerOk: status?.printerOk ?? null },

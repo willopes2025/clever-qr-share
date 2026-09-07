@@ -105,6 +105,22 @@ export async function countQuarantined(): Promise<number> {
   return db.outbox.where('status').equals('quarantined').count();
 }
 
+/**
+ * Desde quando espera a venda mais antiga que ainda não subiu.
+ *
+ * É a idade dela, não a quantidade, que diz se ainda dá para emitir nota: a
+ * NFC-e vale por uma janela curta, e depois dela a SEFAZ recusa por atraso.
+ * Cinco vendas de dois minutos atrás não são problema nenhum; uma de três horas
+ * é uma venda que provavelmente nunca vai ter nota, e ninguém no balcão fica
+ * sabendo enquanto o aviso for do tamanho de um selo.
+ */
+export async function oldestPendingAt(): Promise<string | null> {
+  const pending = await db.outbox.where('status').anyOf('pending', 'sending').toArray();
+  if (pending.length === 0) return null;
+  // Data ISO compara como texto na mesma ordem em que compara como tempo.
+  return pending.reduce((oldest, entry) => (entry.queuedAt < oldest ? entry.queuedAt : oldest), pending[0]!.queuedAt);
+}
+
 /** Detalhe das recusadas, para a tela dizer o motivo em vez de só contar. */
 export async function listQuarantined(): Promise<
   Array<{ saleId: string; lastError?: string; queuedAt: string }>

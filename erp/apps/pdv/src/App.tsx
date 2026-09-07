@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { usePos } from './store/pos-store';
 import { StatusBar } from './components/StatusBar';
+import { SyncWarning } from './components/SyncWarning';
 import { PairingScreen } from './screens/PairingScreen';
 import { OperatorScreen } from './screens/OperatorScreen';
 import { OpenCashScreen } from './screens/OpenCashScreen';
@@ -27,6 +28,9 @@ export default function App() {
   return (
     <div className="flex h-full flex-col">
       <StatusBar />
+      {/* Fora do <main> de propósito: o aviso vale em qualquer tela, inclusive
+          na de abrir caixa e na de identificar operador. */}
+      <SyncWarning />
       <main className="min-h-0 flex-1">
         {!operator ? <OperatorScreen /> : !sessionId ? <OpenCashScreen /> : <SaleScreen />}
       </main>

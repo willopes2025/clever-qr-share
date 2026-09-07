@@ -46,6 +46,11 @@ const REJECTION_HINT: Record<string, string> = {
   '703':
     'A nota foi enviada com hora adiantada em relação ao relógio da SEFAZ. Não é erro de ' +
     'cadastro — é o sistema, e o reenvio só resolve depois que a correção estiver no ar.',
+  '704':
+    'A nota chegou à SEFAZ depois do prazo que ela aceita entre a emissão e o envio — quase ' +
+    'sempre terminal que ficou sem conexão. Não é erro de cadastro. Reenviar agora costuma ' +
+    'resolver, porque a nota sobe com a hora de agora; se insistir em recusar, é caso para o ' +
+    'contador.',
   '228':
     'A nota é antiga demais para ser autorizada agora. Não adianta reenviar: essa venda ' +
     'precisa ser tratada com o contador.',

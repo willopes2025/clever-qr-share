@@ -126,7 +126,14 @@ export class TelemetryService {
 
     const stuck = await this.prisma.fiscalDocument.groupBy({
       by: ['tenantId', 'storeId'],
-      where: { status: { in: ['queued', 'sending'] }, createdAt: { lt: threshold } },
+      where: {
+        // `rejected` conta junto. Para o dono a pendência é a mesma — vendeu e o
+        // fisco não sabe —, e a recusada é a pior das duas: ela não volta
+        // sozinha, e sem alarme só aparece para quem abre a tela Fiscal por
+        // conta própria. Foi assim que cinco notas ficaram paradas dias.
+        status: { in: ['queued', 'sending', 'rejected'] },
+        createdAt: { lt: threshold },
+      },
       _count: true,
     });
 
