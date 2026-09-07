@@ -264,7 +264,12 @@ export const usePos = create<PosState>((set, get) => ({
       operatorId: operator.id,
       customerDocument,
       channel: 'pos',
-      occurredAt: withOffset(new Date()),
+      // Instante em UTC, com o "Z". Já houve aqui um formatador que colava o
+      // fuso local no relógio de UTC — 18:54Z virava "18:54-03:00", três horas
+      // adiantado —, e a nota saía emitida no futuro: rejeição 703 da SEFAZ.
+      // O servidor converte para o fuso da loja quando precisa; o PDV manda o
+      // instante e não opina sobre fuso.
+      occurredAt: new Date().toISOString(),
       items: cart.map((line) => ({
         lineNumber: line.lineNumber,
         skuId: line.skuId,
@@ -479,13 +484,3 @@ export const usePos = create<PosState>((set, get) => ({
   },
 }));
 
-/** ISO com o fuso local, porque o servidor precisa saber a hora real do quiosque. */
-function withOffset(date: Date): string {
-  const pad = (value: number) => String(Math.floor(Math.abs(value))).padStart(2, '0');
-  const offset = -date.getTimezoneOffset();
-  const sign = offset >= 0 ? '+' : '-';
-  return (
-    date.toISOString().slice(0, -1).split('.')[0] +
-    `${sign}${pad(offset / 60)}:${pad(offset % 60)}`
-  );
-}
