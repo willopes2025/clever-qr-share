@@ -82,7 +82,7 @@ export function toAmount(cents: number): number {
 
 /**
  * A Focus NFe lê `data_emissao` como horário local do emitente — ela não
- * interpreta o "Z" do ISO 8601. Mandar `occurredAt.toISOString()` manda o
+ * interpreta o "Z" do ISO 8601. Mandar `emittedAt.toISOString()` manda o
  * horário em UTC etiquetado como se já fosse local, adiantando o relógio em
  * 3 horas: a SEFAZ recebe uma nota "emitida no futuro" e rejeita com o
  * código 703 (Data-Hora de Emissão posterior ao horário de recebimento).
@@ -115,7 +115,7 @@ export function buildNfcePayload(input: FiscalIssueInput): Record<string, unknow
 
   return {
     natureza_operacao: defaults.naturezaOperacao,
-    data_emissao: toEmissionTimestamp(input.occurredAt),
+    data_emissao: toEmissionTimestamp(input.emittedAt),
     // 1 = operação presencial: o cliente está no balcão.
     presenca_comprador: '1',
     modalidade_frete: '9',

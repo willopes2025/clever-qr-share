@@ -56,7 +56,14 @@ export interface FiscalIssueInput {
   payments: FiscalIssuePayment[];
   totalCents: number;
   discountCents: number;
-  occurredAt: Date;
+  /**
+   * Quando a nota é emitida, que é quando ela sobe — não quando o carrinho
+   * fechou. Na venda normal os dois são o mesmo segundo. Quando não são, a
+   * SEFAZ só aceita o momento do envio: NFC-e transmitida fora de uma janela
+   * curta é recusada com o código 704, e usar a hora da venda condenava toda
+   * retentativa a nascer atrasada.
+   */
+  emittedAt: Date;
 }
 
 export interface FiscalIssueResult {

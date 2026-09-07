@@ -247,7 +247,13 @@ export class FiscalService {
       })),
       totalCents: Number(document.sale.totalCents),
       discountCents: Number(document.sale.discountCents),
-      occurredAt: document.sale.occurredAt,
+      // Agora, não a hora da venda. A NFC-e vale por uma janela curta: uma nota
+      // que espera na fila — retentativa com espera crescente, terminal que
+      // passou o dia sem sincronizar — chega velha e a SEFAZ recusa com 704.
+      // Como o documento ainda não foi autorizado, ele não existe fiscalmente
+      // e cada tentativa é uma emissão nova, com a hora de agora. Na venda
+      // normal isto é o mesmo segundo do fechamento do carrinho.
+      emittedAt: new Date(),
     };
   }
 

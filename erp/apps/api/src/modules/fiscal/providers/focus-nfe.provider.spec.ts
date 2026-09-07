@@ -75,7 +75,7 @@ function saleInput(documentId: string): FiscalIssueInput {
     payments: [{ method: 'credit', amountCents: 6980, cardBrand: 'visa' }],
     totalCents: 6980,
     discountCents: 0,
-    occurredAt: new Date('2026-09-14T19:32:00-03:00'),
+    emittedAt: new Date('2026-09-14T19:32:00-03:00'),
   };
 }
 
