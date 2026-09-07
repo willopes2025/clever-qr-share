@@ -35,12 +35,39 @@ const FILTERS = [
 ];
 
 /**
+ * O que a SEFAZ recusou e por quê, dito na língua de quem vai arrumar.
+ *
+ * O código sozinho não diz onde mexer, e mandar todo mundo conferir o cadastro
+ * do produto custa caro quando a causa é outra: a 703 é relógio, não NCM, e
+ * quem foi procurar erro de cadastro perdeu a tarde. Código conhecido ganha o
+ * seu recado; o resto fica no genérico, que ao menos é verdadeiro.
+ */
+const REJECTION_HINT: Record<string, string> = {
+  '703':
+    'A nota foi enviada com hora adiantada em relação ao relógio da SEFAZ. Não é erro de ' +
+    'cadastro — é o sistema, e o reenvio só resolve depois que a correção estiver no ar.',
+  '228':
+    'A nota é antiga demais para ser autorizada agora. Não adianta reenviar: essa venda ' +
+    'precisa ser tratada com o contador.',
+  '204':
+    'Esta nota já foi autorizada antes — é duplicidade. Confira em "Autorizadas" antes de ' +
+    'insistir no reenvio.',
+  '539':
+    'Já existe nota autorizada com esta chave. Confira em "Autorizadas" antes de insistir ' +
+    'no reenvio.',
+};
+
+const REJECTION_HINT_FALLBACK =
+  'A mesma nota volta a ser recusada enquanto a causa não for corrigida. Quando o código ' +
+  'aponta um campo do produto — NCM, CEST, CSOSN —, o conserto é no cadastro.';
+
+/**
  * Fila de correção.
  *
- * A nota rejeitada não volta sozinha: quase sempre é cadastro errado — NCM,
- * CEST, CSOSN — e alguém precisa arrumar o produto antes de mandar de novo.
- * Esta tela é o lugar onde isso aparece, e é a primeira que se abre quando o
- * contador liga perguntando de uma venda sem nota.
+ * A nota rejeitada não volta sozinha: alguém precisa entender o motivo e
+ * arrumar antes de mandar de novo. Esta tela é o lugar onde isso aparece, e é
+ * a primeira que se abre quando o contador liga perguntando de uma venda sem
+ * nota.
  */
 export function FiscalScreen() {
   const [status, setStatus] = useState('rejected');
@@ -69,8 +96,8 @@ export function FiscalScreen() {
         title="Fiscal"
         subtitle={
           status === 'rejected' && pendentes > 0
-            ? `${pendentes} ${pendentes === 1 ? 'nota parada' : 'notas paradas'} esperando correção de cadastro.`
-            : 'Notas emitidas, na fila e as que pararam por erro de cadastro.'
+            ? `${pendentes} ${pendentes === 1 ? 'nota parada' : 'notas paradas'} esperando correção.`
+            : 'Notas emitidas, na fila e as que a SEFAZ recusou.'
         }
       />
 
@@ -148,8 +175,7 @@ export function FiscalScreen() {
                   </span>
                   <p className="mt-1">{document.rejection.message}</p>
                   <p className="mt-2 text-xs text-amber-800">
-                    Corrija o cadastro do produto antes de reenviar — a mesma nota volta a ser recusada
-                    enquanto o dado estiver errado.
+                    {REJECTION_HINT[document.rejection.code] ?? REJECTION_HINT_FALLBACK}
                   </p>
                 </div>
               )}
