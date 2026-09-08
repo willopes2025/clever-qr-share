@@ -38,6 +38,9 @@ type ProductBody = z.infer<typeof productSchema>;
 const categorySchema = z.object({ name: z.string().min(2).max(60) });
 type CategoryBody = z.infer<typeof categorySchema>;
 
+const activeSchema = z.object({ active: z.boolean() });
+type ActiveBody = z.infer<typeof activeSchema>;
+
 @Controller('products')
 export class ProductAdminController {
   constructor(private readonly products: ProductAdminService) {}
@@ -88,5 +91,17 @@ export class ProductAdminController {
     @Body(new ZodValidationPipe(productSchema)) body: ProductBody,
   ) {
     return this.products.update(ctx.tenantId, id, body);
+  }
+
+  /** Excluir, na retaguarda, é isto: some do PDV, mas fica na lista para desfazer. */
+  @Put(':id/active')
+  @RequiresPermission('product.manage')
+  async setActive(
+    @Ctx() ctx: RequestContext,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(activeSchema)) body: ActiveBody,
+  ) {
+    await this.products.setActive(ctx.tenantId, id, body.active);
+    return { active: body.active };
   }
 }

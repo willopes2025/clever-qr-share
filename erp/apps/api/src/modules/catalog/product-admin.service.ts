@@ -221,6 +221,20 @@ export class ProductAdminService {
     });
   }
 
+  /**
+   * Ativa ou desativa um produto sem tocar no resto do cadastro.
+   *
+   * Nunca apaga de verdade: o produto pode estar em vendas antigas, e apagar
+   * quebraria o histórico e a nota já emitida. Desativado some do catálogo do
+   * PDV — a venda usa `product: { active: true }` no filtro — mas continua
+   * aqui na lista, marcado, para poder ser reativado se foi engano.
+   */
+  async setActive(tenantId: string, productId: string, active: boolean): Promise<void> {
+    const product = await this.prisma.product.findFirst({ where: { id: productId, tenantId } });
+    if (!product) throw new NotFoundError('produto', productId);
+    await this.prisma.product.update({ where: { id: productId }, data: { active } });
+  }
+
   private async createSku(
     tx: Prisma.TransactionClient,
     tenantId: string,

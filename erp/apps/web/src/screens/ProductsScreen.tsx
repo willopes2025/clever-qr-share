@@ -11,9 +11,17 @@ export function ProductsScreen() {
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
   const [recipeFor, setRecipeFor] = useState<{ skuId: string; description: string } | null>(null);
 
+  const queryClient = useQueryClient();
+
   const products = useQuery({
     queryKey: ['products', search],
     queryFn: () => api<Product[]>(`/products?search=${encodeURIComponent(search)}`),
+  });
+
+  const setActive = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) =>
+      api(`/products/${id}/active`, { method: 'PUT', body: { active } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
   });
 
   return (
@@ -55,6 +63,31 @@ export function ProductsScreen() {
                   <button className="btn-ghost px-4 py-2 text-xs" onClick={() => setEditing(product)}>
                     Editar
                   </button>
+                  {product.active ? (
+                    <button
+                      className="font-mono text-[10px] uppercase tracking-widest text-slate hover:text-danger"
+                      disabled={setActive.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Excluir "${product.name}"? Ele some do PDV na hora — ninguém consegue mais vender. Fica guardado aqui, marcado como inativo, e dá para reativar depois.`,
+                          )
+                        ) {
+                          setActive.mutate({ id: product.id, active: false });
+                        }
+                      }}
+                    >
+                      excluir
+                    </button>
+                  ) : (
+                    <button
+                      className="font-mono text-[10px] uppercase tracking-widest text-slate hover:text-violet"
+                      disabled={setActive.isPending}
+                      onClick={() => setActive.mutate({ id: product.id, active: true })}
+                    >
+                      reativar
+                    </button>
+                  )}
                 </div>
               </div>
 
