@@ -59,7 +59,12 @@ if ($existing) {
 }
 
 # 4. Cria o servico novo
-sc.exe create $ServiceName binPath= "`"$nodePath`" `"$InstallPath\index.js`"" start= auto DisplayName= "Soul PDV Bridge" | Out-Null
+$binPath = "`"$nodePath`" `"$InstallPath\index.js`""
+Write-Host "Criando servico com binPath: $binPath" -ForegroundColor Gray
+$createOutput = sc.exe create $ServiceName binPath= $binPath start= auto DisplayName= "Soul PDV Bridge"
+if ($LASTEXITCODE -ne 0) {
+    throw "Falha ao criar servico: $createOutput"
+}
 sc.exe description $ServiceName "Agente local do PDV: impressora termica e gaveta" | Out-Null
 
 # Seta variavel de ambiente para o servico
