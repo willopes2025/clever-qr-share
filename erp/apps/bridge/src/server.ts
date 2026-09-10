@@ -102,6 +102,12 @@ async function handle(
 function applyCors(response: ServerResponse, origin: string | undefined, allowed: string[]): void {
   if (origin && allowed.includes(origin)) {
     response.setHeader('access-control-allow-origin', origin);
+    // A página do PDV está na nuvem e o agente escuta em loopback. O Chrome
+    // trata isso como Private Network Access e barra a chamada — mesmo com a
+    // origem liberada — se a resposta ao preflight não disser que aceita vir
+    // de fora para a rede privada. Sem isto o caixa fecha a venda e nada
+    // imprime, porque quem recusa é o navegador, antes de chegar aqui.
+    response.setHeader('access-control-allow-private-network', 'true');
   }
   response.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
   response.setHeader('access-control-allow-headers', 'content-type');
