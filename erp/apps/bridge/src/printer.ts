@@ -1,6 +1,6 @@
 import { createConnection } from 'node:net';
 import { EscPosBuilder } from './escpos';
-import { execFileSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, closeSync, constants, openSync, unlinkSync, writeFileSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,11 +10,12 @@ import type { PrinterConfig } from './config';
 const CONNECT_TIMEOUT_MS = 3000;
 
 /**
- * Caracteres que o `cmd` interpreta em vez de tratar como nome. O caminho vem
- * do arquivo de configuração, que só o administrador da máquina escreve, mas
- * ele entra numa linha de comando — então a barreira fica aqui, explícita.
+ * O caminho da impressora entra numa linha de comando sem aspas, então só
+ * passa o que não muda o sentido dela: nada de espaço, e nada que o `cmd`
+ * interprete. Quem escreve o arquivo de configuração é o administrador da
+ * máquina, mas a barreira fica aqui, explícita.
  */
-const CMD_METACHARACTERS = /["&|<>^%\r\n]/;
+const UNSAFE_IN_COMMAND_LINE = /[\s"&|<>^%()]/;
 
 export class PrinterError extends Error {
   constructor(message: string, override readonly cause?: unknown) {
@@ -101,14 +102,19 @@ function sendOverTcp(host: string, port: number, payload: Buffer): Promise<void>
  * abre o caminho em si, que é o que a porta e a fila esperam.
  */
 function sendViaCmdRedirect(path: string, payload: Buffer): void {
-  if (CMD_METACHARACTERS.test(path)) {
-    throw new Error('caminho da impressora tem caractere que o cmd interpreta');
+  if (UNSAFE_IN_COMMAND_LINE.test(path)) {
+    throw new Error(`caminho da impressora inválido para a linha de comando: ${path}`);
   }
 
   const scratch = join(tmpdir(), `soul-bridge-${randomUUID()}.bin`);
   try {
     writeFileSync(scratch, payload);
-    execFileSync('cmd', ['/c', `type "${scratch}" > "${path}"`], { stdio: 'ignore' });
+    // `execSync` e não `execFileSync`: o segundo reescapa os argumentos com
+    // barra invertida antes de chamar o `cmd`, que usa outra convenção — a
+    // linha chegava deformada e o `cmd` recusava, sem erro de sistema para
+    // mostrar. O destino vai sem aspas porque é assim que a porta e a fila
+    // aceitam o redirecionamento.
+    execSync(`type "${scratch}" > ${path}`, { stdio: 'ignore', windowsHide: true });
   } finally {
     try {
       unlinkSync(scratch);
