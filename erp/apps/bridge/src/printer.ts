@@ -1,5 +1,5 @@
 import { createConnection } from 'node:net';
-import { appendFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, constants, openSync, writeSync } from 'node:fs';
 import type { PrinterConfig } from './config';
 
 const CONNECT_TIMEOUT_MS = 3000;
@@ -31,9 +31,22 @@ export async function sendToPrinter(config: PrinterConfig, payload: Buffer): Pro
 
 /** Diz se a impressora está acessível, sem imprimir nada. */
 export async function probePrinter(config: PrinterConfig): Promise<boolean> {
-  if (config.transport !== 'tcp') return true;
+  if (config.transport === 'file') return true;
+
+  if (config.transport === 'tcp') {
+    try {
+      await sendOverTcp(config.host, config.port, Buffer.alloc(0));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Abrir e fechar sem escrever byte nenhum é o que diz se o dispositivo
+  // existe e está livre. Sem isto o semáforo respondia "ok" para qualquer
+  // coisa que não fosse rede — inclusive impressora desligada.
   try {
-    await sendOverTcp(config.host, config.port, Buffer.alloc(0));
+    closeSync(openDeviceForWrite(config.path));
     return true;
   } catch {
     return false;
@@ -63,14 +76,39 @@ function sendOverTcp(host: string, port: number, payload: Buffer): Promise<void>
   });
 }
 
+/**
+ * Abre uma porta COM, LPT ou fila de impressão para escrita.
+ *
+ * `O_WRONLY` sozinho — sem `O_CREAT` nem `O_TRUNC` — é o que o Windows traduz
+ * para `OPEN_EXISTING`. Isso importa porque um dispositivo não pode ser criado
+ * nem truncado: `writeFileSync` pede `CREATE_ALWAYS` e falha em todos os três
+ * casos, mesmo com a impressora ligada e a porta livre.
+ */
+function openDeviceForWrite(path: string): number {
+  return openSync(path, constants.O_WRONLY);
+}
+
 function sendToDevice(path: string, payload: Buffer): Promise<void> {
+  let handle: number | undefined;
   try {
-    // Escrever no caminho do dispositivo é como o Windows fala com COM/LPT e
-    // com uma fila de impressão compartilhada.
-    writeFileSync(path, payload);
+    handle = openDeviceForWrite(path);
+    writeSync(handle, payload);
     return Promise.resolve();
   } catch (error) {
-    return Promise.reject(new PrinterError(`Dispositivo ${path} indisponível`, error));
+    // O código do erro (ENOENT, EACCES, EBUSY) é a diferença entre porta
+    // errada, sem permissão e porta tomada por outro processo — quem instala
+    // no balcão só vê a resposta do HTTP, então ele vai junto.
+    const code = (error as NodeJS.ErrnoException | null)?.code;
+    const detail = code ? ` (${code})` : '';
+    return Promise.reject(new PrinterError(`Dispositivo ${path} indisponível${detail}`, error));
+  } finally {
+    if (handle !== undefined) {
+      try {
+        closeSync(handle);
+      } catch {
+        // Fechar já falhou depois da escrita ter ido: não muda o resultado.
+      }
+    }
   }
 }
 
