@@ -41,7 +41,9 @@ if (-not (Test-Path $ConfigPath)) {
   "columns": 48
 }
 '@
-    $configContent | Set-Content -Path $ConfigPath -Encoding UTF8
+    # Set-Content -Encoding UTF8 grava BOM no PowerShell 5.1, e o BOM faz o
+    # JSON.parse do agente falhar — a configuracao inteira seria descartada.
+    [System.IO.File]::WriteAllText($ConfigPath, $configContent, (New-Object System.Text.UTF8Encoding($false)))
     Write-Host "Configuracao criada em $ConfigPath" -ForegroundColor Yellow
     Write-Host "IMPORTANTE: Ajuste o endereco IP da impressora no JSON antes de usar." -ForegroundColor Yellow
 }

@@ -47,10 +47,18 @@ export function loadConfig(path = configPath()): BridgeConfig {
   }
 
   try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<BridgeConfig>;
+    // O Bloco de Notas e o `Set-Content -Encoding UTF8` do PowerShell gravam
+    // BOM, e o BOM sozinho faz o JSON.parse falhar. Sem tirá-lo, quem instala
+    // edita o arquivo, salva, e o agente segue usando o padrão de fábrica.
+    const raw = readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
+    const parsed = JSON.parse(raw) as Partial<BridgeConfig>;
     return { ...DEFAULT_CONFIG, ...parsed };
-  } catch {
-    // Arquivo corrompido não pode impedir o caixa de imprimir.
+  } catch (error) {
+    // Arquivo corrompido não pode impedir o caixa de imprimir, mas cair no
+    // padrão calado esconde o erro no pior momento: o cupom vai para uma
+    // impressora de rede que ninguém configurou, e o balcão não sabe por quê.
+    console.error(`Configuração inválida em ${path}: ${(error as Error).message}`);
+    console.error('Seguindo com os valores padrão — confira a impressora antes de vender.');
     return DEFAULT_CONFIG;
   }
 }
