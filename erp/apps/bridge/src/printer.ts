@@ -91,24 +91,16 @@ function sendOverTcp(host: string, port: number, payload: Buffer): Promise<void>
 }
 
 /**
- * `\\.\COM5` e `\\?\...` são o namespace de dispositivo do Windows. Uma fila
- * de impressão compartilhada (`\\localhost\BEMATECH`) também começa com duas
- * barras, mas é caminho de arquivo comum — e a diferença decide como escrever.
- */
-function isWindowsDeviceNamespace(path: string): boolean {
-  return /^\\\\[.?]\\/.test(path);
-}
-
-/**
- * Entrega os bytes a uma porta COM ou LPT pelo `copy` do Windows.
+ * Entrega os bytes ao destino no Windows: porta COM, LPT ou fila de impressão.
  *
- * O `fs.open` do Node não alcança o namespace de dispositivo: `\\.\COM5`
- * devolve ENOENT com a porta existindo, livre e listada em `GetPortNames`. É
- * por isso que falar com serial em Node costuma exigir binding nativo. O
- * `copy` do próprio sistema alcança, então o caminho é gravar num arquivo
- * temporário e deixar o Windows entregar.
+ * O redirecionamento do `cmd` é o único mecanismo que alcança os três. O
+ * `fs.open` do Node não abre o namespace de dispositivo — `\\.\COM5` devolve
+ * ENOENT com a porta livre e listada em `GetPortNames`, e é por isso que falar
+ * com serial em Node costuma exigir binding nativo. E o `copy` trata uma fila
+ * compartilhada como pasta, tentando criar um arquivo dentro dela. Já o `>`
+ * abre o caminho em si, que é o que a porta e a fila esperam.
  */
-function sendViaWindowsCopy(path: string, payload: Buffer): void {
+function sendViaCmdRedirect(path: string, payload: Buffer): void {
   if (CMD_METACHARACTERS.test(path)) {
     throw new Error('caminho da impressora tem caractere que o cmd interpreta');
   }
@@ -116,7 +108,7 @@ function sendViaWindowsCopy(path: string, payload: Buffer): void {
   const scratch = join(tmpdir(), `soul-bridge-${randomUUID()}.bin`);
   try {
     writeFileSync(scratch, payload);
-    execFileSync('cmd', ['/c', `copy /b "${scratch}" "${path}"`], { stdio: 'ignore' });
+    execFileSync('cmd', ['/c', `type "${scratch}" > "${path}"`], { stdio: 'ignore' });
   } finally {
     try {
       unlinkSync(scratch);
@@ -127,12 +119,11 @@ function sendViaWindowsCopy(path: string, payload: Buffer): void {
 }
 
 /**
- * Escreve direto no destino: fila de impressão do Windows, e os dispositivos
- * de Linux e macOS.
+ * Escreve direto no dispositivo, para Linux e macOS.
  *
  * `O_WRONLY` sozinho — sem `O_CREAT` nem `O_TRUNC` — é o que vira
- * `OPEN_EXISTING`. Isso importa porque nem fila de impressão nem dispositivo
- * podem ser criados ou truncados, e `writeFileSync` pede as duas coisas.
+ * `OPEN_EXISTING`: um dispositivo não pode ser criado nem truncado, e
+ * `writeFileSync` pede exatamente as duas coisas.
  */
 function writeToDeviceFile(path: string, payload: Buffer): void {
   const handle = openSync(path, constants.O_WRONLY);
@@ -145,11 +136,8 @@ function writeToDeviceFile(path: string, payload: Buffer): void {
 
 function sendToDevice(path: string, payload: Buffer): Promise<void> {
   try {
-    if (process.platform === 'win32' && isWindowsDeviceNamespace(path)) {
-      sendViaWindowsCopy(path, payload);
-    } else {
-      writeToDeviceFile(path, payload);
-    }
+    if (process.platform === 'win32') sendViaCmdRedirect(path, payload);
+    else writeToDeviceFile(path, payload);
     return Promise.resolve();
   } catch (error) {
     // O código do erro (ENOENT, EACCES, EBUSY) é a diferença entre porta
