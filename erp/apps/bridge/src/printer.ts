@@ -1,8 +1,20 @@
 import { createConnection } from 'node:net';
-import { appendFileSync, closeSync, constants, openSync, writeSync } from 'node:fs';
+import { EscPosBuilder } from './escpos';
+import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { appendFileSync, closeSync, constants, openSync, unlinkSync, writeFileSync, writeSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { PrinterConfig } from './config';
 
 const CONNECT_TIMEOUT_MS = 3000;
+
+/**
+ * Caracteres que o `cmd` interpreta em vez de tratar como nome. O caminho vem
+ * do arquivo de configuração, que só o administrador da máquina escreve, mas
+ * ele entra numa linha de comando — então a barreira fica aqui, explícita.
+ */
+const CMD_METACHARACTERS = /["&|<>^%\r\n]/;
 
 export class PrinterError extends Error {
   constructor(message: string, override readonly cause?: unknown) {
@@ -42,11 +54,13 @@ export async function probePrinter(config: PrinterConfig): Promise<boolean> {
     }
   }
 
-  // Abrir e fechar sem escrever byte nenhum é o que diz se o dispositivo
-  // existe e está livre. Sem isto o semáforo respondia "ok" para qualquer
-  // coisa que não fosse rede — inclusive impressora desligada.
+  // Percorrer o mesmo caminho de uma impressão real é o que responde de
+  // verdade se a porta abre — antes o semáforo dizia "ok" para qualquer coisa
+  // que não fosse rede, inclusive impressora desligada. Vai o comando de
+  // inicialização em vez de zero byte: ele não gasta papel, e um arquivo vazio
+  // faz o `copy` do Windows reclamar mesmo com a impressora boa.
   try {
-    closeSync(openDeviceForWrite(config.path));
+    await sendToDevice(config.path, new EscPosBuilder().init().build());
     return true;
   } catch {
     return false;
@@ -77,22 +91,52 @@ function sendOverTcp(host: string, port: number, payload: Buffer): Promise<void>
 }
 
 /**
- * Abre uma porta COM, LPT ou fila de impressão para escrita.
+ * Entrega os bytes a uma porta COM, LPT ou fila de impressão do Windows.
  *
- * `O_WRONLY` sozinho — sem `O_CREAT` nem `O_TRUNC` — é o que o Windows traduz
- * para `OPEN_EXISTING`. Isso importa porque um dispositivo não pode ser criado
- * nem truncado: `writeFileSync` pede `CREATE_ALWAYS` e falha em todos os três
- * casos, mesmo com a impressora ligada e a porta livre.
+ * O `fs.open` do Node não abre caminho do namespace de dispositivo: `\\.\COM5`
+ * devolve ENOENT mesmo com a porta existindo e livre, e é por isso que falar
+ * com serial em Node costuma exigir binding nativo. O `copy` do próprio
+ * Windows abre os três casos que este transporte atende, então o caminho é
+ * gravar num arquivo temporário e deixar o sistema entregar.
  */
-function openDeviceForWrite(path: string): number {
-  return openSync(path, constants.O_WRONLY);
+function sendViaWindowsCopy(path: string, payload: Buffer): void {
+  if (CMD_METACHARACTERS.test(path)) {
+    throw new Error('caminho da impressora tem caractere que o cmd interpreta');
+  }
+
+  const scratch = join(tmpdir(), `soul-bridge-${randomUUID()}.bin`);
+  try {
+    writeFileSync(scratch, payload);
+    execFileSync('cmd', ['/c', `copy /b "${scratch}" "${path}"`], { stdio: 'ignore' });
+  } finally {
+    try {
+      unlinkSync(scratch);
+    } catch {
+      // Sobrar um arquivo no temporário não justifica falhar a impressão.
+    }
+  }
+}
+
+/**
+ * Escreve direto no dispositivo, para Linux e macOS.
+ *
+ * `O_WRONLY` sozinho — sem `O_CREAT` nem `O_TRUNC` — é o que virá
+ * `OPEN_EXISTING`: um dispositivo não pode ser criado nem truncado, e
+ * `writeFileSync` pede exatamente as duas coisas.
+ */
+function writeToDeviceFile(path: string, payload: Buffer): void {
+  const handle = openSync(path, constants.O_WRONLY);
+  try {
+    writeSync(handle, payload);
+  } finally {
+    closeSync(handle);
+  }
 }
 
 function sendToDevice(path: string, payload: Buffer): Promise<void> {
-  let handle: number | undefined;
   try {
-    handle = openDeviceForWrite(path);
-    writeSync(handle, payload);
+    if (process.platform === 'win32') sendViaWindowsCopy(path, payload);
+    else writeToDeviceFile(path, payload);
     return Promise.resolve();
   } catch (error) {
     // O código do erro (ENOENT, EACCES, EBUSY) é a diferença entre porta
@@ -101,14 +145,6 @@ function sendToDevice(path: string, payload: Buffer): Promise<void> {
     const code = (error as NodeJS.ErrnoException | null)?.code;
     const detail = code ? ` (${code})` : '';
     return Promise.reject(new PrinterError(`Dispositivo ${path} indisponível${detail}`, error));
-  } finally {
-    if (handle !== undefined) {
-      try {
-        closeSync(handle);
-      } catch {
-        // Fechar já falhou depois da escrita ter ido: não muda o resultado.
-      }
-    }
   }
 }
 
