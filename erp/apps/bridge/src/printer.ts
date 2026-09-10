@@ -91,13 +91,22 @@ function sendOverTcp(host: string, port: number, payload: Buffer): Promise<void>
 }
 
 /**
- * Entrega os bytes a uma porta COM, LPT ou fila de impressão do Windows.
+ * `\\.\COM5` e `\\?\...` são o namespace de dispositivo do Windows. Uma fila
+ * de impressão compartilhada (`\\localhost\BEMATECH`) também começa com duas
+ * barras, mas é caminho de arquivo comum — e a diferença decide como escrever.
+ */
+function isWindowsDeviceNamespace(path: string): boolean {
+  return /^\\\\[.?]\\/.test(path);
+}
+
+/**
+ * Entrega os bytes a uma porta COM ou LPT pelo `copy` do Windows.
  *
- * O `fs.open` do Node não abre caminho do namespace de dispositivo: `\\.\COM5`
- * devolve ENOENT mesmo com a porta existindo e livre, e é por isso que falar
- * com serial em Node costuma exigir binding nativo. O `copy` do próprio
- * Windows abre os três casos que este transporte atende, então o caminho é
- * gravar num arquivo temporário e deixar o sistema entregar.
+ * O `fs.open` do Node não alcança o namespace de dispositivo: `\\.\COM5`
+ * devolve ENOENT com a porta existindo, livre e listada em `GetPortNames`. É
+ * por isso que falar com serial em Node costuma exigir binding nativo. O
+ * `copy` do próprio sistema alcança, então o caminho é gravar num arquivo
+ * temporário e deixar o Windows entregar.
  */
 function sendViaWindowsCopy(path: string, payload: Buffer): void {
   if (CMD_METACHARACTERS.test(path)) {
@@ -118,11 +127,12 @@ function sendViaWindowsCopy(path: string, payload: Buffer): void {
 }
 
 /**
- * Escreve direto no dispositivo, para Linux e macOS.
+ * Escreve direto no destino: fila de impressão do Windows, e os dispositivos
+ * de Linux e macOS.
  *
- * `O_WRONLY` sozinho — sem `O_CREAT` nem `O_TRUNC` — é o que virá
- * `OPEN_EXISTING`: um dispositivo não pode ser criado nem truncado, e
- * `writeFileSync` pede exatamente as duas coisas.
+ * `O_WRONLY` sozinho — sem `O_CREAT` nem `O_TRUNC` — é o que vira
+ * `OPEN_EXISTING`. Isso importa porque nem fila de impressão nem dispositivo
+ * podem ser criados ou truncados, e `writeFileSync` pede as duas coisas.
  */
 function writeToDeviceFile(path: string, payload: Buffer): void {
   const handle = openSync(path, constants.O_WRONLY);
@@ -135,8 +145,11 @@ function writeToDeviceFile(path: string, payload: Buffer): void {
 
 function sendToDevice(path: string, payload: Buffer): Promise<void> {
   try {
-    if (process.platform === 'win32') sendViaWindowsCopy(path, payload);
-    else writeToDeviceFile(path, payload);
+    if (process.platform === 'win32' && isWindowsDeviceNamespace(path)) {
+      sendViaWindowsCopy(path, payload);
+    } else {
+      writeToDeviceFile(path, payload);
+    }
     return Promise.resolve();
   } catch (error) {
     // O código do erro (ENOENT, EACCES, EBUSY) é a diferença entre porta
